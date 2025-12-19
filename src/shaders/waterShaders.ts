@@ -1,7 +1,8 @@
 /**
  * WebGL Water Shaders - React Three.js Port
  * Original: Evan Wallace (http://madebyevan.com/webgl-water/)
- * Port: React Three Fiber implementation
+ * 
+ * EXACT PORT of the original shaders
  */
 
 // Vertex shader for simulation passes (drop, update, normal)
@@ -123,7 +124,7 @@ export const sphereDisplacementFragmentShader = `
   }
 `;
 
-// Helper functions for rendering shaders
+// Helper functions for rendering shaders - EXACT from original
 export const helperFunctions = `
   const float IOR_AIR = 1.0;
   const float IOR_WATER = 1.333;
@@ -155,26 +156,22 @@ export const helperFunctions = `
   }
 `;
 
-// Water surface vertex shader
+// Water surface vertex shader - EXACT from original with gl_Vertex.xzy swizzle
 export const waterVertexShader = `
   uniform sampler2D uWater;
   varying vec3 vPosition;
-  varying vec2 vUv;
   
   void main() {
-    vUv = uv;
     vec4 info = texture2D(uWater, uv);
-    
-    vec3 pos = position;
-    pos.y += info.r * 0.3;
-    
-    vPosition = pos;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    // CRITICAL: Original uses gl_Vertex.xzy - swaps Y and Z!
+    vPosition = vec3(position.x, position.z, position.y);
+    vPosition.y += info.r;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(vPosition, 1.0);
   }
 `;
 
-// Water surface fragment shader (above water view)
-export const waterFragmentShader = `
+// Water surface fragment shader for ABOVE water view
+export const waterAboveFragmentShader = `
   precision highp float;
   
   ${helperFunctions}
@@ -189,17 +186,14 @@ export const waterFragmentShader = `
   uniform float uSphereRadius;
   
   varying vec3 vPosition;
-  varying vec2 vUv;
   
   vec3 getSphereColor(vec3 point) {
     vec3 color = vec3(0.5);
     
-    // Ambient occlusion with walls
     color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.x)) / uSphereRadius, 3.0);
     color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.z)) / uSphereRadius, 3.0);
     color *= 1.0 - 0.9 / pow((point.y + 1.0 + uSphereRadius) / uSphereRadius, 3.0);
     
-    // Caustics
     vec3 sphereNormal = (point - uSphereCenter) / uSphereRadius;
     vec3 refractedLight = refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
     float diffuse = max(0.0, dot(-refractedLight, sphereNormal)) * 0.5;
@@ -233,7 +227,6 @@ export const waterFragmentShader = `
     scale /= length(point);
     scale *= 1.0 - 0.9 / pow(length(point - uSphereCenter) / uSphereRadius, 4.0);
     
-    // Caustics
     vec3 refractedLight = -refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
     float diffuse = max(0.0, dot(refractedLight, normal));
     vec4 info = texture2D(uWater, point.xz * 0.5 + 0.5);
@@ -273,7 +266,7 @@ export const waterFragmentShader = `
   }
   
   void main() {
-    vec2 coord = vUv;
+    vec2 coord = vPosition.xz * 0.5 + 0.5;
     vec4 info = texture2D(uWater, coord);
     
     // Make water look more "peaked"
@@ -285,6 +278,7 @@ export const waterFragmentShader = `
     vec3 normal = vec3(info.b, sqrt(1.0 - dot(info.ba, info.ba)), info.a);
     vec3 incomingRay = normalize(vPosition - uEye);
     
+    // ABOVE WATER VIEW
     vec3 reflectedRay = reflect(incomingRay, normal);
     vec3 refractedRay = refract(incomingRay, normal, IOR_AIR / IOR_WATER);
     float fresnel = mix(0.25, 1.0, pow(1.0 - dot(normal, -incomingRay), 3.0));
@@ -296,28 +290,133 @@ export const waterFragmentShader = `
   }
 `;
 
-// Caustics vertex shader
+// Water surface fragment shader for UNDERWATER view
+export const waterBelowFragmentShader = `
+  precision highp float;
+  
+  ${helperFunctions}
+  
+  uniform sampler2D uWater;
+  uniform sampler2D uTiles;
+  uniform sampler2D uCaustics;
+  uniform samplerCube uSky;
+  uniform vec3 uEye;
+  uniform vec3 uLight;
+  uniform vec3 uSphereCenter;
+  uniform float uSphereRadius;
+  
+  varying vec3 vPosition;
+  
+  vec3 getSphereColor(vec3 point) {
+    vec3 color = vec3(0.5);
+    color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.x)) / uSphereRadius, 3.0);
+    color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.z)) / uSphereRadius, 3.0);
+    color *= 1.0 - 0.9 / pow((point.y + 1.0 + uSphereRadius) / uSphereRadius, 3.0);
+    
+    vec3 sphereNormal = (point - uSphereCenter) / uSphereRadius;
+    vec3 refractedLight = refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
+    float diffuse = max(0.0, dot(-refractedLight, sphereNormal)) * 0.5;
+    
+    vec4 info = texture2D(uWater, point.xz * 0.5 + 0.5);
+    if (point.y < info.r) {
+      vec4 caustic = texture2D(uCaustics, 0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y) * 0.5 + 0.5);
+      diffuse *= caustic.r * 4.0;
+    }
+    color += diffuse;
+    return color;
+  }
+  
+  vec3 getWallColor(vec3 point) {
+    float scale = 0.5;
+    vec3 wallColor;
+    vec3 normal;
+    if (abs(point.x) > 0.999) {
+      wallColor = texture2D(uTiles, point.yz * 0.5 + vec2(1.0, 0.5)).rgb;
+      normal = vec3(-point.x, 0.0, 0.0);
+    } else if (abs(point.z) > 0.999) {
+      wallColor = texture2D(uTiles, point.yx * 0.5 + vec2(1.0, 0.5)).rgb;
+      normal = vec3(0.0, 0.0, -point.z);
+    } else {
+      wallColor = texture2D(uTiles, point.xz * 0.5 + 0.5).rgb;
+      normal = vec3(0.0, 1.0, 0.0);
+    }
+    
+    scale /= length(point);
+    scale *= 1.0 - 0.9 / pow(length(point - uSphereCenter) / uSphereRadius, 4.0);
+    
+    vec3 refractedLight = -refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
+    float diffuse = max(0.0, dot(refractedLight, normal));
+    vec4 info = texture2D(uWater, point.xz * 0.5 + 0.5);
+    
+    if (point.y < info.r) {
+      vec4 caustic = texture2D(uCaustics, 0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y) * 0.5 + 0.5);
+      scale += diffuse * caustic.r * 2.0 * caustic.g;
+    } else {
+      vec2 t = intersectCube(point, refractedLight, vec3(-1.0, -poolHeight, -1.0), vec3(1.0, 2.0, 1.0));
+      diffuse *= 1.0 / (1.0 + exp(-200.0 / (1.0 + 10.0 * (t.y - t.x)) * (point.y + refractedLight.y * t.y - 2.0 / 12.0)));
+      scale += diffuse * 0.5;
+    }
+    
+    return wallColor * scale;
+  }
+  
+  vec3 getSurfaceRayColor(vec3 origin, vec3 ray, vec3 waterColor) {
+    vec3 color;
+    float q = intersectSphere(origin, ray, uSphereCenter, uSphereRadius);
+    if (q < 1.0e6) {
+      color = getSphereColor(origin + ray * q);
+    } else if (ray.y < 0.0) {
+      vec2 t = intersectCube(origin, ray, vec3(-1.0, -poolHeight, -1.0), vec3(1.0, 2.0, 1.0));
+      color = getWallColor(origin + ray * t.y);
+    } else {
+      vec2 t = intersectCube(origin, ray, vec3(-1.0, -poolHeight, -1.0), vec3(1.0, 2.0, 1.0));
+      vec3 hit = origin + ray * t.y;
+      if (hit.y < 2.0 / 12.0) {
+        color = getWallColor(hit);
+      } else {
+        color = textureCube(uSky, ray).rgb;
+        color += vec3(pow(max(0.0, dot(uLight, ray)), 5000.0)) * vec3(10.0, 8.0, 6.0);
+      }
+    }
+    if (ray.y < 0.0) color *= waterColor;
+    return color;
+  }
+  
+  void main() {
+    vec2 coord = vPosition.xz * 0.5 + 0.5;
+    vec4 info = texture2D(uWater, coord);
+    
+    for (int i = 0; i < 5; i++) {
+      coord += info.ba * 0.005;
+      info = texture2D(uWater, coord);
+    }
+    
+    vec3 normal = vec3(info.b, sqrt(1.0 - dot(info.ba, info.ba)), info.a);
+    vec3 incomingRay = normalize(vPosition - uEye);
+    
+    // UNDERWATER VIEW - flip normal
+    normal = -normal;
+    vec3 reflectedRay = reflect(incomingRay, normal);
+    vec3 refractedRay = refract(incomingRay, normal, IOR_WATER / IOR_AIR);
+    float fresnel = mix(0.5, 1.0, pow(1.0 - dot(normal, -incomingRay), 3.0));
+    
+    vec3 reflectedColor = getSurfaceRayColor(vPosition, reflectedRay, underwaterColor);
+    vec3 refractedColor = getSurfaceRayColor(vPosition, refractedRay, vec3(1.0)) * vec3(0.8, 1.0, 1.1);
+    
+    gl_FragColor = vec4(mix(reflectedColor, refractedColor, (1.0 - fresnel) * length(refractedRay)), 1.0);
+  }
+`;
+
+// Caustics vertex shader - EXACT from original
 export const causticsVertexShader = `
+  ${helperFunctions}
+  
   uniform sampler2D uWater;
   uniform vec3 uLight;
   
   varying vec3 vOldPos;
   varying vec3 vNewPos;
   varying vec3 vRay;
-  
-  const float IOR_AIR = 1.0;
-  const float IOR_WATER = 1.333;
-  const float poolHeight = 1.0;
-  
-  vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
-    vec3 tMin = (cubeMin - origin) / ray;
-    vec3 tMax = (cubeMax - origin) / ray;
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return vec2(tNear, tFar);
-  }
   
   vec3 project(vec3 origin, vec3 ray, vec3 refractedLight) {
     vec2 tcube = intersectCube(origin, ray, vec3(-1.0, -poolHeight, -1.0), vec3(1.0, 2.0, 1.0));
@@ -334,7 +433,8 @@ export const causticsVertexShader = `
     vec3 refractedLight = refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
     vRay = refract(-uLight, normal, IOR_AIR / IOR_WATER);
     
-    vec3 pos = vec3(position.x, 0.0, position.z);
+    // Original uses gl_Vertex.xzy
+    vec3 pos = vec3(position.x, position.z, position.y);
     vOldPos = project(pos, refractedLight, refractedLight);
     vNewPos = project(pos + vec3(0.0, info.r, 0.0), vRay, refractedLight);
     
@@ -348,6 +448,8 @@ export const causticsFragmentShader = `
   
   precision highp float;
   
+  ${helperFunctions}
+  
   uniform vec3 uLight;
   uniform vec3 uSphereCenter;
   uniform float uSphereRadius;
@@ -355,20 +457,6 @@ export const causticsFragmentShader = `
   varying vec3 vOldPos;
   varying vec3 vNewPos;
   varying vec3 vRay;
-  
-  const float IOR_AIR = 1.0;
-  const float IOR_WATER = 1.333;
-  const float poolHeight = 1.0;
-  
-  vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
-    vec3 tMin = (cubeMin - origin) / ray;
-    vec3 tMax = (cubeMax - origin) / ray;
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return vec2(tNear, tFar);
-  }
   
   void main() {
     float oldArea = length(dFdx(vOldPos)) * length(dFdy(vOldPos));
@@ -393,13 +481,16 @@ export const causticsFragmentShader = `
   }
 `;
 
-// Pool cube vertex shader
+// Pool cube vertex shader - EXACT Y transform from original
 export const cubeVertexShader = `
+  uniform float uPoolHeight;
   varying vec3 vPosition;
   
   void main() {
     vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // CRITICAL: Original transform - position.y = ((1.0 - position.y) * (7.0 / 12.0) - 1.0) * poolHeight
+    vPosition.y = ((1.0 - position.y) * (7.0 / 12.0) - 1.0) * uPoolHeight;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(vPosition, 1.0);
   }
 `;
 
@@ -463,19 +554,23 @@ export const cubeFragmentShader = `
   }
 `;
 
-// Sphere vertex shader
+// Sphere vertex shader - EXACT from original
 export const sphereVertexShader = `
+  ${helperFunctions}
+  
+  uniform vec3 uSphereCenter;
+  uniform float uSphereRadius;
+  
   varying vec3 vPosition;
-  varying vec3 vNormal;
   
   void main() {
-    vPosition = position;
-    vNormal = normal;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // Original: position = sphereCenter + gl_Vertex.xyz * sphereRadius
+    vPosition = uSphereCenter + position * uSphereRadius;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(vPosition, 1.0);
   }
 `;
 
-// Sphere rendering fragment shader
+// Sphere fragment shader
 export const sphereRenderFragmentShader = `
   precision highp float;
   
@@ -488,19 +583,15 @@ export const sphereRenderFragmentShader = `
   uniform float uSphereRadius;
   
   varying vec3 vPosition;
-  varying vec3 vNormal;
   
-  void main() {
-    vec3 point = vPosition;
+  vec3 getSphereColor(vec3 point) {
     vec3 color = vec3(0.5);
     
-    // Ambient occlusion
     color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.x)) / uSphereRadius, 3.0);
     color *= 1.0 - 0.9 / pow((1.0 + uSphereRadius - abs(point.z)) / uSphereRadius, 3.0);
     color *= 1.0 - 0.9 / pow((point.y + 1.0 + uSphereRadius) / uSphereRadius, 3.0);
     
-    // Lighting and caustics
-    vec3 sphereNormal = normalize(vNormal);
+    vec3 sphereNormal = (point - uSphereCenter) / uSphereRadius;
     vec3 refractedLight = refract(-uLight, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
     float diffuse = max(0.0, dot(-refractedLight, sphereNormal)) * 0.5;
     
@@ -511,11 +602,15 @@ export const sphereRenderFragmentShader = `
     }
     color += diffuse;
     
-    // Underwater tint
-    if (point.y < info.r) {
-      color *= underwaterColor * 1.2;
-    }
+    return color;
+  }
+  
+  void main() {
+    gl_FragColor = vec4(getSphereColor(vPosition), 1.0);
     
-    gl_FragColor = vec4(color, 1.0);
+    vec4 info = texture2D(uWater, vPosition.xz * 0.5 + 0.5);
+    if (vPosition.y < info.r) {
+      gl_FragColor.rgb *= underwaterColor * 1.2;
+    }
   }
 `;
