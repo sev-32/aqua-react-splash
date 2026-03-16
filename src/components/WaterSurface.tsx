@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
-import { useThree, ThreeEvent, useFrame } from '@react-three/fiber';
+import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { waterVertexShader, waterAboveFragmentShader, waterBelowFragmentShader } from '../shaders/waterShaders';
 
 interface WaterSurfaceProps {
@@ -15,6 +15,8 @@ interface WaterSurfaceProps {
   onDropAdd: (x: number, z: number) => void;
 }
 
+const ignoreRaycast = () => null;
+
 export function WaterSurface({
   waterTexture,
   causticsTexture,
@@ -28,16 +30,14 @@ export function WaterSurface({
 }: WaterSurfaceProps) {
   const aboveMeshRef = useRef<THREE.Mesh>(null);
   const belowMeshRef = useRef<THREE.Mesh>(null);
-  
-  // Create high-res plane geometry for water (detail: 200 like original)
-  const geometry = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(2, 2, 200, 200);
-    // Rotate to be horizontal
+
+  const geometry = useMemo(() => new THREE.PlaneGeometry(2, 2, 200, 200), []);
+  const hitGeometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(2, 2, 1, 1);
     geo.rotateX(-Math.PI / 2);
     return geo;
   }, []);
-  
-  // Above water material (front face)
+
   const aboveMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: waterVertexShader,
@@ -52,11 +52,10 @@ export function WaterSurface({
         uSphereCenter: { value: new THREE.Vector3() },
         uSphereRadius: { value: 0.25 },
       },
-      side: THREE.FrontSide,
+      side: THREE.BackSide,
     });
   }, [tilesTexture, skyTexture]);
-  
-  // Below water material (back face - underwater view)
+
   const belowMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: waterVertexShader,
@@ -71,14 +70,19 @@ export function WaterSurface({
         uSphereCenter: { value: new THREE.Vector3() },
         uSphereRadius: { value: 0.25 },
       },
-      side: THREE.BackSide,
+      side: THREE.FrontSide,
     });
   }, [tilesTexture, skyTexture]);
-  
-  // Update uniforms every frame
+
+  const hitMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  }), []);
+
   useFrame(() => {
     const materials = [aboveMaterial, belowMaterial];
-    materials.forEach(material => {
+    materials.forEach((material) => {
       if (waterTexture) material.uniforms.uWater.value = waterTexture;
       if (causticsTexture) material.uniforms.uCaustics.value = causticsTexture;
       material.uniforms.uEye.value.copy(eye);
@@ -87,35 +91,28 @@ export function WaterSurface({
       material.uniforms.uSphereRadius.value = sphereRadius;
     });
   });
-  
+
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
-    if (event.point) {
-      onDropAdd(event.point.x, event.point.z);
-    }
+    onDropAdd(event.point.x, event.point.z);
   };
-  
+
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    if (event.buttons > 0 && event.point) {
+    if (event.buttons > 0) {
+      event.stopPropagation();
       onDropAdd(event.point.x, event.point.z);
     }
   };
-  
+
   return (
     <group>
-      {/* Above water view (front faces) */}
+      <mesh ref={aboveMeshRef} geometry={geometry} material={aboveMaterial} raycast={ignoreRaycast} />
+      <mesh ref={belowMeshRef} geometry={geometry} material={belowMaterial} raycast={ignoreRaycast} />
       <mesh
-        ref={aboveMeshRef}
-        geometry={geometry}
-        material={aboveMaterial}
+        geometry={hitGeometry}
+        material={hitMaterial}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-      />
-      {/* Below water view (back faces) */}
-      <mesh
-        ref={belowMeshRef}
-        geometry={geometry}
-        material={belowMaterial}
       />
     </group>
   );
