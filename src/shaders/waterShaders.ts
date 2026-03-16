@@ -444,8 +444,6 @@ export const causticsVertexShader = `
 
 // Caustics fragment shader
 export const causticsFragmentShader = `
-  #extension GL_OES_standard_derivatives : enable
-  
   precision highp float;
   
   ${helperFunctions}
