@@ -11,82 +11,39 @@ export function WaterScene() {
   const { camera } = useThree();
   const waterSim = useWaterSimulation();
   const caustics = useCaustics();
-  
+
   const [initialized, setInitialized] = useState(false);
   const lightDir = useRef(new THREE.Vector3(2.0, 2.0, -1.0).normalize());
-  
-  // Sphere state
+
   const sphereCenter = useRef(new THREE.Vector3(-0.4, -0.75, 0.2));
   const oldSphereCenter = useRef(new THREE.Vector3(-0.4, -0.75, 0.2));
   const sphereRadius = 0.25;
-  
-  // Create procedural tile texture
+
+  const textureLoader = useMemo(() => new THREE.TextureLoader(), []);
+  const cubeTextureLoader = useMemo(() => new THREE.CubeTextureLoader(), []);
+
   const tilesTexture = useMemo(() => {
-    const size = 256;
-    const data = new Uint8Array(size * size * 4);
-    
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        const idx = (i * size + j) * 4;
-        const tileSize = 32;
-        const isEdge = (i % tileSize) < 2 || (j % tileSize) < 2;
-        
-        const baseR = isEdge ? 60 : 150;
-        const baseG = isEdge ? 80 : 180;
-        const baseB = isEdge ? 100 : 200;
-        const variation = (Math.random() - 0.5) * 20;
-        
-        data[idx] = Math.min(255, Math.max(0, baseR + variation));
-        data[idx + 1] = Math.min(255, Math.max(0, baseG + variation));
-        data[idx + 2] = Math.min(255, Math.max(0, baseB + variation));
-        data[idx + 3] = 255;
-      }
-    }
-    
-    const texture = new THREE.DataTexture(data, size, size);
-    texture.needsUpdate = true;
+    const texture = textureLoader.load('/textures/tiles.jpg');
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
     return texture;
-  }, []);
-  
-  // Simple cubemap for sky
+  }, [textureLoader]);
+
   const skyTexture = useMemo(() => {
-    const loader = new THREE.CubeTextureLoader();
-    // Create a simple procedural sky using canvas
-    const size = 64;
-    const canvases: HTMLCanvasElement[] = [];
-    
-    for (let i = 0; i < 6; i++) {
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d')!;
-      
-      // Create gradient
-      const gradient = ctx.createLinearGradient(0, 0, 0, size);
-      if (i === 2) { // top
-        gradient.addColorStop(0, '#6699cc');
-        gradient.addColorStop(1, '#6699cc');
-      } else if (i === 3) { // bottom  
-        gradient.addColorStop(0, '#334455');
-        gradient.addColorStop(1, '#334455');
-      } else { // sides
-        gradient.addColorStop(0, '#6699cc');
-        gradient.addColorStop(1, '#aabbcc');
-      }
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, size, size);
-      canvases.push(canvas);
-    }
-    
-    const cubeTexture = new THREE.CubeTexture(canvases);
-    cubeTexture.needsUpdate = true;
-    return cubeTexture;
-  }, []);
-  
-  // Initialize with random drops
+    const texture = cubeTextureLoader.load([
+      '/textures/xpos.jpg',
+      '/textures/xneg.jpg',
+      '/textures/ypos.jpg',
+      '/textures/ypos.jpg',
+      '/textures/zpos.jpg',
+      '/textures/zneg.jpg',
+    ]);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }, [cubeTextureLoader]);
+
   useEffect(() => {
     if (!initialized) {
       for (let i = 0; i < 20; i++) {
@@ -97,35 +54,34 @@ export function WaterScene() {
       setInitialized(true);
     }
   }, [initialized, waterSim]);
-  
-  // Run simulation each frame
+
   useFrame(() => {
     if (!initialized) return;
-    
+
     waterSim.moveSphere(oldSphereCenter.current, sphereCenter.current, sphereRadius);
     oldSphereCenter.current.copy(sphereCenter.current);
-    
+
     waterSim.stepSimulation();
     waterSim.stepSimulation();
     waterSim.updateNormals();
-    
+
     const waterTexture = waterSim.getTexture();
     if (waterTexture) {
       caustics.updateCaustics(waterTexture, lightDir.current, sphereCenter.current, sphereRadius);
     }
   });
-  
+
   const handleDropAdd = (x: number, z: number) => {
     waterSim.addDrop(x, z, 0.03, 0.01);
   };
-  
+
   const handleSphereMove = (position: THREE.Vector3) => {
     sphereCenter.current.copy(position);
   };
-  
+
   const waterTexture = waterSim.getTexture();
   const causticsTexture = caustics.getTexture();
-  
+
   return (
     <group>
       <PoolEnvironment
@@ -136,7 +92,7 @@ export function WaterScene() {
         sphereCenter={sphereCenter.current}
         sphereRadius={sphereRadius}
       />
-      
+
       <WaterSurface
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
@@ -148,7 +104,7 @@ export function WaterScene() {
         sphereRadius={sphereRadius}
         onDropAdd={handleDropAdd}
       />
-      
+
       <DraggableSphere
         position={sphereCenter.current}
         radius={sphereRadius}

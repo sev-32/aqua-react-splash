@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
+import { sphereVertexShader, sphereRenderFragmentShader } from '../shaders/waterShaders';
 
 interface DraggableSphereProps {
   position: THREE.Vector3;
@@ -20,42 +21,60 @@ export function DraggableSphere({
   onMove,
 }: DraggableSphereProps) {
   const { camera, raycaster } = useThree();
-  const meshRef = useRef<THREE.Mesh>(null);
+  const hitMeshRef = useRef<THREE.Mesh>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragPlane = useRef(new THREE.Plane());
   const dragOffset = useRef(new THREE.Vector3());
-  
-  const geometry = useMemo(() => new THREE.SphereGeometry(radius, 32, 32), [radius]);
-  
-  // Simple material for the sphere
-  const material = useMemo(() => new THREE.MeshStandardMaterial({
-    color: 0x888888,
-    metalness: 0.1,
-    roughness: 0.4,
+
+  const geometry = useMemo(() => new THREE.SphereGeometry(1, 48, 48), []);
+
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: sphereVertexShader,
+    fragmentShader: sphereRenderFragmentShader,
+    uniforms: {
+      uWater: { value: null },
+      uCaustics: { value: null },
+      uLight: { value: new THREE.Vector3() },
+      uSphereCenter: { value: new THREE.Vector3() },
+      uSphereRadius: { value: radius },
+    },
+  }), [radius]);
+
+  const hitMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
   }), []);
-  
+
   useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.position.copy(position);
+    if (waterTexture) material.uniforms.uWater.value = waterTexture;
+    if (causticsTexture) material.uniforms.uCaustics.value = causticsTexture;
+    material.uniforms.uLight.value.copy(light);
+    material.uniforms.uSphereCenter.value.copy(position);
+    material.uniforms.uSphereRadius.value = radius;
+
+    if (hitMeshRef.current) {
+      hitMeshRef.current.position.copy(position);
+      hitMeshRef.current.scale.setScalar(radius);
     }
   });
-  
+
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
     setIsDragging(true);
-    
+
     const cameraDirection = new THREE.Vector3();
     camera.getWorldDirection(cameraDirection);
     dragPlane.current.setFromNormalAndCoplanarPoint(cameraDirection.negate(), position);
-    
+
     const intersection = new THREE.Vector3();
     raycaster.ray.intersectPlane(dragPlane.current, intersection);
     dragOffset.current.subVectors(position, intersection);
   };
-  
+
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     if (!isDragging) return;
-    
+
     const intersection = new THREE.Vector3();
     if (raycaster.ray.intersectPlane(dragPlane.current, intersection)) {
       const newPosition = intersection.add(dragOffset.current);
@@ -65,19 +84,18 @@ export function DraggableSphere({
       onMove(newPosition);
     }
   };
-  
+
   const handlePointerUp = () => {
     setIsDragging(false);
   };
-  
+
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[light.x * 5, light.y * 5, light.z * 5]} intensity={0.8} />
+      <mesh geometry={geometry} material={material} />
       <mesh
-        ref={meshRef}
+        ref={hitMeshRef}
         geometry={geometry}
-        material={material}
+        material={hitMaterial}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

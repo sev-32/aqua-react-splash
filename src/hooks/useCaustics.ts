@@ -16,10 +16,7 @@ export function useCaustics() {
   const causticsScene = useMemo(() => new THREE.Scene(), []);
   const causticsCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
   
-  // Create high-res plane for caustics
-  const causticsGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(2, 2, 200, 200);
-  }, []);
+  const causticsGeometry = useMemo(() => new THREE.PlaneGeometry(2, 2, 200, 200), []);
   
   useMemo(() => {
     causticsTarget.current = new THREE.WebGLRenderTarget(CAUSTICS_SIZE, CAUSTICS_SIZE, {
@@ -42,10 +39,11 @@ export function useCaustics() {
       },
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
     });
     
     const causticsMesh = new THREE.Mesh(causticsGeometry, causticsMaterial.current);
-    causticsMesh.rotation.x = -Math.PI / 2;
     causticsScene.add(causticsMesh);
   }, [causticsGeometry, causticsScene]);
   

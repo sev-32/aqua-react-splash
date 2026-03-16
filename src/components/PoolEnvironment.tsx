@@ -12,6 +12,31 @@ interface PoolEnvironmentProps {
   sphereRadius: number;
 }
 
+function createOpenPoolGeometry() {
+  const positions = new Float32Array([
+    // bottom (original cube y = 1.0)
+    -1, 1, -1,  1, 1, -1,  1, 1, 1,
+    -1, 1, -1,  1, 1, 1,  -1, 1, 1,
+    // left wall
+    -1, -1, -1, -1, 1, -1, -1, 1, 1,
+    -1, -1, -1, -1, 1, 1, -1, -1, 1,
+    // right wall
+     1, -1, 1,  1, 1, 1,  1, 1, -1,
+     1, -1, 1,  1, 1, -1,  1, -1, -1,
+    // back wall
+    -1, -1, -1,  1, -1, -1,  1, 1, -1,
+    -1, -1, -1,  1, 1, -1, -1, 1, -1,
+    // front wall
+     1, -1, 1, -1, -1, 1, -1, 1, 1,
+     1, -1, 1, -1, 1, 1,  1, 1, 1,
+  ]);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export function PoolEnvironment({
   waterTexture,
   causticsTexture,
@@ -20,7 +45,6 @@ export function PoolEnvironment({
   sphereCenter,
   sphereRadius,
 }: PoolEnvironmentProps) {
-  // Pool cube material with proper Y transform
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: cubeVertexShader,
@@ -34,11 +58,10 @@ export function PoolEnvironment({
         uSphereRadius: { value: 0.25 },
         uPoolHeight: { value: 1.0 },
       },
-      side: THREE.BackSide,
+      side: THREE.DoubleSide,
     });
   }, [tilesTexture]);
-  
-  // Update uniforms every frame
+
   useFrame(() => {
     if (waterTexture) material.uniforms.uWater.value = waterTexture;
     if (causticsTexture) material.uniforms.uCaustics.value = causticsTexture;
@@ -46,39 +69,8 @@ export function PoolEnvironment({
     material.uniforms.uSphereCenter.value.copy(sphereCenter);
     material.uniforms.uSphereRadius.value = sphereRadius;
   });
-  
-  // Create pool box geometry - CRITICAL: Remove top face like original
-  // Original: this.cubeMesh.triangles.splice(4, 2) removes the top face
-  const geometry = useMemo(() => {
-    const geo = new THREE.BoxGeometry(2, 2, 2);
-    
-    // BoxGeometry face order: right, left, top, bottom, front, back
-    // Each face has 2 triangles = 6 indices
-    // Top face is indices 12-17 (faces 4-5 in original indexing)
-    // We need to remove the top face triangles
-    const indices = geo.getIndex();
-    if (indices) {
-      const newIndices: number[] = [];
-      const array = indices.array;
-      for (let i = 0; i < array.length; i += 6) {
-        const faceIndex = i / 6;
-        // Skip top face (face index 2 in Three.js BoxGeometry)
-        if (faceIndex !== 2) {
-          for (let j = 0; j < 6; j++) {
-            newIndices.push(array[i + j]);
-          }
-        }
-      }
-      geo.setIndex(newIndices);
-    }
-    
-    return geo;
-  }, []);
-  
-  return (
-    <mesh
-      geometry={geometry}
-      material={material}
-    />
-  );
+
+  const geometry = useMemo(() => createOpenPoolGeometry(), []);
+
+  return <mesh geometry={geometry} material={material} />;
 }
