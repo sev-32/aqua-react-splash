@@ -10,7 +10,7 @@ import { waterStore, waterCommands } from '../lib/waterStore';
 import { generateProceduralSky, generateTilesTexture } from '../lib/proceduralAssets';
 
 export function WaterScene() {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
   const waterSim = useWaterSimulation();
   const caustics = useCaustics();
 
@@ -27,6 +27,12 @@ export function WaterScene() {
   // Procedural assets — no external files.
   const tilesTexture = useMemo(() => generateTilesTexture(512), []);
   const skyTexture = useMemo(() => generateProceduralSky(gl, 512), [gl]);
+
+  // Set the procedural sky as the scene background
+  useEffect(() => {
+    scene.background = skyTexture;
+    return () => { scene.background = null; };
+  }, [scene, skyTexture]);
 
   const seedDrops = (count = 20) => {
     for (let i = 0; i < count; i++) {
@@ -124,12 +130,6 @@ export function WaterScene() {
 
   return (
     <group>
-      {/* Backdrop sphere — surrounds the scene with the procedural sky */}
-      <mesh scale={[50, 50, 50]}>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshBasicMaterial envMap={skyTexture} side={THREE.BackSide} />
-      </mesh>
-
       <PoolEnvironment
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
