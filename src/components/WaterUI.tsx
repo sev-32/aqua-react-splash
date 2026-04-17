@@ -119,7 +119,7 @@ export function WaterUI() {
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-1/2 -translate-y-1/2 right-6 z-20 w-[280px] pointer-events-none"
+        className="fixed top-24 right-6 z-20 w-[280px] pointer-events-none max-h-[calc(100vh-8rem)]"
       >
         <div className="relative panel p-5 corner-bracket pointer-events-auto">
           <div className="flex items-center justify-between mb-4">

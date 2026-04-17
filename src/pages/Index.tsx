@@ -12,6 +12,8 @@ const Index = () => {
       
       {/* 3D Canvas */}
       <Canvas
+        frameloop="always"
+        dpr={[1, 2]}
         camera={{
           position: [0, 2, 4],
           fov: 45,
@@ -25,7 +27,7 @@ const Index = () => {
         }}
         className="touch-none"
       >
-        <color attach="background" args={['#080d12']} />
+        <color attach="background" args={['#04080b']} />
         
         <Suspense fallback={null}>
           <WaterScene />
