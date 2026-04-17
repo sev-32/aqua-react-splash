@@ -6,12 +6,14 @@ import { WaterUI } from '../components/WaterUI';
 
 const Index = () => {
   return (
-    <div className="h-screen w-screen gradient-ambient overflow-hidden">
+    <div className="h-screen w-screen bg-ink overflow-hidden relative">
       {/* UI Overlay */}
       <WaterUI />
       
       {/* 3D Canvas */}
       <Canvas
+        frameloop="always"
+        dpr={[1, 2]}
         camera={{
           position: [0, 2, 4],
           fov: 45,
@@ -25,7 +27,7 @@ const Index = () => {
         }}
         className="touch-none"
       >
-        <color attach="background" args={['#080d12']} />
+        <color attach="background" args={['#04080b']} />
         
         <Suspense fallback={null}>
           <WaterScene />
