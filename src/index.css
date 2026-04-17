@@ -1,106 +1,81 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,800&family=JetBrains+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 
- * WebGL Water - Design System
- * Immersive, dark ambient environment with crystalline water
+/*
+ * AQUA / SPECIMEN-09
+ * Editorial oceanographic instrument design system.
+ * Ink black + abyssal teal + bone white + signal cyan + copper.
  */
 
 @layer base {
   :root {
-    /* Deep ocean color palette */
-    --background: 220 30% 5%;
-    --foreground: 200 20% 95%;
+    --background: 200 35% 4%;
+    --foreground: 40 25% 92%;
 
-    --card: 220 25% 8%;
-    --card-foreground: 200 20% 95%;
+    --card: 200 30% 6%;
+    --card-foreground: 40 25% 92%;
 
-    --popover: 220 25% 8%;
-    --popover-foreground: 200 20% 95%;
+    --popover: 200 30% 6%;
+    --popover-foreground: 40 25% 92%;
 
-    /* Cyan water accents */
-    --primary: 185 70% 50%;
-    --primary-foreground: 220 30% 5%;
-    --primary-glow: 185 70% 65%;
+    /* Signal cyan — sparingly */
+    --primary: 178 95% 58%;
+    --primary-foreground: 200 35% 4%;
+    --primary-glow: 178 95% 72%;
 
-    --secondary: 210 30% 15%;
-    --secondary-foreground: 200 20% 90%;
+    /* Bone / parchment for editorial type */
+    --bone: 38 30% 88%;
+    --ink: 200 40% 3%;
 
-    --muted: 220 20% 12%;
-    --muted-foreground: 200 15% 55%;
+    /* Copper accent for warmth + classification stamps */
+    --copper: 22 75% 58%;
+    --copper-deep: 18 60% 38%;
 
-    --accent: 185 60% 40%;
-    --accent-foreground: 200 20% 95%;
+    /* Abyssal teals */
+    --abyss: 195 60% 8%;
+    --abyss-deep: 200 70% 5%;
 
-    --destructive: 0 70% 50%;
+    --secondary: 200 25% 12%;
+    --secondary-foreground: 40 20% 88%;
+
+    --muted: 200 20% 10%;
+    --muted-foreground: 195 12% 50%;
+
+    --accent: 178 60% 30%;
+    --accent-foreground: 40 25% 92%;
+
+    --destructive: 8 75% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 200 20% 18%;
-    --input: 200 20% 18%;
-    --ring: 185 70% 50%;
+    --border: 195 20% 14%;
+    --input: 195 20% 14%;
+    --ring: 178 95% 58%;
 
-    --radius: 0.75rem;
-
-    /* Water-specific tokens */
-    --water-surface: 185 80% 55%;
-    --water-deep: 200 60% 25%;
-    --water-caustic: 180 100% 85%;
-    --pool-tile: 200 15% 45%;
+    --radius: 0.25rem;
 
     /* Gradients */
-    --gradient-water: linear-gradient(180deg, hsl(185 80% 55% / 0.8), hsl(200 60% 25% / 0.9));
-    --gradient-ambient: radial-gradient(ellipse at center, hsl(220 30% 8%) 0%, hsl(220 30% 2%) 100%);
-    --gradient-glow: radial-gradient(circle, hsl(185 70% 50% / 0.3) 0%, transparent 70%);
+    --gradient-vignette: radial-gradient(ellipse at center, transparent 30%, hsl(200 40% 2% / 0.85) 100%);
+    --gradient-scan: linear-gradient(180deg, transparent 0%, hsl(178 95% 58% / 0.04) 50%, transparent 100%);
+    --gradient-copper: linear-gradient(135deg, hsl(var(--copper)) 0%, hsl(var(--copper-deep)) 100%);
 
     /* Shadows */
-    --shadow-water: 0 20px 60px -15px hsl(185 70% 50% / 0.3);
-    --shadow-ambient: 0 0 80px hsl(185 70% 50% / 0.15);
-    
-    /* Transitions */
-    --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    --shadow-panel: 0 30px 80px -20px hsl(200 80% 2% / 0.8), 0 0 0 1px hsl(195 30% 18% / 0.4);
+    --shadow-glow: 0 0 40px hsl(178 95% 58% / 0.25);
 
-    --sidebar-background: 220 30% 5%;
-    --sidebar-foreground: 200 20% 95%;
-    --sidebar-primary: 185 70% 50%;
-    --sidebar-primary-foreground: 220 30% 5%;
-    --sidebar-accent: 210 30% 15%;
-    --sidebar-accent-foreground: 200 20% 95%;
-    --sidebar-border: 200 20% 18%;
-    --sidebar-ring: 185 70% 50%;
-  }
+    --transition-smooth: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  .dark {
-    --background: 220 30% 5%;
-    --foreground: 200 20% 95%;
-    --card: 220 25% 8%;
-    --card-foreground: 200 20% 95%;
-    --popover: 220 25% 8%;
-    --popover-foreground: 200 20% 95%;
-    --primary: 185 70% 50%;
-    --primary-foreground: 220 30% 5%;
-    --secondary: 210 30% 15%;
-    --secondary-foreground: 200 20% 90%;
-    --muted: 220 20% 12%;
-    --muted-foreground: 200 15% 55%;
-    --accent: 185 60% 40%;
-    --accent-foreground: 200 20% 95%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 200 20% 18%;
-    --input: 200 20% 18%;
-    --ring: 185 70% 50%;
-    --sidebar-background: 220 30% 5%;
-    --sidebar-foreground: 200 20% 95%;
-    --sidebar-primary: 185 70% 50%;
-    --sidebar-primary-foreground: 220 30% 5%;
-    --sidebar-accent: 210 30% 15%;
-    --sidebar-accent-foreground: 200 20% 95%;
-    --sidebar-border: 200 20% 18%;
-    --sidebar-ring: 185 70% 50%;
+    --sidebar-background: 200 35% 4%;
+    --sidebar-foreground: 40 25% 92%;
+    --sidebar-primary: 178 95% 58%;
+    --sidebar-primary-foreground: 200 35% 4%;
+    --sidebar-accent: 200 25% 12%;
+    --sidebar-accent-foreground: 40 25% 92%;
+    --sidebar-border: 195 20% 14%;
+    --sidebar-ring: 178 95% 58%;
   }
 }
 
@@ -114,38 +89,83 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
     font-family: 'Geist', system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  .font-display {
+    font-family: 'Fraunces', 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    font-feature-settings: 'ss01';
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
   }
 }
 
-/* Custom utilities */
 @layer utilities {
-  .water-glow {
-    box-shadow: var(--shadow-water);
-  }
-  
-  .ambient-glow {
-    box-shadow: var(--shadow-ambient);
-  }
-  
-  .gradient-water {
-    background: var(--gradient-water);
-  }
-  
-  .gradient-ambient {
-    background: var(--gradient-ambient);
+  .text-bone { color: hsl(var(--bone)); }
+  .text-copper { color: hsl(var(--copper)); }
+  .bg-abyss { background-color: hsl(var(--abyss)); }
+  .bg-ink { background-color: hsl(var(--ink)); }
+  .border-bone\/10 { border-color: hsl(var(--bone) / 0.1); }
+  .border-bone\/20 { border-color: hsl(var(--bone) / 0.2); }
+
+  .vignette {
+    background: var(--gradient-vignette);
   }
 
-  .text-gradient-water {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--water-caustic)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .grain::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
+
+  .scan-line {
+    background: var(--gradient-scan);
+    background-size: 100% 8px;
+  }
+
+  .panel {
+    background: linear-gradient(180deg, hsl(200 30% 6% / 0.55) 0%, hsl(200 35% 4% / 0.65) 100%);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid hsl(var(--bone) / 0.08);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .corner-bracket::before,
+  .corner-bracket::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 1px solid hsl(var(--primary) / 0.6);
+  }
+  .corner-bracket::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+  .corner-bracket::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+  .text-balance { text-wrap: balance; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .animate-blink { animation: blink 1.6s ease-in-out infinite; }
+
+  @keyframes drift {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    50% { transform: translateY(-6px) translateX(3px); }
+  }
+  .animate-drift { animation: drift 6s ease-in-out infinite; }
 }
 
-/* Canvas styling */
 canvas {
   display: block;
   touch-action: none;
