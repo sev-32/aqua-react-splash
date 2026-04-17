@@ -57,14 +57,14 @@ export function WaterSurface({
     vertexShader: waterVertexShader,
     fragmentShader: waterAboveFragmentShader,
     uniforms: buildUniforms(tilesTexture, skyTexture),
-    side: THREE.FrontSide, // above-water: cull back, render front
+    side: THREE.DoubleSide,
   }), [tilesTexture, skyTexture]);
 
   const belowMaterial = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: waterVertexShader,
     fragmentShader: waterBelowFragmentShader,
     uniforms: buildUniforms(tilesTexture, skyTexture),
-    side: THREE.BackSide,  // underwater pass: render only back-facing
+    side: THREE.DoubleSide,
   }), [tilesTexture, skyTexture]);
 
   const hitMaterial = useMemo(() => new THREE.MeshBasicMaterial({
