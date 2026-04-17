@@ -6,7 +6,7 @@ import { WaterUI } from '../components/WaterUI';
 
 const Index = () => {
   return (
-    <div className="h-screen w-screen gradient-ambient overflow-hidden">
+    <div className="h-screen w-screen bg-ink overflow-hidden relative">
       {/* UI Overlay */}
       <WaterUI />
       
