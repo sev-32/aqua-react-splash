@@ -7,9 +7,10 @@ import { WaterSurface } from './WaterSurface';
 import { PoolEnvironment } from './PoolEnvironment';
 import { DraggableSphere } from './DraggableSphere';
 import { waterStore, waterCommands } from '../lib/waterStore';
+import { generateProceduralSky, generateTilesTexture } from '../lib/proceduralAssets';
 
 export function WaterScene() {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const waterSim = useWaterSimulation();
   const caustics = useCaustics();
 
@@ -23,30 +24,9 @@ export function WaterScene() {
   const rippleCountRef = useRef(0);
   const fpsAccum = useRef({ frames: 0, last: performance.now() });
 
-  const textureLoader = useMemo(() => new THREE.TextureLoader(), []);
-  const cubeTextureLoader = useMemo(() => new THREE.CubeTextureLoader(), []);
-
-  const tilesTexture = useMemo(() => {
-    const texture = textureLoader.load('/textures/tiles.jpg');
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
-    return texture;
-  }, [textureLoader]);
-
-  const skyTexture = useMemo(() => {
-    const texture = cubeTextureLoader.load([
-      '/textures/xpos.jpg',
-      '/textures/xneg.jpg',
-      '/textures/ypos.jpg',
-      '/textures/ypos.jpg',
-      '/textures/zpos.jpg',
-      '/textures/zneg.jpg',
-    ]);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }, [cubeTextureLoader]);
+  // Procedural assets — no external files.
+  const tilesTexture = useMemo(() => generateTilesTexture(512), []);
+  const skyTexture = useMemo(() => generateProceduralSky(gl, 512), [gl]);
 
   const seedDrops = (count = 20) => {
     for (let i = 0; i < count; i++) {
@@ -61,7 +41,6 @@ export function WaterScene() {
   useEffect(() => {
     if (!initialized) {
       seedDrops(20);
-      // Sync initial sphere position to store
       const p = sphereCenter.current;
       waterStore.set({ spherePos: [p.x, p.y, p.z] });
       setInitialized(true);
@@ -69,13 +48,11 @@ export function WaterScene() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized]);
 
-  // Command bus subscriptions
   useEffect(() => {
     const off = waterCommands.on((cmd) => {
       if (cmd === 'reset') {
         rippleCountRef.current = 0;
         waterStore.set({ rippleCount: 0 });
-        // Calm + reseed gentle drops
         for (let i = 0; i < 8; i++) {
           waterSim.addDrop(Math.random() * 2 - 1, Math.random() * 2 - 1, 0.04, 0.005);
         }
@@ -96,7 +73,7 @@ export function WaterScene() {
 
     const state = waterStore.get();
 
-    // Update light direction from store (azimuth/elevation in degrees)
+    // Light from azimuth + elevation
     const az = (state.lightAngle * Math.PI) / 180;
     const el = (state.lightElevation * Math.PI) / 180;
     lightDir.current.set(
@@ -147,6 +124,12 @@ export function WaterScene() {
 
   return (
     <group>
+      {/* Backdrop sphere — surrounds the scene with the procedural sky */}
+      <mesh scale={[50, 50, 50]}>
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshBasicMaterial envMap={skyTexture} side={THREE.BackSide} />
+      </mesh>
+
       <PoolEnvironment
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
@@ -173,6 +156,7 @@ export function WaterScene() {
         radius={sphereRadius}
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
+        tilesTexture={tilesTexture}
         light={lightDir.current}
         onMove={handleSphereMove}
       />
