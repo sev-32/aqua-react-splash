@@ -9,7 +9,7 @@ export function generateProceduralSky(
   renderer: THREE.WebGLRenderer,
   size = 512,
 ): THREE.CubeTexture {
-  const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(size, {
+  const cubeRT = new THREE.WebGLCubeRenderTarget(size, {
     format: THREE.RGBAFormat,
     type: THREE.UnsignedByteType,
     generateMipmaps: false,
@@ -17,20 +17,15 @@ export function generateProceduralSky(
     magFilter: THREE.LinearFilter,
   });
 
-  // We'll render a fullscreen quad per face using a perspective camera
   const skyMaterial = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
       sunDir: { value: new THREE.Vector3(2, 2, -1).normalize() },
-      horizonColor: { value: new THREE.Color('#9fc8d8') },
-      zenithColor: { value: new THREE.Color('#1c3a55') },
-      groundColor: { value: new THREE.Color('#0a141c') },
-      sunColor: { value: new THREE.Color('#fff5c8') },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
       void main() {
-        vDir = normalize(position);
+        vDir = position;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -38,60 +33,39 @@ export function generateProceduralSky(
       precision highp float;
       varying vec3 vDir;
       uniform vec3 sunDir;
-      uniform vec3 horizonColor;
-      uniform vec3 zenithColor;
-      uniform vec3 groundColor;
-      uniform vec3 sunColor;
-
       void main() {
         vec3 d = normalize(vDir);
-        float y = d.y;
-
-        // Sky gradient
-        float t = smoothstep(-0.05, 0.7, y);
-        vec3 sky = mix(horizonColor, zenithColor, t);
-
-        // Below horizon: blend to a deep ground tone
-        float g = smoothstep(0.05, -0.4, y);
-        sky = mix(sky, groundColor, g);
-
-        // Soft atmospheric haze near horizon
-        float haze = exp(-pow(abs(y) * 4.0, 2.0)) * 0.25;
+        float t = smoothstep(-0.05, 0.7, d.y);
+        vec3 horizon = vec3(0.62, 0.78, 0.85);
+        vec3 zenith = vec3(0.11, 0.23, 0.34);
+        vec3 ground = vec3(0.04, 0.08, 0.12);
+        vec3 sky = mix(horizon, zenith, t);
+        float g = smoothstep(0.05, -0.4, d.y);
+        sky = mix(sky, ground, g);
+        float haze = exp(-pow(abs(d.y) * 4.0, 2.0)) * 0.25;
         sky += vec3(haze * 0.9, haze * 0.7, haze * 0.5);
-
-        // Sun disk + bloom
         float sunDot = max(0.0, dot(d, normalize(sunDir)));
-        float sunDisk = smoothstep(0.998, 1.0, sunDot);
-        float sunGlow = pow(sunDot, 256.0) * 0.6;
-        float sunHalo = pow(sunDot, 16.0) * 0.15;
-        sky += sunColor * (sunDisk * 8.0 + sunGlow + sunHalo);
-
-        // Subtle vertical banding to suggest cloud layer
-        float clouds = smoothstep(0.0, 1.0, sin(d.x * 3.0 + d.z * 2.0) * 0.5 + 0.5);
-        clouds *= smoothstep(0.0, 0.4, y) * smoothstep(0.9, 0.3, y);
-        sky += vec3(clouds * 0.04);
-
+        sky += vec3(1.0, 0.96, 0.78) * (smoothstep(0.998, 1.0, sunDot) * 8.0
+          + pow(sunDot, 256.0) * 0.6 + pow(sunDot, 16.0) * 0.15);
         gl_FragColor = vec4(sky, 1.0);
       }
     `,
   });
 
-  const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
-  // Build a large inward-facing sphere of the sky and render the cube camera in it.
-  const scene = new THREE.Scene();
-  const sphere = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), skyMaterial);
-  scene.add(sphere);
-  cubeCamera.update(renderer, scene);
+  const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRT);
+  const skyScene = new THREE.Scene();
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 32), skyMaterial);
+  skyScene.add(sphere);
 
-  const tex = cubeRenderTarget.texture;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
+  const prevTarget = renderer.getRenderTarget();
+  cubeCamera.update(renderer, skyScene);
+  renderer.setRenderTarget(prevTarget);
 
-  // Cleanup intermediates
   sphere.geometry.dispose();
   skyMaterial.dispose();
 
-  return tex as THREE.CubeTexture;
+  cubeRT.texture.colorSpace = THREE.SRGBColorSpace;
+  return cubeRT.texture as THREE.CubeTexture;
 }
 
 /**
