@@ -32,7 +32,7 @@ export const waterStore = {
   },
   subscribe: (l: Listener) => {
     listeners.add(l);
-    return () => listeners.delete(l);
+    return () => { listeners.delete(l); };
   },
 };
 
@@ -43,7 +43,7 @@ export const waterCommands = {
   emit: (cmd: Command) => commandListeners.forEach((l) => l(cmd)),
   on: (l: (cmd: Command) => void) => {
     commandListeners.add(l);
-    return () => commandListeners.delete(l);
+    return () => { commandListeners.delete(l); };
   },
 };
 
