@@ -68,7 +68,7 @@ export function WaterScene() {
 
   // Command bus subscriptions
   useEffect(() => {
-    return waterCommands.on((cmd) => {
+    const off = waterCommands.on((cmd) => {
       if (cmd === 'reset') {
         rippleCountRef.current = 0;
         waterStore.set({ rippleCount: 0 });
@@ -84,6 +84,7 @@ export function WaterScene() {
         waterStore.set({ rippleCount: rippleCountRef.current });
       }
     });
+    return () => { off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
