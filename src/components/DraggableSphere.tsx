@@ -8,6 +8,7 @@ interface DraggableSphereProps {
   radius: number;
   waterTexture: THREE.Texture | undefined;
   causticsTexture: THREE.Texture | undefined;
+  tilesTexture: THREE.Texture;
   light: THREE.Vector3;
   onMove: (position: THREE.Vector3) => void;
 }
@@ -17,6 +18,7 @@ export function DraggableSphere({
   radius,
   waterTexture,
   causticsTexture,
+  tilesTexture,
   light,
   onMove,
 }: DraggableSphereProps) {
@@ -26,19 +28,23 @@ export function DraggableSphere({
   const dragPlane = useRef(new THREE.Plane());
   const dragOffset = useRef(new THREE.Vector3());
 
-  const geometry = useMemo(() => new THREE.SphereGeometry(1, 48, 48), []);
+  // Unit sphere — vertex shader scales/positions in world space.
+  const geometry = useMemo(() => new THREE.SphereGeometry(1, 64, 64), []);
 
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: sphereVertexShader,
     fragmentShader: sphereRenderFragmentShader,
     uniforms: {
-      uWater: { value: null },
-      uCaustics: { value: null },
-      uLight: { value: new THREE.Vector3() },
-      uSphereCenter: { value: new THREE.Vector3() },
-      uSphereRadius: { value: radius },
+      water: { value: null },
+      tiles: { value: tilesTexture },
+      causticTex: { value: null },
+      light: { value: new THREE.Vector3() },
+      sphereCenter: { value: new THREE.Vector3() },
+      sphereRadius: { value: radius },
+      sphereCenterU: { value: new THREE.Vector3() },
+      sphereRadiusU: { value: radius },
     },
-  }), [radius]);
+  }), [radius, tilesTexture]);
 
   const hitMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     transparent: true,
@@ -47,11 +53,13 @@ export function DraggableSphere({
   }), []);
 
   useFrame(() => {
-    if (waterTexture) material.uniforms.uWater.value = waterTexture;
-    if (causticsTexture) material.uniforms.uCaustics.value = causticsTexture;
-    material.uniforms.uLight.value.copy(light);
-    material.uniforms.uSphereCenter.value.copy(position);
-    material.uniforms.uSphereRadius.value = radius;
+    if (waterTexture) material.uniforms.water.value = waterTexture;
+    if (causticsTexture) material.uniforms.causticTex.value = causticsTexture;
+    material.uniforms.light.value.copy(light);
+    material.uniforms.sphereCenter.value.copy(position);
+    material.uniforms.sphereCenterU.value.copy(position);
+    material.uniforms.sphereRadius.value = radius;
+    material.uniforms.sphereRadiusU.value = radius;
 
     if (hitMeshRef.current) {
       hitMeshRef.current.position.copy(position);
@@ -62,6 +70,7 @@ export function DraggableSphere({
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
     setIsDragging(true);
+    (event.target as Element).setPointerCapture?.(event.pointerId);
 
     const cameraDirection = new THREE.Vector3();
     camera.getWorldDirection(cameraDirection);
@@ -85,13 +94,11 @@ export function DraggableSphere({
     }
   };
 
-  const handlePointerUp = () => {
-    setIsDragging(false);
-  };
+  const handlePointerUp = () => setIsDragging(false);
 
   return (
     <>
-      <mesh geometry={geometry} material={material} />
+      <mesh geometry={geometry} material={material} raycast={() => null} />
       <mesh
         ref={hitMeshRef}
         geometry={geometry}
