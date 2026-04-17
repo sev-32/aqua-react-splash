@@ -27,8 +27,6 @@ const Index = () => {
         }}
         className="touch-none"
       >
-        <color attach="background" args={['#04080b']} />
-        
         <Suspense fallback={null}>
           <WaterScene />
         </Suspense>

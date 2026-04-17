@@ -1,6 +1,6 @@
-import { useRef, useMemo, useCallback } from 'react';
+import { useRef, useMemo, useCallback, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import {
   simulationVertexShader,
   dropFragmentShader,
@@ -9,159 +9,159 @@ import {
   sphereDisplacementFragmentShader,
 } from '../shaders/waterShaders';
 
-const TEXTURE_SIZE = 256;
+const TEXTURE_SIZE = 512;
 
 export function useWaterSimulation() {
   const { gl } = useThree();
-  
-  // Ping-pong textures for simulation
-  const textureA = useRef<THREE.WebGLRenderTarget>(null!);
-  const textureB = useRef<THREE.WebGLRenderTarget>(null!);
-  
-  // Shader materials
+
+  const targetA = useRef<THREE.WebGLRenderTarget>(null!);
+  const targetB = useRef<THREE.WebGLRenderTarget>(null!);
+
   const dropMaterial = useRef<THREE.ShaderMaterial>(null!);
   const updateMaterial = useRef<THREE.ShaderMaterial>(null!);
   const normalMaterial = useRef<THREE.ShaderMaterial>(null!);
   const sphereMaterial = useRef<THREE.ShaderMaterial>(null!);
-  
-  // Full screen quad for simulation passes
-  const simulationScene = useMemo(() => new THREE.Scene(), []);
-  const simulationCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
-  const quadGeometry = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
-  
-  // Initialize textures and materials
+
+  const scene = useMemo(() => new THREE.Scene(), []);
+  const camera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
+  const quadGeom = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
+  const quadMesh = useRef<THREE.Mesh>(null!);
+
+  // Init targets + materials once
   useMemo(() => {
-    const options: THREE.RenderTargetOptions = {
-      type: THREE.FloatType,
+    // Prefer HalfFloat for cross-platform reliability with linear filtering.
+    const supportsFloatLinear = gl.capabilities.isWebGL2;
+    const opts: THREE.RenderTargetOptions = {
+      type: supportsFloatLinear ? THREE.HalfFloatType : THREE.HalfFloatType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       format: THREE.RGBAFormat,
       stencilBuffer: false,
       depthBuffer: false,
+      generateMipmaps: false,
+      wrapS: THREE.ClampToEdgeWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
     };
-    
-    textureA.current = new THREE.WebGLRenderTarget(TEXTURE_SIZE, TEXTURE_SIZE, options);
-    textureB.current = new THREE.WebGLRenderTarget(TEXTURE_SIZE, TEXTURE_SIZE, options);
-    
-    // Initialize with zeros
-    const data = new Float32Array(TEXTURE_SIZE * TEXTURE_SIZE * 4);
-    const initialTexture = new THREE.DataTexture(
-      data,
-      TEXTURE_SIZE,
-      TEXTURE_SIZE,
-      THREE.RGBAFormat,
-      THREE.FloatType
-    );
-    initialTexture.needsUpdate = true;
-    
-    // Drop shader material
+
+    targetA.current = new THREE.WebGLRenderTarget(TEXTURE_SIZE, TEXTURE_SIZE, opts);
+    targetB.current = new THREE.WebGLRenderTarget(TEXTURE_SIZE, TEXTURE_SIZE, opts);
+
+    // Initialize both targets to zero by rendering a black material
+    const clearMat = new THREE.ShaderMaterial({
+      vertexShader: simulationVertexShader,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vCoord;
+        void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); }
+      `,
+    });
+    const tmpMesh = new THREE.Mesh(quadGeom, clearMat);
+    scene.add(tmpMesh);
+    const prevTarget = gl.getRenderTarget();
+    gl.setRenderTarget(targetA.current); gl.render(scene, camera);
+    gl.setRenderTarget(targetB.current); gl.render(scene, camera);
+    gl.setRenderTarget(prevTarget);
+    scene.remove(tmpMesh);
+    clearMat.dispose();
+
     dropMaterial.current = new THREE.ShaderMaterial({
       vertexShader: simulationVertexShader,
       fragmentShader: dropFragmentShader,
       uniforms: {
-        uTexture: { value: initialTexture },
-        uCenter: { value: new THREE.Vector2(0.5, 0.5) },
-        uRadius: { value: 0.03 },
-        uStrength: { value: 0.01 },
+        texture: { value: null },
+        center: { value: new THREE.Vector2() },
+        radius: { value: 0.03 },
+        strength: { value: 0.01 },
       },
     });
-    
-    // Update shader material
+
     updateMaterial.current = new THREE.ShaderMaterial({
       vertexShader: simulationVertexShader,
       fragmentShader: updateFragmentShader,
       uniforms: {
-        uTexture: { value: initialTexture },
-        uDelta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
+        texture: { value: null },
+        delta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
       },
     });
-    
-    // Normal shader material
+
     normalMaterial.current = new THREE.ShaderMaterial({
       vertexShader: simulationVertexShader,
       fragmentShader: normalFragmentShader,
       uniforms: {
-        uTexture: { value: initialTexture },
-        uDelta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
+        texture: { value: null },
+        delta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
       },
     });
-    
-    // Sphere displacement shader material
+
     sphereMaterial.current = new THREE.ShaderMaterial({
       vertexShader: simulationVertexShader,
       fragmentShader: sphereDisplacementFragmentShader,
       uniforms: {
-        uTexture: { value: initialTexture },
-        uOldCenter: { value: new THREE.Vector3() },
-        uNewCenter: { value: new THREE.Vector3() },
-        uRadius: { value: 0.25 },
+        texture: { value: null },
+        oldCenter: { value: new THREE.Vector3() },
+        newCenter: { value: new THREE.Vector3() },
+        radius: { value: 0.25 },
       },
     });
+
+    quadMesh.current = new THREE.Mesh(quadGeom, dropMaterial.current);
+    scene.add(quadMesh.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // Render a pass to texture
-  const renderPass = useCallback((material: THREE.ShaderMaterial, target: THREE.WebGLRenderTarget) => {
-    const quad = new THREE.Mesh(quadGeometry, material);
-    simulationScene.children = [];
-    simulationScene.add(quad);
-    gl.setRenderTarget(target);
-    gl.render(simulationScene, simulationCamera);
-    gl.setRenderTarget(null);
-  }, [gl, quadGeometry, simulationScene, simulationCamera]);
-  
-  // Swap textures
-  const swapTextures = useCallback(() => {
-    const temp = textureA.current;
-    textureA.current = textureB.current;
-    textureB.current = temp;
-  }, []);
-  
-  // Add a drop to the water
-  const addDrop = useCallback((x: number, y: number, radius: number = 0.03, strength: number = 0.01) => {
-    dropMaterial.current.uniforms.uTexture.value = textureA.current.texture;
-    dropMaterial.current.uniforms.uCenter.value.set(x * 0.5 + 0.5, y * 0.5 + 0.5);
-    dropMaterial.current.uniforms.uRadius.value = radius;
-    dropMaterial.current.uniforms.uStrength.value = strength;
-    renderPass(dropMaterial.current, textureB.current);
-    swapTextures();
-  }, [renderPass, swapTextures]);
-  
-  // Move sphere to displace water
+
+  useEffect(() => () => {
+    targetA.current?.dispose();
+    targetB.current?.dispose();
+    dropMaterial.current?.dispose();
+    updateMaterial.current?.dispose();
+    normalMaterial.current?.dispose();
+    sphereMaterial.current?.dispose();
+    quadGeom.dispose();
+  }, [quadGeom]);
+
+  const renderPass = useCallback((mat: THREE.ShaderMaterial) => {
+    quadMesh.current.material = mat;
+    const prev = gl.getRenderTarget();
+    gl.setRenderTarget(targetB.current);
+    gl.render(scene, camera);
+    gl.setRenderTarget(prev);
+    // swap
+    const tmp = targetA.current;
+    targetA.current = targetB.current;
+    targetB.current = tmp;
+  }, [gl, scene, camera]);
+
+  const addDrop = useCallback((x: number, y: number, radius = 0.03, strength = 0.01) => {
+    if (!targetA.current) return;
+    dropMaterial.current.uniforms.texture.value = targetA.current.texture;
+    dropMaterial.current.uniforms.center.value.set(x, y);
+    dropMaterial.current.uniforms.radius.value = radius;
+    dropMaterial.current.uniforms.strength.value = strength;
+    renderPass(dropMaterial.current);
+  }, [renderPass]);
+
   const moveSphere = useCallback((oldCenter: THREE.Vector3, newCenter: THREE.Vector3, radius: number) => {
-    sphereMaterial.current.uniforms.uTexture.value = textureA.current.texture;
-    sphereMaterial.current.uniforms.uOldCenter.value.copy(oldCenter);
-    sphereMaterial.current.uniforms.uNewCenter.value.copy(newCenter);
-    sphereMaterial.current.uniforms.uRadius.value = radius;
-    renderPass(sphereMaterial.current, textureB.current);
-    swapTextures();
-  }, [renderPass, swapTextures]);
-  
-  // Step the simulation forward
+    if (!targetA.current) return;
+    sphereMaterial.current.uniforms.texture.value = targetA.current.texture;
+    sphereMaterial.current.uniforms.oldCenter.value.copy(oldCenter);
+    sphereMaterial.current.uniforms.newCenter.value.copy(newCenter);
+    sphereMaterial.current.uniforms.radius.value = radius;
+    renderPass(sphereMaterial.current);
+  }, [renderPass]);
+
   const stepSimulation = useCallback(() => {
-    updateMaterial.current.uniforms.uTexture.value = textureA.current.texture;
-    renderPass(updateMaterial.current, textureB.current);
-    swapTextures();
-  }, [renderPass, swapTextures]);
-  
-  // Update normals
+    if (!targetA.current) return;
+    updateMaterial.current.uniforms.texture.value = targetA.current.texture;
+    renderPass(updateMaterial.current);
+  }, [renderPass]);
+
   const updateNormals = useCallback(() => {
-    normalMaterial.current.uniforms.uTexture.value = textureA.current.texture;
-    renderPass(normalMaterial.current, textureB.current);
-    swapTextures();
-  }, [renderPass, swapTextures]);
-  
-  // Get current water texture
-  const getTexture = useCallback(() => {
-    return textureA.current?.texture;
-  }, []);
-  
-  return {
-    addDrop,
-    moveSphere,
-    stepSimulation,
-    updateNormals,
-    getTexture,
-    textureA,
-    textureB,
-  };
+    if (!targetA.current) return;
+    normalMaterial.current.uniforms.texture.value = targetA.current.texture;
+    renderPass(normalMaterial.current);
+  }, [renderPass]);
+
+  const getTexture = useCallback(() => targetA.current?.texture, []);
+
+  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture };
 }
