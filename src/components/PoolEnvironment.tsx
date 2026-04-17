@@ -103,7 +103,7 @@ export function PoolEnvironment({
       sphereRadius: { value: 0.25 },
       poolHeightU: { value: 1.0 },
     },
-    side: THREE.DoubleSide,
+    side: THREE.BackSide,
   }), [tilesTexture]);
 
   useFrame(() => {
