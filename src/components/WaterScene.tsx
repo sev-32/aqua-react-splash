@@ -61,6 +61,9 @@ export function WaterScene() {
   useEffect(() => {
     if (!initialized) {
       seedDrops(20);
+      // Sync initial sphere position to store
+      const p = sphereCenter.current;
+      waterStore.set({ spherePos: [p.x, p.y, p.z] });
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
