@@ -97,8 +97,8 @@ export function WaterSurface({
 
   return (
     <group>
-      <mesh geometry={geometry} material={aboveMaterial} raycast={ignoreRaycast} renderOrder={2} />
-      <mesh geometry={geometry} material={belowMaterial} raycast={ignoreRaycast} renderOrder={1} />
+      <mesh geometry={geometry} material={aboveMaterial} raycast={ignoreRaycast} renderOrder={2} frustumCulled={false} />
+      <mesh geometry={geometry} material={belowMaterial} raycast={ignoreRaycast} renderOrder={1} frustumCulled={false} />
       <mesh
         geometry={hitGeometry}
         material={hitMaterial}
