@@ -27,7 +27,7 @@ export const simulationVertexShader = /* glsl */ `
 
 export const dropFragmentShader = /* glsl */ `
   precision highp float;
-  uniform sampler2D texture;
+  uniform sampler2D tSim;
   uniform vec2 center;     // in [-1, 1]
   uniform float radius;
   uniform float strength;
@@ -36,7 +36,7 @@ export const dropFragmentShader = /* glsl */ `
   const float PI = 3.141592653589793;
 
   void main() {
-    vec4 info = texture2D(texture, vCoord);
+    vec4 info = texture2D(tSim, vCoord);
     float drop = max(0.0, 1.0 - length(center * 0.5 + 0.5 - vCoord) / radius);
     drop = 0.5 - cos(drop * PI) * 0.5;
     info.r += drop * strength;
@@ -46,21 +46,21 @@ export const dropFragmentShader = /* glsl */ `
 
 export const updateFragmentShader = /* glsl */ `
   precision highp float;
-  uniform sampler2D texture;
+  uniform sampler2D tSim;
   uniform vec2 delta;
   varying vec2 vCoord;
 
   void main() {
-    vec4 info = texture2D(texture, vCoord);
+    vec4 info = texture2D(tSim, vCoord);
 
     vec2 dx = vec2(delta.x, 0.0);
     vec2 dy = vec2(0.0, delta.y);
 
     float average = (
-      texture2D(texture, vCoord - dx).r +
-      texture2D(texture, vCoord - dy).r +
-      texture2D(texture, vCoord + dx).r +
-      texture2D(texture, vCoord + dy).r
+      texture2D(tSim, vCoord - dx).r +
+      texture2D(tSim, vCoord - dy).r +
+      texture2D(tSim, vCoord + dx).r +
+      texture2D(tSim, vCoord + dy).r
     ) * 0.25;
 
     info.g += (average - info.r) * 2.0;
@@ -73,14 +73,14 @@ export const updateFragmentShader = /* glsl */ `
 
 export const normalFragmentShader = /* glsl */ `
   precision highp float;
-  uniform sampler2D texture;
+  uniform sampler2D tSim;
   uniform vec2 delta;
   varying vec2 vCoord;
 
   void main() {
-    vec4 info = texture2D(texture, vCoord);
-    vec3 dx = vec3(delta.x, texture2D(texture, vec2(vCoord.x + delta.x, vCoord.y)).r - info.r, 0.0);
-    vec3 dy = vec3(0.0, texture2D(texture, vec2(vCoord.x, vCoord.y + delta.y)).r - info.r, delta.y);
+    vec4 info = texture2D(tSim, vCoord);
+    vec3 dx = vec3(delta.x, texture2D(tSim, vec2(vCoord.x + delta.x, vCoord.y)).r - info.r, 0.0);
+    vec3 dy = vec3(0.0, texture2D(tSim, vec2(vCoord.x, vCoord.y + delta.y)).r - info.r, delta.y);
     info.ba = normalize(cross(dy, dx)).xz;
     gl_FragColor = info;
   }
@@ -88,7 +88,7 @@ export const normalFragmentShader = /* glsl */ `
 
 export const sphereDisplacementFragmentShader = /* glsl */ `
   precision highp float;
-  uniform sampler2D texture;
+  uniform sampler2D tSim;
   uniform vec3 oldCenter;
   uniform vec3 newCenter;
   uniform float radius;
@@ -104,7 +104,7 @@ export const sphereDisplacementFragmentShader = /* glsl */ `
   }
 
   void main() {
-    vec4 info = texture2D(texture, vCoord);
+    vec4 info = texture2D(tSim, vCoord);
     info.r += volumeInSphere(oldCenter);
     info.r -= volumeInSphere(newCenter);
     gl_FragColor = info;

@@ -68,7 +68,7 @@ export function useWaterSimulation() {
       vertexShader: simulationVertexShader,
       fragmentShader: dropFragmentShader,
       uniforms: {
-        texture: { value: null },
+        tSim: { value: null },
         center: { value: new THREE.Vector2() },
         radius: { value: 0.03 },
         strength: { value: 0.01 },
@@ -79,7 +79,7 @@ export function useWaterSimulation() {
       vertexShader: simulationVertexShader,
       fragmentShader: updateFragmentShader,
       uniforms: {
-        texture: { value: null },
+        tSim: { value: null },
         delta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
       },
     });
@@ -88,7 +88,7 @@ export function useWaterSimulation() {
       vertexShader: simulationVertexShader,
       fragmentShader: normalFragmentShader,
       uniforms: {
-        texture: { value: null },
+        tSim: { value: null },
         delta: { value: new THREE.Vector2(1 / TEXTURE_SIZE, 1 / TEXTURE_SIZE) },
       },
     });
@@ -97,7 +97,7 @@ export function useWaterSimulation() {
       vertexShader: simulationVertexShader,
       fragmentShader: sphereDisplacementFragmentShader,
       uniforms: {
-        texture: { value: null },
+        tSim: { value: null },
         oldCenter: { value: new THREE.Vector3() },
         newCenter: { value: new THREE.Vector3() },
         radius: { value: 0.25 },
@@ -133,7 +133,7 @@ export function useWaterSimulation() {
 
   const addDrop = useCallback((x: number, y: number, radius = 0.03, strength = 0.01) => {
     if (!targetA.current) return;
-    dropMaterial.current.uniforms.texture.value = targetA.current.texture;
+    dropMaterial.current.uniforms.tSim.value = targetA.current.texture;
     dropMaterial.current.uniforms.center.value.set(x, y);
     dropMaterial.current.uniforms.radius.value = radius;
     dropMaterial.current.uniforms.strength.value = strength;
@@ -142,7 +142,7 @@ export function useWaterSimulation() {
 
   const moveSphere = useCallback((oldCenter: THREE.Vector3, newCenter: THREE.Vector3, radius: number) => {
     if (!targetA.current) return;
-    sphereMaterial.current.uniforms.texture.value = targetA.current.texture;
+    sphereMaterial.current.uniforms.tSim.value = targetA.current.texture;
     sphereMaterial.current.uniforms.oldCenter.value.copy(oldCenter);
     sphereMaterial.current.uniforms.newCenter.value.copy(newCenter);
     sphereMaterial.current.uniforms.radius.value = radius;
@@ -151,13 +151,13 @@ export function useWaterSimulation() {
 
   const stepSimulation = useCallback(() => {
     if (!targetA.current) return;
-    updateMaterial.current.uniforms.texture.value = targetA.current.texture;
+    updateMaterial.current.uniforms.tSim.value = targetA.current.texture;
     renderPass(updateMaterial.current);
   }, [renderPass]);
 
   const updateNormals = useCallback(() => {
     if (!targetA.current) return;
-    normalMaterial.current.uniforms.texture.value = targetA.current.texture;
+    normalMaterial.current.uniforms.tSim.value = targetA.current.texture;
     renderPass(normalMaterial.current);
   }, [renderPass]);
 
