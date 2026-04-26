@@ -19,7 +19,7 @@ export interface MpmHandle {
   /** Convenience: spawn helpers. */
   crown: (cx: number, cz: number, impactSpeed: number) => void;
   sheet: (cx: number, cz: number, yStart: number, upSpeed: number) => void;
-  impact: (cx: number, cz: number, energy?: number) => void;
+  impact: (cx: number, cz: number, energy?: number, count?: number) => void;
   /** Drain settle events; calls onSettle(x,z,strength) for each. */
   drainSettleEvents: (onSettle: (x: number, z: number, strength: number) => void) => void;
   /** Live count of alive particles, for telemetry. */
@@ -38,7 +38,7 @@ export function useMlsMpm(maxParticles = 6000): MpmHandle {
       step: (dt, sphere) => solver.step(dt, sphere),
       crown: (cx, cz, impactSpeed) => solver.spawnCrown(cx, cz, impactSpeed),
       sheet: (cx, cz, yStart, upSpeed) => solver.spawnSheet(cx, cz, yStart, upSpeed),
-      impact: (cx, cz, energy = 1.0) => solver.spawnImpact(cx, cz, energy),
+      impact: (cx, cz, energy = 1.0, count = 20) => solver.spawnImpact(cx, cz, energy, count),
       drainSettleEvents: (onSettle) => {
         for (const e of solver.settleEvents) {
           // Map vertical impact velocity to a small ripple strength.
