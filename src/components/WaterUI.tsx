@@ -136,6 +136,8 @@ export function WaterUI() {
           <div className="space-y-0">
             <Stat label="Frame Rate" value={fps.toFixed(0)} unit="fps" />
             <Stat label="Disturbances" value={ripples.toString()} />
+            <Stat label="Splash Events" value={splashEvents.toString()} />
+            <Stat label="Particles · MPM" value={particleCount.toString()} />
             <Stat label="Probe · X" value={sphere[0].toFixed(3)} />
             <Stat label="Probe · Y" value={sphere[1].toFixed(3)} />
             <Stat label="Probe · Z" value={sphere[2].toFixed(3)} />
@@ -160,13 +162,22 @@ export function WaterUI() {
               suffix="°"
               onChange={(v) => waterStore.set({ lightElevation: v })}
             />
+            <Dial
+              label="Splash · Intensity"
+              value={splashIntensity * 100}
+              min={0}
+              max={200}
+              suffix="%"
+              onChange={(v) => waterStore.set({ splashIntensity: v / 100 })}
+            />
           </div>
 
           <div className="my-5 h-px bg-bone/10" />
 
           <div className="grid grid-cols-2 gap-2">
             <ActionBtn onClick={() => waterCommands.emit('single-drop')}>Drop</ActionBtn>
-            <ActionBtn onClick={() => waterCommands.emit('storm')} variant="primary">Storm</ActionBtn>
+            <ActionBtn onClick={() => waterCommands.emit('splash')} variant="primary">Splash</ActionBtn>
+            <ActionBtn onClick={() => waterCommands.emit('storm')}>Storm</ActionBtn>
             <ActionBtn onClick={() => waterCommands.emit('reset')}>Reset</ActionBtn>
             <ActionBtn onClick={() => waterStore.set({ paused: !waterStore.get().paused })}>
               {useWaterStore((s) => s.paused) ? 'Resume' : 'Pause'}
