@@ -62,6 +62,9 @@ export function WaterUI() {
   const ripples = useWaterStore((s) => s.rippleCount);
   const angle = useWaterStore((s) => s.lightAngle);
   const elev = useWaterStore((s) => s.lightElevation);
+  const particleCount = useWaterStore((s) => s.particleCount);
+  const splashEvents = useWaterStore((s) => s.splashEvents);
+  const splashIntensity = useWaterStore((s) => s.splashIntensity);
 
   useEffect(() => {
     const i = setInterval(() => setTime(new Date()), 1000);
