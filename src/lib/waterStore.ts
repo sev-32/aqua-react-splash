@@ -10,6 +10,11 @@ export interface WaterState {
   lightElevation: number; // degrees, 0-90
   intensity: number; // 0-1
   paused: boolean;
+  // Splash physics telemetry
+  particleCount: number;
+  splashEvents: number;
+  // Splash intensity multiplier (0–2)
+  splashIntensity: number;
 }
 
 const state: WaterState = {
@@ -20,6 +25,9 @@ const state: WaterState = {
   lightElevation: 50,
   intensity: 0.6,
   paused: false,
+  particleCount: 0,
+  splashEvents: 0,
+  splashIntensity: 1.0,
 };
 
 const listeners = new Set<Listener>();
