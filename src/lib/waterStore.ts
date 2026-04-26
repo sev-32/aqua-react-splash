@@ -45,7 +45,7 @@ export const waterStore = {
 };
 
 // Command bus for one-shot actions
-type Command = 'reset' | 'storm' | 'single-drop';
+export type Command = 'reset' | 'storm' | 'single-drop' | 'splash';
 const commandListeners = new Set<(cmd: Command) => void>();
 export const waterCommands = {
   emit: (cmd: Command) => commandListeners.forEach((l) => l(cmd)),
