@@ -25,7 +25,7 @@ import * as THREE from 'three';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const MPM_GRID_RES = 48;            // grid nodes per axis on the splash region
+export const MPM_GRID_RES = 32;            // grid nodes per axis on the splash region
 export const MPM_DOMAIN_MIN = -1.05;       // a touch beyond pool edge to allow over-rim splashes
 export const MPM_DOMAIN_MAX =  1.05;
 export const MPM_DOMAIN_SIZE = MPM_DOMAIN_MAX - MPM_DOMAIN_MIN;
