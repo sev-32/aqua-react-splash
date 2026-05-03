@@ -342,69 +342,63 @@ export class MlsMpmSolver {
     }
 
     // ── Grid update ────────────────────────────────────────────────────────
-    // Convert momentum → velocity, apply gravity, enforce boundary conditions.
+    // Only iterate the sparse set of nodes that received mass this step.
     const r = res;
     const sphereR2 = sphere ? sphere.radius * sphere.radius : 0;
-    for (let i = 0; i < r; i++) {
+    for (let a = 0; a < G.activeCount; a++) {
+      const idx = G.active[a];
+      const m = G.mass[idx];
+      if (m <= 0) continue;
+      // Decode (i,j,k) from flat idx
+      const i = (idx / (r * r)) | 0;
+      const rem = idx - i * r * r;
+      const j = (rem / r) | 0;
+      const k = rem - j * r;
       const wx = MPM_DOMAIN_MIN + (i + 0.5) * MPM_DX;
-      for (let j = 0; j < r; j++) {
-        const wy = MPM_DOMAIN_MIN + (j + 0.5) * MPM_DX;
-        for (let k = 0; k < r; k++) {
-          const idx = G.idx(i, j, k);
-          const m = G.mass[idx];
-          if (m <= 0) continue;
-          const wz = MPM_DOMAIN_MIN + (k + 0.5) * MPM_DX;
-          const invM = 1.0 / m;
-          let vx = G.mx[idx] * invM;
-          let vy = G.my[idx] * invM + GRAVITY * dt;
-          let vz = G.mz[idx] * invM;
+      const wy = MPM_DOMAIN_MIN + (j + 0.5) * MPM_DX;
+      const wz = MPM_DOMAIN_MIN + (k + 0.5) * MPM_DX;
+      const invM = 1.0 / m;
+      let vx = G.mx[idx] * invM;
+      let vy = G.my[idx] * invM + GRAVITY * dt;
+      let vz = G.mz[idx] * invM;
 
-          // Pool walls: only enforce while inside the pool box (below the rim)
-          if (wy < POOL_RIM_Y) {
-            // X walls
-            if (wx < -POOL_HALF_EXTENT && vx < 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
-            if (wx >  POOL_HALF_EXTENT && vx > 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
-            // Z walls
-            if (wz < -POOL_HALF_EXTENT && vz < 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
-            if (wz >  POOL_HALF_EXTENT && vz > 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
-          }
-          // Floor
-          if (wy < POOL_FLOOR_Y && vy < 0) { vy = 0; vx *= FRICTION; vz *= FRICTION; }
+      // Pool walls: only enforce while inside the pool box (below the rim)
+      if (wy < POOL_RIM_Y) {
+        if (wx < -POOL_HALF_EXTENT && vx < 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
+        if (wx >  POOL_HALF_EXTENT && vx > 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
+        if (wz < -POOL_HALF_EXTENT && vz < 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
+        if (wz >  POOL_HALF_EXTENT && vz > 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
+      }
+      if (wy < POOL_FLOOR_Y && vy < 0) { vy = 0; vx *= FRICTION; vz *= FRICTION; }
 
-          // Sphere (rigid) one-way push on grid velocities; impulse accumulated for two-way
-          if (sphere) {
-            const dx = wx - sphere.cx;
-            const dy = wy - sphere.cy;
-            const dz = wz - sphere.cz;
-            const d2 = dx * dx + dy * dy + dz * dz;
-            if (d2 < sphereR2 && d2 > 1e-8) {
-              const d = Math.sqrt(d2);
-              const nx = dx / d, ny = dy / d, nz = dz / d;
-              // Relative velocity onto normal
-              const relVN = (vx - sphere.vx) * nx + (vy - sphere.vy) * ny + (vz - sphere.vz) * nz;
-              if (relVN < 0) {
-                // Reflect grid velocity to sphere surface velocity along normal
-                const dvx = -relVN * nx;
-                const dvy = -relVN * ny;
-                const dvz = -relVN * nz;
-                vx += dvx; vy += dvy; vz += dvz;
-                // Newton's 3rd law: apply opposite momentum impulse to sphere
-                sphere.fx -= m * dvx / dt;
-                sphere.fy -= m * dvy / dt;
-                sphere.fz -= m * dvz / dt;
-              }
-            }
+      // Sphere coupling
+      if (sphere) {
+        const dx = wx - sphere.cx;
+        const dy = wy - sphere.cy;
+        const dz = wz - sphere.cz;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < sphereR2 && d2 > 1e-8) {
+          const d = Math.sqrt(d2);
+          const nx = dx / d, ny = dy / d, nz = dz / d;
+          const relVN = (vx - sphere.vx) * nx + (vy - sphere.vy) * ny + (vz - sphere.vz) * nz;
+          if (relVN < 0) {
+            const dvx = -relVN * nx;
+            const dvy = -relVN * ny;
+            const dvz = -relVN * nz;
+            vx += dvx; vy += dvy; vz += dvz;
+            sphere.fx -= m * dvx / dt;
+            sphere.fy -= m * dvy / dt;
+            sphere.fz -= m * dvz / dt;
           }
-
-          // Velocity clamp
-          const sp2 = vx * vx + vy * vy + vz * vz;
-          if (sp2 > MAX_VELOCITY * MAX_VELOCITY) {
-            const s = MAX_VELOCITY / Math.sqrt(sp2);
-            vx *= s; vy *= s; vz *= s;
-          }
-          G.mx[idx] = vx; G.my[idx] = vy; G.mz[idx] = vz;
         }
       }
+
+      const sp2 = vx * vx + vy * vy + vz * vz;
+      if (sp2 > MAX_VELOCITY * MAX_VELOCITY) {
+        const s = MAX_VELOCITY / Math.sqrt(sp2);
+        vx *= s; vy *= s; vz *= s;
+      }
+      G.mx[idx] = vx; G.my[idx] = vy; G.mz[idx] = vz;
     }
 
     // ── G2P ────────────────────────────────────────────────────────────────
