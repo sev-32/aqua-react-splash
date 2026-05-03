@@ -335,6 +335,7 @@ export class MlsMpmSolver {
             G.mx[idx] += w * (mvx + apicX) + w * stressX;
             G.my[idx] += w * (mvy + apicY) + w * stressY;
             G.mz[idx] += w * (mvz + apicZ) + w * stressZ;
+            G.markTouched(idx);
           }
         }
       }
