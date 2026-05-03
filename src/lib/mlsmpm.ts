@@ -1,78 +1,65 @@
 /**
- * MLS-MPM (Moving Least Squares Material Point Method) — 3D, CPU
+ * Reference-style MLS-MPM splash solver for the pool hybrid.
  *
- * Compact APIC (Affine Particle-In-Cell) implementation tuned for
- * short-lived splash bursts. Pool space is the unit cube
- * [-1, 1] × [-1, ymax] × [-1, 1] where the water rest level is y = 0
- * (matches the height-field surface), the floor is y = -1, and walls
- * extend up to y = poolTop ≈ 2/12 ≈ 0.167. Above the wall rim, particles
- * travel ballistically until they fall back below the rim.
+ * This follows the provided WebGPU MLS-MPM blueprint much more closely than
+ * the failed shortcut version:
+ *   1. clear sparse grid
+ *   2. P2G mass + APIC momentum
+ *   3. density gather + pressure/viscosity stress P2G
+ *   4. grid forces/boundaries/sphere collider
+ *   5. G2P APIC transfer + particle advection
  *
- * References:
- * - Hu et al. 2018, "A Moving Least Squares Material Point Method
- *   with Displacement Discontinuity and Two-Way Rigid Body Coupling"
- * - Jiang et al. 2015, "The Affine Particle-In-Cell Method"
- *
- * Quadratic B-spline kernel:
- *   N(d) = 0.75 - d²              for |d| < 0.5
- *        = 0.5 * (1.5 - |d|)²     for 0.5 ≤ |d| < 1.5
- *        = 0                       otherwise
- * Each particle contributes to a 3×3×3 grid stencil centered on the
- * nearest grid node (rounded), giving 27 weights per particle.
+ * Particles are stored in pool/world coordinates, while the MLS-MPM kernel
+ * evaluates the same quadratic 3x3x3 stencil in grid-cell coordinates used by
+ * the reference. The grid remains sparse: only nodes touched by particles are
+ * processed or cleared, so MLS-MPM stays event-local around splashes/breaches.
  */
 
 import * as THREE from 'three';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+export const MPM_GRID_RES = 36;
+export const MPM_GRID_X = 36;
+export const MPM_GRID_Y = 44;
+export const MPM_GRID_Z = 36;
 
-export const MPM_GRID_RES = 32;            // grid nodes per axis on the splash region
-export const MPM_DOMAIN_MIN = -1.05;       // a touch beyond pool edge to allow over-rim splashes
-export const MPM_DOMAIN_MAX =  1.05;
-export const MPM_DOMAIN_SIZE = MPM_DOMAIN_MAX - MPM_DOMAIN_MIN;
-export const MPM_DX = MPM_DOMAIN_SIZE / MPM_GRID_RES;     // grid spacing in world units
+export const MPM_DOMAIN_XZ_MIN = -1.2;
+export const MPM_DOMAIN_XZ_MAX = 1.2;
+export const MPM_DOMAIN_Y_MIN = -1.05;
+export const MPM_DX = (MPM_DOMAIN_XZ_MAX - MPM_DOMAIN_XZ_MIN) / MPM_GRID_X;
 export const MPM_INV_DX = 1.0 / MPM_DX;
-export const MPM_CELL_VOL = MPM_DX * MPM_DX * MPM_DX;
+export const MPM_DOMAIN_Y_MAX = MPM_DOMAIN_Y_MIN + MPM_GRID_Y * MPM_DX;
 
 export const POOL_FLOOR_Y = -1.0;
-export const POOL_RIM_Y = 2.0 / 12.0;       // matches shader threshold; above this, walls open
-export const POOL_HALF_EXTENT = 1.0;        // pool is |x|,|z| ≤ 1
+export const POOL_RIM_Y = 2.0 / 12.0;
+export const POOL_HALF_EXTENT = 1.0;
 
-// Water material parameters (weakly compressible, Tait EOS)
-const REST_DENSITY = 4.0;          // tuned for stability with chosen particle mass
-const EOS_STIFFNESS = 10.0;        // bulk modulus surrogate
-const EOS_POWER = 7.0;             // Tait exponent γ
-const DYNAMIC_VISCOSITY = 0.04;    // damps shear
-const PARTICLE_VOLUME = MPM_CELL_VOL * 0.25;   // 4 particles per cell at rest
-const PARTICLE_MASS = REST_DENSITY * PARTICLE_VOLUME;
+const PARTICLE_MASS = 1.0;
+const REST_DENSITY = 1.35;
+const STIFFNESS = 18.0;
+const DYNAMIC_VISCOSITY = 0.075;
+const GRAVITY = -3.8;
+const WALL_STIFFNESS = 18.0;
+const WALL_DAMPING = 0.42;
+const PARTICLE_LIFETIME = 3.2;
+const MAX_VELOCITY = 13.0;
+const SURFACE_Y = 0.0;
+const GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
 
-const GRAVITY = -3.0;              // pool-space gravity, scaled to feel snappy
-const FRICTION = 0.92;             // tangential damping at wall contact
-const PARTICLE_LIFETIME = 4.5;     // seconds before forced recycle
-const MAX_VELOCITY = 18.0;         // safety clamp
-
-// Particle flags
-export const FLAG_ALIVE  = 1 << 0;
-export const FLAG_AIRBORNE = 1 << 1;   // currently above water surface
-export const FLAG_FOAM = 1 << 2;       // marked as foam (high curvature / aerated)
-
-// ─── Particle storage (Structure of Arrays for cache friendliness) ──────────
+export const FLAG_ALIVE = 1 << 0;
+export const FLAG_AIRBORNE = 1 << 1;
+export const FLAG_FOAM = 1 << 2;
 
 export class MpmParticles {
   capacity: number;
   count = 0;
-  next = 0; // round-robin pointer for recycling
+  next = 0;
 
-  // Position
   px: Float32Array; py: Float32Array; pz: Float32Array;
-  // Velocity
   vx: Float32Array; vy: Float32Array; vz: Float32Array;
-  // Affine velocity matrix C (3×3 row-major)
   cxx: Float32Array; cxy: Float32Array; cxz: Float32Array;
   cyx: Float32Array; cyy: Float32Array; cyz: Float32Array;
   czx: Float32Array; czy: Float32Array; czz: Float32Array;
-  // Determinant of deformation gradient (volume change). Kept compact (1D).
-  J: Float32Array;
-  // Lifetime + flags
+  density: Float32Array;
   life: Float32Array;
   flags: Uint8Array;
 
@@ -84,57 +71,44 @@ export class MpmParticles {
     this.cxx = f(); this.cxy = f(); this.cxz = f();
     this.cyx = f(); this.cyy = f(); this.cyz = f();
     this.czx = f(); this.czy = f(); this.czz = f();
-    this.J = f();
+    this.density = f();
     this.life = f();
     this.flags = new Uint8Array(capacity);
   }
 
-  /** Spawn a single particle. Returns its index, or -1 if full and recycle disabled. */
-  spawn(
-    x: number, y: number, z: number,
-    vx: number, vy: number, vz: number,
-    foam = false,
-  ): number {
+  spawn(x: number, y: number, z: number, vx: number, vy: number, vz: number, foam = false): number {
     let i: number;
     if (this.count < this.capacity) {
       i = this.count++;
     } else {
-      // Recycle round-robin — splashes naturally die out, oldest wins.
       i = this.next;
       this.next = (this.next + 1) % this.capacity;
     }
+
     this.px[i] = x; this.py[i] = y; this.pz[i] = z;
     this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz;
     this.cxx[i] = 0; this.cxy[i] = 0; this.cxz[i] = 0;
     this.cyx[i] = 0; this.cyy[i] = 0; this.cyz[i] = 0;
     this.czx[i] = 0; this.czy[i] = 0; this.czz[i] = 0;
-    this.J[i] = 1.0;
-    this.life[i] = 0.0;
-    this.flags[i] = FLAG_ALIVE | FLAG_AIRBORNE | (foam ? FLAG_FOAM : 0);
+    this.density[i] = REST_DENSITY;
+    this.life[i] = 0;
+    this.flags[i] = FLAG_ALIVE | (y >= SURFACE_Y ? FLAG_AIRBORNE : 0) | (foam ? FLAG_FOAM : 0);
     return i;
   }
 
-  /** Mark a slot as dead (will be skipped + reused). */
   kill(i: number) {
     this.flags[i] = 0;
   }
 }
 
-// ─── Grid storage ────────────────────────────────────────────────────────────
-
 class MpmGrid {
-  res: number;
-  // Momentum (will become velocity after divide by mass)
-  mx: Float32Array; my: Float32Array; mz: Float32Array;
-  mass: Float32Array;
-  // Sparse active-node list — populated during P2G, drained during grid-update + clear.
+  mx: Float32Array; my: Float32Array; mz: Float32Array; mass: Float32Array;
   active: Int32Array;
-  activeCount = 0;
   touched: Uint8Array;
+  activeCount = 0;
 
-  constructor(res: number) {
-    this.res = res;
-    const n = res * res * res;
+  constructor() {
+    const n = MPM_GRID_X * MPM_GRID_Y * MPM_GRID_Z;
     this.mx = new Float32Array(n);
     this.my = new Float32Array(n);
     this.mz = new Float32Array(n);
@@ -143,235 +117,245 @@ class MpmGrid {
     this.touched = new Uint8Array(n);
   }
 
-  clear() {
-    // Only zero the nodes we actually touched last step.
-    for (let a = 0; a < this.activeCount; a++) {
-      const idx = this.active[a];
-      this.mx[idx] = 0; this.my[idx] = 0; this.mz[idx] = 0;
-      this.mass[idx] = 0;
-      this.touched[idx] = 0;
-    }
-    this.activeCount = 0;
-  }
-
   idx(i: number, j: number, k: number) {
-    return (i * this.res + j) * this.res + k;
+    return (i * MPM_GRID_Y + j) * MPM_GRID_Z + k;
   }
 
-  markTouched(idx: number) {
+  mark(idx: number) {
     if (!this.touched[idx]) {
       this.touched[idx] = 1;
       this.active[this.activeCount++] = idx;
     }
   }
-}
 
-// ─── Solver ──────────────────────────────────────────────────────────────────
+  clear() {
+    for (let n = 0; n < this.activeCount; n++) {
+      const idx = this.active[n];
+      this.mx[idx] = 0;
+      this.my[idx] = 0;
+      this.mz[idx] = 0;
+      this.mass[idx] = 0;
+      this.touched[idx] = 0;
+    }
+    this.activeCount = 0;
+  }
+}
 
 export interface SphereProbe {
   cx: number; cy: number; cz: number;
   vx: number; vy: number; vz: number;
   radius: number;
-  /** Output: net force fluid applies to sphere this step. */
   fx: number; fy: number; fz: number;
 }
 
 export interface MpmSettleEvent {
-  /** Pool-space x ∈ [-1,1]. */
   x: number;
-  /** Pool-space z ∈ [-1,1]. */
   z: number;
-  /** Vertical velocity at impact (negative = downward). */
   vy: number;
-  /** Mass-weighted contribution. */
   weight: number;
 }
 
 export class MlsMpmSolver {
   particles: MpmParticles;
   grid: MpmGrid;
-  /** Fired on this step's impacts so the height-field can re-couple. */
   settleEvents: MpmSettleEvent[] = [];
+  private rng = 0x6d2b79f5;
 
-  constructor(maxParticles = 6000) {
+  constructor(maxParticles = 9000) {
     this.particles = new MpmParticles(maxParticles);
-    this.grid = new MpmGrid(MPM_GRID_RES);
+    this.grid = new MpmGrid();
   }
 
-  /** World position → continuous grid coordinate. */
-  private worldToGrid(p: number) {
-    return (p - MPM_DOMAIN_MIN) * MPM_INV_DX;
+  private rand() {
+    this.rng |= 0;
+    this.rng = (this.rng + 0x6d2b79f5) | 0;
+    let t = Math.imul(this.rng ^ (this.rng >>> 15), 1 | this.rng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
-  /**
-   * Advance the simulation by `dt`. Substeps internally for stability.
-   * `sphere` (optional) participates in two-way coupling.
-   */
+  private worldToGridX(x: number) { return (x - MPM_DOMAIN_XZ_MIN) * MPM_INV_DX; }
+  private worldToGridY(y: number) { return (y - MPM_DOMAIN_Y_MIN) * MPM_INV_DX; }
+  private worldToGridZ(z: number) { return (z - MPM_DOMAIN_XZ_MIN) * MPM_INV_DX; }
+  private gridToWorldX(i: number) { return MPM_DOMAIN_XZ_MIN + (i + 0.5) * MPM_DX; }
+  private gridToWorldY(j: number) { return MPM_DOMAIN_Y_MIN + (j + 0.5) * MPM_DX; }
+  private gridToWorldZ(k: number) { return MPM_DOMAIN_XZ_MIN + (k + 0.5) * MPM_DX; }
+
   step(dt: number, sphere?: SphereProbe) {
-    // CFL: cap step so a particle moves at most ~0.4 cells/substep.
-    const maxSub = Math.max(1, Math.ceil(dt / (0.4 * MPM_DX / Math.max(1, MAX_VELOCITY * 0.25))));
-    const sub = Math.min(maxSub, 4);
-    const h = dt / sub;
+    const safeDt = Math.min(Math.max(dt, 0), 1 / 30);
+    if (safeDt <= 0) return;
+
+    const substeps = Math.min(5, Math.max(1, Math.ceil(safeDt / 0.0075)));
+    const h = safeDt / substeps;
     this.settleEvents.length = 0;
-    for (let s = 0; s < sub; s++) this.substep(h, sphere);
+    for (let s = 0; s < substeps; s++) this.substep(h, sphere);
+  }
+
+  private inStencil(gx: number, gy: number, gz: number) {
+    const ix = Math.floor(gx);
+    const iy = Math.floor(gy);
+    const iz = Math.floor(gz);
+    return ix >= 1 && ix < MPM_GRID_X - 1 &&
+           iy >= 1 && iy < MPM_GRID_Y - 1 &&
+           iz >= 1 && iz < MPM_GRID_Z - 1;
+  }
+
+  private weights(d: number) {
+    return [
+      0.5 * (0.5 - d) * (0.5 - d),
+      0.75 - d * d,
+      0.5 * (0.5 + d) * (0.5 + d),
+    ] as const;
   }
 
   private substep(dt: number, sphere?: SphereProbe) {
     const P = this.particles;
     const G = this.grid;
     G.clear();
-
     if (sphere) { sphere.fx = 0; sphere.fy = 0; sphere.fz = 0; }
 
-    // ── P2G ────────────────────────────────────────────────────────────────
-    // Transfer mass + momentum + APIC affine term to grid.
-    // For each particle, compute 27 weights on the surrounding 3×3×3 stencil.
-    const res = G.res;
-    const fourDx = 4.0 * MPM_INV_DX * MPM_INV_DX; // (1/Δx)² * 4 — factor for APIC mom.
-    const dxLocal = MPM_DX;
+    this.p2gMassMomentum(P, G);
+    this.p2gStress(P, G, dt);
+    this.updateGrid(G, dt, sphere);
+    this.g2p(P, G, dt);
+  }
 
-    for (let i = 0; i < P.count; i++) {
-      if (!(P.flags[i] & FLAG_ALIVE)) continue;
+  private p2gMassMomentum(P: MpmParticles, G: MpmGrid) {
+    for (let p = 0; p < P.count; p++) {
+      if (!(P.flags[p] & FLAG_ALIVE)) continue;
+      const gx = this.worldToGridX(P.px[p]);
+      const gy = this.worldToGridY(P.py[p]);
+      const gz = this.worldToGridZ(P.pz[p]);
+      if (!this.inStencil(gx, gy, gz)) continue;
 
-      const gx = this.worldToGrid(P.px[i]);
-      const gy = this.worldToGrid(P.py[i]);
-      const gz = this.worldToGrid(P.pz[i]);
-      const baseI = Math.floor(gx - 0.5);
-      const baseJ = Math.floor(gy - 0.5);
-      const baseK = Math.floor(gz - 0.5);
-      // Skip particles that landed outside the grid completely
-      if (baseI < 0 || baseI + 2 >= res ||
-          baseJ < 0 || baseJ + 2 >= res ||
-          baseK < 0 || baseK + 2 >= res) continue;
+      const ci = Math.floor(gx), cj = Math.floor(gy), ck = Math.floor(gz);
+      const dx = gx - (ci + 0.5), dy = gy - (cj + 0.5), dz = gz - (ck + 0.5);
+      const wx = this.weights(dx), wy = this.weights(dy), wz = this.weights(dz);
 
-      // Fractional offsets from the three stencil nodes, in grid units
-      const fx0 = gx - (baseI + 0.5);
-      const fy0 = gy - (baseJ + 0.5);
-      const fz0 = gz - (baseK + 0.5);
+      const cxx = P.cxx[p], cxy = P.cxy[p], cxz = P.cxz[p];
+      const cyx = P.cyx[p], cyy = P.cyy[p], cyz = P.cyz[p];
+      const czx = P.czx[p], czy = P.czy[p], czz = P.czz[p];
 
-      // Quadratic B-spline weights (3 per axis): w0=0.5(1.5-x)², w1=0.75-(x-1)², w2=0.5(x-0.5)²
-      const wx0 = 0.5 * (1.5 - fx0) ** 2;
-      const wx1 = 0.75 - (fx0 - 1.0) ** 2;
-      const wx2 = 0.5 * (fx0 - 0.5) ** 2;
-      const wy0 = 0.5 * (1.5 - fy0) ** 2;
-      const wy1 = 0.75 - (fy0 - 1.0) ** 2;
-      const wy2 = 0.5 * (fy0 - 0.5) ** 2;
-      const wz0 = 0.5 * (1.5 - fz0) ** 2;
-      const wz1 = 0.75 - (fz0 - 1.0) ** 2;
-      const wz2 = 0.5 * (fz0 - 0.5) ** 2;
-      const wxs = [wx0, wx1, wx2];
-      const wys = [wy0, wy1, wy2];
-      const wzs = [wz0, wz1, wz2];
-
-      // MLS-MPM stress: Tait EOS for pressure + small viscous contribution from C
-      const J = P.J[i];
-      // Pressure: p = κ*( (1/J)^γ − 1 )  — clamped to repel only (no negative pressure cohesion)
-      let pressure = EOS_STIFFNESS * (Math.pow(1.0 / Math.max(J, 0.1), EOS_POWER) - 1.0);
-      if (pressure < -EOS_STIFFNESS * 0.5) pressure = -EOS_STIFFNESS * 0.5;
-      // Affine force coefficient: −Δt * volume * (4/Δx²) * (pressureI + viscosity*(C+Cᵀ))
-      // Pre-multiply the constant scalar.
-      const stressScalar = -dt * PARTICLE_VOLUME * fourDx;
-
-      // Symmetric viscous part: μ*(C + Cᵀ)
-      const cxx = P.cxx[i], cxy = P.cxy[i], cxz = P.cxz[i];
-      const cyx = P.cyx[i], cyy = P.cyy[i], cyz = P.cyz[i];
-      const czx = P.czx[i], czy = P.czy[i], czz = P.czz[i];
-      const vxx = DYNAMIC_VISCOSITY * (cxx + cxx);
-      const vyy = DYNAMIC_VISCOSITY * (cyy + cyy);
-      const vzz = DYNAMIC_VISCOSITY * (czz + czz);
-      const vxy = DYNAMIC_VISCOSITY * (cxy + cyx);
-      const vxz = DYNAMIC_VISCOSITY * (cxz + czx);
-      const vyz = DYNAMIC_VISCOSITY * (cyz + czy);
-
-      // Total stress matrix S = pressure*I + viscousSym
-      const sxx = stressScalar * (pressure + vxx);
-      const syy = stressScalar * (pressure + vyy);
-      const szz = stressScalar * (pressure + vzz);
-      const sxy = stressScalar * vxy;
-      const sxz = stressScalar * vxz;
-      const syz = stressScalar * vyz;
-
-      // APIC affine momentum coefficient: mass * C  (we'll multiply by node offset)
-      const mC_xx = PARTICLE_MASS * cxx;
-      const mC_xy = PARTICLE_MASS * cxy;
-      const mC_xz = PARTICLE_MASS * cxz;
-      const mC_yx = PARTICLE_MASS * cyx;
-      const mC_yy = PARTICLE_MASS * cyy;
-      const mC_yz = PARTICLE_MASS * cyz;
-      const mC_zx = PARTICLE_MASS * czx;
-      const mC_zy = PARTICLE_MASS * czy;
-      const mC_zz = PARTICLE_MASS * czz;
-
-      const mvx = PARTICLE_MASS * P.vx[i];
-      const mvy = PARTICLE_MASS * P.vy[i];
-      const mvz = PARTICLE_MASS * P.vz[i];
-
-      for (let a = 0; a < 3; a++) {
-        const wxw = wxs[a];
-        const ni = baseI + a;
-        // Offset from particle to node center, in WORLD units
-        const ox = ((a + 0.5) - fx0) * dxLocal;
-        for (let b = 0; b < 3; b++) {
-          const wxy = wxw * wys[b];
-          const nj = baseJ + b;
-          const oy = ((b + 0.5) - fy0) * dxLocal;
-          for (let c = 0; c < 3; c++) {
-            const w = wxy * wzs[c];
-            const nk = baseK + c;
-            const oz = ((c + 0.5) - fz0) * dxLocal;
-            const idx = G.idx(ni, nj, nk);
-
-            // APIC affine momentum contribution: m * (v + C·offset)
-            const apicX = mC_xx * ox + mC_xy * oy + mC_xz * oz;
-            const apicY = mC_yx * ox + mC_yy * oy + mC_yz * oz;
-            const apicZ = mC_zx * ox + mC_zy * oy + mC_zz * oz;
-
-            // Stress contribution: S · offset (symmetric)
-            const stressX = sxx * ox + sxy * oy + sxz * oz;
-            const stressY = sxy * ox + syy * oy + syz * oz;
-            const stressZ = sxz * ox + syz * oy + szz * oz;
-
-            G.mass[idx] += w * PARTICLE_MASS;
-            G.mx[idx] += w * (mvx + apicX) + w * stressX;
-            G.my[idx] += w * (mvy + apicY) + w * stressY;
-            G.mz[idx] += w * (mvz + apicZ) + w * stressZ;
-            G.markTouched(idx);
+      for (let ox = 0; ox < 3; ox++) {
+        const i = ci + ox - 1;
+        const wxv = wx[ox];
+        const cellDx = i + 0.5 - gx;
+        for (let oy = 0; oy < 3; oy++) {
+          const j = cj + oy - 1;
+          const wxy = wxv * wy[oy];
+          const cellDy = j + 0.5 - gy;
+          for (let oz = 0; oz < 3; oz++) {
+            const k = ck + oz - 1;
+            const w = wxy * wz[oz];
+            const cellDz = k + 0.5 - gz;
+            const idx = G.idx(i, j, k);
+            const qx = cxx * cellDx + cxy * cellDy + cxz * cellDz;
+            const qy = cyx * cellDx + cyy * cellDy + cyz * cellDz;
+            const qz = czx * cellDx + czy * cellDy + czz * cellDz;
+            const m = w * PARTICLE_MASS;
+            G.mass[idx] += m;
+            G.mx[idx] += m * (P.vx[p] + qx);
+            G.my[idx] += m * (P.vy[p] + qy);
+            G.mz[idx] += m * (P.vz[p] + qz);
+            G.mark(idx);
           }
         }
       }
     }
+  }
 
-    // ── Grid update ────────────────────────────────────────────────────────
-    // Only iterate the sparse set of nodes that received mass this step.
-    const r = res;
+  private p2gStress(P: MpmParticles, G: MpmGrid, dt: number) {
+    for (let p = 0; p < P.count; p++) {
+      if (!(P.flags[p] & FLAG_ALIVE)) continue;
+      const gx = this.worldToGridX(P.px[p]);
+      const gy = this.worldToGridY(P.py[p]);
+      const gz = this.worldToGridZ(P.pz[p]);
+      if (!this.inStencil(gx, gy, gz)) continue;
+
+      const ci = Math.floor(gx), cj = Math.floor(gy), ck = Math.floor(gz);
+      const dx = gx - (ci + 0.5), dy = gy - (cj + 0.5), dz = gz - (ck + 0.5);
+      const wx = this.weights(dx), wy = this.weights(dy), wz = this.weights(dz);
+
+      let density = 0;
+      for (let ox = 0; ox < 3; ox++) {
+        const i = ci + ox - 1;
+        const wxv = wx[ox];
+        for (let oy = 0; oy < 3; oy++) {
+          const j = cj + oy - 1;
+          const wxy = wxv * wy[oy];
+          for (let oz = 0; oz < 3; oz++) {
+            const k = ck + oz - 1;
+            density += G.mass[G.idx(i, j, k)] * wxy * wz[oz];
+          }
+        }
+      }
+
+      if (density <= 1e-6) continue;
+      P.density[p] = density;
+      const volume = PARTICLE_MASS / density;
+      const pressure = Math.max(0, STIFFNESS * (density / REST_DENSITY - 1.0));
+      const cxx = P.cxx[p], cxy = P.cxy[p], cxz = P.cxz[p];
+      const cyx = P.cyx[p], cyy = P.cyy[p], cyz = P.cyz[p];
+      const czx = P.czx[p], czy = P.czy[p], czz = P.czz[p];
+
+      const sxx = -pressure + DYNAMIC_VISCOSITY * (cxx + cxx);
+      const syy = -pressure + DYNAMIC_VISCOSITY * (cyy + cyy);
+      const szz = -pressure + DYNAMIC_VISCOSITY * (czz + czz);
+      const sxy = DYNAMIC_VISCOSITY * (cxy + cyx);
+      const sxz = DYNAMIC_VISCOSITY * (cxz + czx);
+      const syz = DYNAMIC_VISCOSITY * (cyz + czy);
+      const coeff = -volume * 4.0 * dt;
+
+      for (let ox = 0; ox < 3; ox++) {
+        const i = ci + ox - 1;
+        const wxv = wx[ox];
+        const cellDx = i + 0.5 - gx;
+        for (let oy = 0; oy < 3; oy++) {
+          const j = cj + oy - 1;
+          const wxy = wxv * wy[oy];
+          const cellDy = j + 0.5 - gy;
+          for (let oz = 0; oz < 3; oz++) {
+            const k = ck + oz - 1;
+            const w = wxy * wz[oz];
+            const cellDz = k + 0.5 - gz;
+            const idx = G.idx(i, j, k);
+            G.mx[idx] += coeff * w * (sxx * cellDx + sxy * cellDy + sxz * cellDz);
+            G.my[idx] += coeff * w * (sxy * cellDx + syy * cellDy + syz * cellDz);
+            G.mz[idx] += coeff * w * (sxz * cellDx + syz * cellDy + szz * cellDz);
+          }
+        }
+      }
+    }
+  }
+
+  private updateGrid(G: MpmGrid, dt: number, sphere?: SphereProbe) {
     const sphereR2 = sphere ? sphere.radius * sphere.radius : 0;
     for (let a = 0; a < G.activeCount; a++) {
       const idx = G.active[a];
-      const m = G.mass[idx];
-      if (m <= 0) continue;
-      // Decode (i,j,k) from flat idx
-      const i = (idx / (r * r)) | 0;
-      const rem = idx - i * r * r;
-      const j = (rem / r) | 0;
-      const k = rem - j * r;
-      const wx = MPM_DOMAIN_MIN + (i + 0.5) * MPM_DX;
-      const wy = MPM_DOMAIN_MIN + (j + 0.5) * MPM_DX;
-      const wz = MPM_DOMAIN_MIN + (k + 0.5) * MPM_DX;
-      const invM = 1.0 / m;
-      let vx = G.mx[idx] * invM;
-      let vy = G.my[idx] * invM + GRAVITY * dt;
-      let vz = G.mz[idx] * invM;
+      const mass = G.mass[idx];
+      if (mass <= 0) continue;
 
-      // Pool walls: only enforce while inside the pool box (below the rim)
+      const i = Math.floor(idx / (MPM_GRID_Y * MPM_GRID_Z));
+      const rem = idx - i * MPM_GRID_Y * MPM_GRID_Z;
+      const j = Math.floor(rem / MPM_GRID_Z);
+      const k = rem - j * MPM_GRID_Z;
+      const wx = this.gridToWorldX(i);
+      const wy = this.gridToWorldY(j);
+      const wz = this.gridToWorldZ(k);
+
+      let vx = G.mx[idx] / mass;
+      let vy = G.my[idx] / mass + GRAVITY * dt;
+      let vz = G.mz[idx] / mass;
+
       if (wy < POOL_RIM_Y) {
-        if (wx < -POOL_HALF_EXTENT && vx < 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
-        if (wx >  POOL_HALF_EXTENT && vx > 0) { vx = 0; vy *= FRICTION; vz *= FRICTION; }
-        if (wz < -POOL_HALF_EXTENT && vz < 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
-        if (wz >  POOL_HALF_EXTENT && vz > 0) { vz = 0; vx *= FRICTION; vy *= FRICTION; }
+        const pad = 0.018;
+        if (wx < -POOL_HALF_EXTENT + pad && vx < 0) vx *= -WALL_DAMPING;
+        if (wx >  POOL_HALF_EXTENT - pad && vx > 0) vx *= -WALL_DAMPING;
+        if (wz < -POOL_HALF_EXTENT + pad && vz < 0) vz *= -WALL_DAMPING;
+        if (wz >  POOL_HALF_EXTENT - pad && vz > 0) vz *= -WALL_DAMPING;
       }
-      if (wy < POOL_FLOOR_Y && vy < 0) { vy = 0; vx *= FRICTION; vz *= FRICTION; }
+      if (wy < POOL_FLOOR_Y + 0.025 && vy < 0) vy *= -WALL_DAMPING;
 
-      // Sphere coupling
       if (sphere) {
         const dx = wx - sphere.cx;
         const dy = wy - sphere.cy;
@@ -380,15 +364,16 @@ export class MlsMpmSolver {
         if (d2 < sphereR2 && d2 > 1e-8) {
           const d = Math.sqrt(d2);
           const nx = dx / d, ny = dy / d, nz = dz / d;
-          const relVN = (vx - sphere.vx) * nx + (vy - sphere.vy) * ny + (vz - sphere.vz) * nz;
-          if (relVN < 0) {
-            const dvx = -relVN * nx;
-            const dvy = -relVN * ny;
-            const dvz = -relVN * nz;
+          const rel = (vx - sphere.vx) * nx + (vy - sphere.vy) * ny + (vz - sphere.vz) * nz;
+          if (rel < 0) {
+            const push = -rel + (sphere.radius - d) * WALL_STIFFNESS * dt;
+            const dvx = push * nx;
+            const dvy = push * ny;
+            const dvz = push * nz;
             vx += dvx; vy += dvy; vz += dvz;
-            sphere.fx -= m * dvx / dt;
-            sphere.fy -= m * dvy / dt;
-            sphere.fz -= m * dvz / dt;
+            sphere.fx -= mass * dvx / Math.max(dt, 1e-5);
+            sphere.fy -= mass * dvy / Math.max(dt, 1e-5);
+            sphere.fz -= mass * dvz / Math.max(dt, 1e-5);
           }
         }
       }
@@ -398,197 +383,219 @@ export class MlsMpmSolver {
         const s = MAX_VELOCITY / Math.sqrt(sp2);
         vx *= s; vy *= s; vz *= s;
       }
-      G.mx[idx] = vx; G.my[idx] = vy; G.mz[idx] = vz;
+      G.mx[idx] = vx;
+      G.my[idx] = vy;
+      G.mz[idx] = vz;
     }
+  }
 
-    // ── G2P ────────────────────────────────────────────────────────────────
-    for (let i = 0; i < P.count; i++) {
-      if (!(P.flags[i] & FLAG_ALIVE)) continue;
+  private g2p(P: MpmParticles, G: MpmGrid, dt: number) {
+    for (let p = 0; p < P.count; p++) {
+      if (!(P.flags[p] & FLAG_ALIVE)) continue;
 
-      const gx = this.worldToGrid(P.px[i]);
-      const gy = this.worldToGrid(P.py[i]);
-      const gz = this.worldToGrid(P.pz[i]);
-      const baseI = Math.floor(gx - 0.5);
-      const baseJ = Math.floor(gy - 0.5);
-      const baseK = Math.floor(gz - 0.5);
-      if (baseI < 0 || baseI + 2 >= res ||
-          baseJ < 0 || baseJ + 2 >= res ||
-          baseK < 0 || baseK + 2 >= res) {
-        // Out of grid → ballistic free fall
-        P.vy[i] += GRAVITY * dt;
-        P.px[i] += P.vx[i] * dt;
-        P.py[i] += P.vy[i] * dt;
-        P.pz[i] += P.vz[i] * dt;
-        // Settle if fell to surface
-        if (P.py[i] < 0) this.recordSettle(P, i);
+      const prevY = P.py[p];
+      const gx = this.worldToGridX(P.px[p]);
+      const gy = this.worldToGridY(P.py[p]);
+      const gz = this.worldToGridZ(P.pz[p]);
+
+      if (!this.inStencil(gx, gy, gz)) {
+        this.integrateBallistic(P, p, dt, prevY);
         continue;
       }
 
-      const fx0 = gx - (baseI + 0.5);
-      const fy0 = gy - (baseJ + 0.5);
-      const fz0 = gz - (baseK + 0.5);
-      const wxs = [
-        0.5 * (1.5 - fx0) ** 2,
-        0.75 - (fx0 - 1.0) ** 2,
-        0.5 * (fx0 - 0.5) ** 2,
-      ];
-      const wys = [
-        0.5 * (1.5 - fy0) ** 2,
-        0.75 - (fy0 - 1.0) ** 2,
-        0.5 * (fy0 - 0.5) ** 2,
-      ];
-      const wzs = [
-        0.5 * (1.5 - fz0) ** 2,
-        0.75 - (fz0 - 1.0) ** 2,
-        0.5 * (fz0 - 0.5) ** 2,
-      ];
+      const ci = Math.floor(gx), cj = Math.floor(gy), ck = Math.floor(gz);
+      const dx = gx - (ci + 0.5), dy = gy - (cj + 0.5), dz = gz - (ck + 0.5);
+      const wx = this.weights(dx), wy = this.weights(dy), wz = this.weights(dz);
 
       let nvx = 0, nvy = 0, nvz = 0;
       let cxx = 0, cxy = 0, cxz = 0;
       let cyx = 0, cyy = 0, cyz = 0;
       let czx = 0, czy = 0, czz = 0;
 
-      for (let a = 0; a < 3; a++) {
-        const wxw = wxs[a];
-        const ni = baseI + a;
-        const ox = ((a + 0.5) - fx0) * MPM_DX;
-        for (let b = 0; b < 3; b++) {
-          const wxy = wxw * wys[b];
-          const nj = baseJ + b;
-          const oy = ((b + 0.5) - fy0) * MPM_DX;
-          for (let c = 0; c < 3; c++) {
-            const w = wxy * wzs[c];
-            const nk = baseK + c;
-            const oz = ((c + 0.5) - fz0) * MPM_DX;
-            const idx = G.idx(ni, nj, nk);
-
-            const m = G.mass[idx];
-            if (m <= 0) continue;
-            const vxg = G.mx[idx];
-            const vyg = G.my[idx];
-            const vzg = G.mz[idx];
-
-            nvx += w * vxg; nvy += w * vyg; nvz += w * vzg;
-
-            // APIC: C = Σ w * 4/Δx² * v ⊗ offset
-            const k4 = w * fourDx;
-            cxx += k4 * vxg * ox; cxy += k4 * vxg * oy; cxz += k4 * vxg * oz;
-            cyx += k4 * vyg * ox; cyy += k4 * vyg * oy; cyz += k4 * vyg * oz;
-            czx += k4 * vzg * ox; czy += k4 * vzg * oy; czz += k4 * vzg * oz;
+      for (let ox = 0; ox < 3; ox++) {
+        const i = ci + ox - 1;
+        const wxv = wx[ox];
+        const cellDx = i + 0.5 - gx;
+        for (let oy = 0; oy < 3; oy++) {
+          const j = cj + oy - 1;
+          const wxy = wxv * wy[oy];
+          const cellDy = j + 0.5 - gy;
+          for (let oz = 0; oz < 3; oz++) {
+            const k = ck + oz - 1;
+            const w = wxy * wz[oz];
+            const cellDz = k + 0.5 - gz;
+            const idx = G.idx(i, j, k);
+            if (G.mass[idx] <= 0) continue;
+            const vx = G.mx[idx];
+            const vy = G.my[idx];
+            const vz = G.mz[idx];
+            const wvx = vx * w;
+            const wvy = vy * w;
+            const wvz = vz * w;
+            nvx += wvx; nvy += wvy; nvz += wvz;
+            cxx += wvx * cellDx; cxy += wvx * cellDy; cxz += wvx * cellDz;
+            cyx += wvy * cellDx; cyy += wvy * cellDy; cyz += wvy * cellDz;
+            czx += wvz * cellDx; czy += wvz * cellDy; czz += wvz * cellDz;
           }
         }
       }
 
-      // Update velocity + advect
-      P.vx[i] = nvx; P.vy[i] = nvy; P.vz[i] = nvz;
-      P.cxx[i] = cxx; P.cxy[i] = cxy; P.cxz[i] = cxz;
-      P.cyx[i] = cyx; P.cyy[i] = cyy; P.cyz[i] = cyz;
-      P.czx[i] = czx; P.czy[i] = czy; P.czz[i] = czz;
+      P.vx[p] = nvx; P.vy[p] = nvy; P.vz[p] = nvz;
+      P.cxx[p] = cxx * 4; P.cxy[p] = cxy * 4; P.cxz[p] = cxz * 4;
+      P.cyx[p] = cyx * 4; P.cyy[p] = cyy * 4; P.cyz[p] = cyz * 4;
+      P.czx[p] = czx * 4; P.czy[p] = czy * 4; P.czz[p] = czz * 4;
 
-      // J update via trace of velocity gradient (∇·v)
-      const trC = cxx + cyy + czz;
-      P.J[i] *= Math.max(0.1, 1.0 + dt * trC);
-
-      P.px[i] += nvx * dt;
-      P.py[i] += nvy * dt;
-      P.pz[i] += nvz * dt;
-
-      // Track airborne flag
-      if (P.py[i] >= 0) P.flags[i] |= FLAG_AIRBORNE;
-      else P.flags[i] &= ~FLAG_AIRBORNE;
-
-      // Lifetime + recycle
-      P.life[i] += dt;
-      const speed2 = nvx * nvx + nvy * nvy + nvz * nvz;
-      const settled =
-        P.py[i] < 0.005 &&
-        speed2 < 0.04 &&
-        P.life[i] > 0.25;
-      if (settled || P.life[i] > PARTICLE_LIFETIME) {
-        if (settled) this.recordSettle(P, i);
-        P.kill(i);
-      }
+      P.px[p] += nvx * dt;
+      P.py[p] += nvy * dt;
+      P.pz[p] += nvz * dt;
+      this.applyParticleWalls(P, p, dt);
+      this.finishParticle(P, p, dt, prevY);
     }
   }
 
-  /** Record a re-coupling event so the height-field can absorb the splash. */
-  private recordSettle(P: MpmParticles, i: number) {
-    this.settleEvents.push({
-      x: P.px[i],
-      z: P.pz[i],
-      vy: P.vy[i],
-      weight: PARTICLE_MASS,
-    });
+  private integrateBallistic(P: MpmParticles, p: number, dt: number, prevY: number) {
+    P.vy[p] += GRAVITY * dt;
+    P.px[p] += P.vx[p] * dt;
+    P.py[p] += P.vy[p] * dt;
+    P.pz[p] += P.vz[p] * dt;
+    P.cxx[p] *= 0.9; P.cxy[p] *= 0.9; P.cxz[p] *= 0.9;
+    P.cyx[p] *= 0.9; P.cyy[p] *= 0.9; P.cyz[p] *= 0.9;
+    P.czx[p] *= 0.9; P.czy[p] *= 0.9; P.czz[p] *= 0.9;
+    this.applyParticleWalls(P, p, dt);
+    this.finishParticle(P, p, dt, prevY);
   }
 
-  /** Spawn a crown-shaped ring of droplets — used for sphere breach FX. */
-  spawnCrown(
-    cx: number, cz: number,
-    impactSpeed: number,
-    count = 36,
-    radius = 0.08,
-  ) {
-    const upBase = Math.min(6.5, 1.8 + impactSpeed * 0.9);
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + Math.random() * 0.15;
-      const r = radius * (0.85 + Math.random() * 0.4);
-      const px = cx + Math.cos(a) * r;
-      const pz = cz + Math.sin(a) * r;
-      const py = 0.005 + Math.random() * 0.02;
-      const tilt = 0.55 + Math.random() * 0.35;
-      const speed = upBase * (0.55 + Math.random() * 0.6);
-      const vx = Math.cos(a) * speed * tilt;
-      const vz = Math.sin(a) * speed * tilt;
-      const vy = speed * (1.0 - tilt * 0.4) + Math.random() * 0.6;
-      this.particles.spawn(px, py, pz, vx, vy, vz, Math.random() < 0.35);
+  private applyParticleWalls(P: MpmParticles, p: number, dt: number) {
+    const belowRim = P.py[p] < POOL_RIM_Y;
+    const predictedX = P.px[p] + P.vx[p] * dt * 2;
+    const predictedY = P.py[p] + P.vy[p] * dt * 2;
+    const predictedZ = P.pz[p] + P.vz[p] * dt * 2;
+
+    if (belowRim) {
+      if (predictedX < -POOL_HALF_EXTENT) P.vx[p] += WALL_STIFFNESS * (-POOL_HALF_EXTENT - predictedX) * dt;
+      if (predictedX >  POOL_HALF_EXTENT) P.vx[p] += WALL_STIFFNESS * ( POOL_HALF_EXTENT - predictedX) * dt;
+      if (predictedZ < -POOL_HALF_EXTENT) P.vz[p] += WALL_STIFFNESS * (-POOL_HALF_EXTENT - predictedZ) * dt;
+      if (predictedZ >  POOL_HALF_EXTENT) P.vz[p] += WALL_STIFFNESS * ( POOL_HALF_EXTENT - predictedZ) * dt;
+      P.px[p] = Math.max(-POOL_HALF_EXTENT, Math.min(POOL_HALF_EXTENT, P.px[p]));
+      P.pz[p] = Math.max(-POOL_HALF_EXTENT, Math.min(POOL_HALF_EXTENT, P.pz[p]));
+    }
+    if (predictedY < POOL_FLOOR_Y) {
+      P.vy[p] += WALL_STIFFNESS * (POOL_FLOOR_Y - predictedY) * dt;
+      P.py[p] = Math.max(POOL_FLOOR_Y, P.py[p]);
     }
   }
 
-  /** Spawn a column of upward-trailing droplets (water following the sphere out). */
-  spawnSheet(
-    cx: number, cz: number,
-    yStart: number,
-    upSpeed: number,
-    count = 18,
-  ) {
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.06;
-      const px = cx + Math.cos(a) * r;
-      const pz = cz + Math.sin(a) * r;
-      const py = yStart + Math.random() * 0.03;
-      const vx = Math.cos(a) * 0.6 + (Math.random() - 0.5) * 0.4;
-      const vz = Math.sin(a) * 0.6 + (Math.random() - 0.5) * 0.4;
-      const vy = upSpeed * (0.6 + Math.random() * 0.5);
-      this.particles.spawn(px, py, pz, vx, vy, vz, Math.random() < 0.5);
+  private finishParticle(P: MpmParticles, p: number, dt: number, prevY: number) {
+    P.life[p] += dt;
+    if (P.py[p] >= SURFACE_Y) P.flags[p] |= FLAG_AIRBORNE;
+    else P.flags[p] &= ~FLAG_AIRBORNE;
+
+    const crossedSurface = prevY > SURFACE_Y + 0.002 && P.py[p] <= SURFACE_Y && P.vy[p] < -0.03;
+    if (crossedSurface) {
+      this.recordSettle(P, p);
+      P.kill(p);
+      return;
+    }
+
+    const outside = P.px[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.px[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
+                    P.pz[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.pz[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
+                    P.py[p] < POOL_FLOOR_Y - 0.08 || P.py[p] > MPM_DOMAIN_Y_MAX + 0.3;
+    const slow = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p] < 0.025;
+    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < SURFACE_Y - 0.08 && slow && P.life[p] > 0.2)) {
+      if (P.py[p] <= SURFACE_Y && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
+      P.kill(p);
     }
   }
 
-  /** Splash from a point impact (raindrop, finger tap). */
-  spawnImpact(cx: number, cz: number, energy = 1.0, count = 20) {
+  private recordSettle(P: MpmParticles, p: number) {
+    this.settleEvents.push({ x: P.px[p], z: P.pz[p], vy: P.vy[p], weight: PARTICLE_MASS });
+  }
+
+  spawnCrown(cx: number, cz: number, impactSpeed: number, count = 72, radius = 0.23) {
+    const energy = Math.max(0.15, impactSpeed);
+    const particles = Math.min(120, Math.max(24, Math.floor(count * Math.min(1.55, 0.45 + energy * 0.18))));
+    for (let i = 0; i < particles; i++) {
+      const a = i * GOLDEN_ANGLE + (this.rand() - 0.5) * 0.22;
+      const ring = radius * (0.72 + this.rand() * 0.5);
+      const nx = Math.cos(a), nz = Math.sin(a);
+      const sheetBias = 0.45 + 0.45 * this.rand();
+      const speed = 0.8 + energy * (0.42 + 0.45 * this.rand());
+      const x = cx + nx * ring;
+      const z = cz + nz * ring;
+      const y = SURFACE_Y + 0.006 + this.rand() * 0.018;
+      const vx = nx * speed * (0.78 + sheetBias) + (this.rand() - 0.5) * 0.22;
+      const vz = nz * speed * (0.78 + sheetBias) + (this.rand() - 0.5) * 0.22;
+      const vy = 0.95 + energy * (0.52 + 0.35 * this.rand());
+      this.particles.spawn(x, y, z, vx, vy, vz, this.rand() < 0.42);
+    }
+  }
+
+  spawnSheet(cx: number, cz: number, yStart: number, upSpeed: number, count = 54) {
+    const energy = Math.max(0.1, upSpeed);
+    const particles = Math.min(96, Math.max(20, Math.floor(count * Math.min(1.35, 0.65 + energy * 0.15))));
+    for (let i = 0; i < particles; i++) {
+      const a = i * GOLDEN_ANGLE + this.rand() * 0.35;
+      const r = 0.04 + this.rand() * 0.17;
+      const nx = Math.cos(a), nz = Math.sin(a);
+      const vx = nx * (0.34 + this.rand() * 0.62) + (this.rand() - 0.5) * 0.22;
+      const vz = nz * (0.34 + this.rand() * 0.62) + (this.rand() - 0.5) * 0.22;
+      const vy = energy * (0.68 + this.rand() * 0.62) + 0.25;
+      this.particles.spawn(cx + nx * r, yStart + this.rand() * 0.08, cz + nz * r, vx, vy, vz, this.rand() < 0.55);
+    }
+  }
+
+  spawnImpact(cx: number, cz: number, energy = 1.0, count = 28) {
+    const particles = Math.min(80, Math.max(10, Math.floor(count * Math.min(1.6, 0.7 + energy * 0.35))));
+    for (let i = 0; i < particles; i++) {
+      const a = i * GOLDEN_ANGLE + this.rand() * 0.5;
+      const r = this.rand() * 0.055;
+      const nx = Math.cos(a), nz = Math.sin(a);
+      const speed = (0.9 + this.rand() * 1.35) * energy;
+      const tilt = 0.42 + this.rand() * 0.45;
+      this.particles.spawn(
+        cx + nx * r,
+        SURFACE_Y + 0.004 + this.rand() * 0.018,
+        cz + nz * r,
+        nx * speed * tilt,
+        0.55 + speed * (0.7 - tilt * 0.24),
+        nz * speed * tilt,
+        this.rand() < 0.38,
+      );
+    }
+  }
+
+  spawnSphereBreach(cx: number, cy: number, cz: number, radius: number, vx: number, vy: number, vz: number, intensity = 1.0) {
+    const horizontalSpeed = Math.sqrt(vx * vx + vz * vz);
+    const verticalEnergy = Math.abs(vy);
+    if (Math.abs(cy) > radius * 1.05 || horizontalSpeed + verticalEnergy < 0.12) return;
+
+    const ringRadius = Math.sqrt(Math.max(0.0025, radius * radius - cy * cy));
+    const hx = horizontalSpeed > 1e-4 ? vx / horizontalSpeed : 0;
+    const hz = horizontalSpeed > 1e-4 ? vz / horizontalSpeed : 1;
+    const count = Math.min(46, Math.max(10, Math.floor((12 + horizontalSpeed * 12 + verticalEnergy * 8) * intensity)));
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.04;
-      const px = cx + Math.cos(a) * r;
-      const pz = cz + Math.sin(a) * r;
-      const py = 0.005 + Math.random() * 0.015;
-      const tilt = 0.4 + Math.random() * 0.4;
-      const speed = (1.5 + Math.random() * 1.5) * energy;
-      const vx = Math.cos(a) * speed * tilt;
-      const vz = Math.sin(a) * speed * tilt;
-      const vy = speed * (1.0 - tilt * 0.4);
-      this.particles.spawn(px, py, pz, vx, vy, vz, Math.random() < 0.4);
+      const a = i * GOLDEN_ANGLE + this.rand() * 0.4;
+      const nx = Math.cos(a), nz = Math.sin(a);
+      const front = Math.max(0, nx * hx + nz * hz);
+      const side = 0.35 + 0.65 * front;
+      const x = cx + nx * ringRadius * (0.86 + this.rand() * 0.22);
+      const z = cz + nz * ringRadius * (0.86 + this.rand() * 0.22);
+      const skim = 0.28 + horizontalSpeed * (0.28 + 0.35 * front);
+      const lift = 0.22 + verticalEnergy * 0.18 + horizontalSpeed * 0.12 * side;
+      this.particles.spawn(
+        x,
+        SURFACE_Y + 0.004 + this.rand() * 0.025,
+        z,
+        nx * skim * side + vx * 0.18 + (this.rand() - 0.5) * 0.08,
+        lift + this.rand() * 0.24,
+        nz * skim * side + vz * 0.18 + (this.rand() - 0.5) * 0.08,
+        this.rand() < 0.68,
+      );
     }
   }
 }
 
-// ─── Three.js convenience ────────────────────────────────────────────────────
-
-export function vec3ToProbe(
-  pos: THREE.Vector3,
-  vel: THREE.Vector3,
-  radius: number,
-): SphereProbe {
+export function vec3ToProbe(pos: THREE.Vector3, vel: THREE.Vector3, radius: number): SphereProbe {
   return {
     cx: pos.x, cy: pos.y, cz: pos.z,
     vx: vel.x, vy: vel.y, vz: vel.z,
