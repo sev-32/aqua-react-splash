@@ -20,7 +20,7 @@ interface SplashParticlesProps {
   light: THREE.Vector3;
 }
 
-const MAX_RENDER_PARTICLES = 6000;
+const MAX_RENDER_PARTICLES = 9000;
 
 const vert = /* glsl */ `
   attribute vec3 aOffset;

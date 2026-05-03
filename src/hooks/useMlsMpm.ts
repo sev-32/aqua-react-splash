@@ -20,6 +20,7 @@ export interface MpmHandle {
   crown: (cx: number, cz: number, impactSpeed: number) => void;
   sheet: (cx: number, cz: number, yStart: number, upSpeed: number) => void;
   impact: (cx: number, cz: number, energy?: number, count?: number) => void;
+  breach: (cx: number, cy: number, cz: number, radius: number, vx: number, vy: number, vz: number, intensity?: number) => void;
   /** Drain settle events; calls onSettle(x,z,strength) for each. */
   drainSettleEvents: (onSettle: (x: number, z: number, strength: number) => void) => void;
   /** Live count of alive particles, for telemetry. */
@@ -28,7 +29,7 @@ export interface MpmHandle {
   buildProbe: (pos: THREE.Vector3, vel: THREE.Vector3, radius: number) => SphereProbe;
 }
 
-export function useMlsMpm(maxParticles = 6000): MpmHandle {
+export function useMlsMpm(maxParticles = 9000): MpmHandle {
   const solver = useMemo(() => new MlsMpmSolver(maxParticles), [maxParticles]);
   const handleRef = useRef<MpmHandle>(null!);
 
@@ -39,12 +40,13 @@ export function useMlsMpm(maxParticles = 6000): MpmHandle {
       crown: (cx, cz, impactSpeed) => solver.spawnCrown(cx, cz, impactSpeed),
       sheet: (cx, cz, yStart, upSpeed) => solver.spawnSheet(cx, cz, yStart, upSpeed),
       impact: (cx, cz, energy = 1.0, count = 20) => solver.spawnImpact(cx, cz, energy, count),
+      breach: (cx, cy, cz, radius, vx, vy, vz, intensity = 1.0) => solver.spawnSphereBreach(cx, cy, cz, radius, vx, vy, vz, intensity),
       drainSettleEvents: (onSettle) => {
         for (const e of solver.settleEvents) {
           // Map vertical impact velocity to a small ripple strength.
           // Negative vy = downward = bigger splash.
           const speed = Math.min(6, Math.abs(e.vy));
-          const strength = Math.min(0.025, 0.0015 * speed) * Math.sign(e.vy || -1) * -1;
+          const strength = Math.min(0.03, 0.0022 * speed) * Math.sign(e.vy || -1) * -1;
           onSettle(e.x, e.z, strength);
         }
         solver.settleEvents.length = 0;
