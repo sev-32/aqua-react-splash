@@ -134,30 +134,34 @@ export function WaterScene() {
       // ── Sphere velocity (finite difference) ─────────────────────────────
       sphereVelocity.current.subVectors(sphereCenter.current, oldSphereCenter.current).divideScalar(Math.max(dt, 1e-4));
 
-      // ── Breach detection ────────────────────────────────────────────────
-      // Water surface is at y=0. Detect crossings to spawn FX.
+      // ── Breach detection (radius-aware) ─────────────────────────────────
+      // Submerged depth = how far the sphere bottom is below y=0 (clamped to diameter).
       const yPrev = lastSphereY.current;
       const yNow = sphereCenter.current.y;
-      const enteredWater = yPrev > 0 && yNow <= 0;
-      const exitedWater = yPrev < 0 && yNow >= 0;
+      const subPrev = Math.max(0, Math.min(2 * sphereRadius, sphereRadius - yPrev));
+      const subNow  = Math.max(0, Math.min(2 * sphereRadius, sphereRadius - yNow));
+      const dSub = subNow - subPrev;             // >0 entering, <0 exiting
       const speed = sphereVelocity.current.length();
+      const downSpeed = -sphereVelocity.current.y;
+      const upSpeed = sphereVelocity.current.y;
 
-      if (enteredWater && speed > 0.5) {
-        // Splash IN: crown ring + ripple
-        mpm.crown(sphereCenter.current.x, sphereCenter.current.z, speed * intensity);
-        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.06, 0.045 * Math.min(2, speed));
+      // Entry: bottom plunges further into water this frame
+      if (dSub > 0.005 && downSpeed > 0.4) {
+        const energy = downSpeed * (0.5 + subNow / sphereRadius);
+        mpm.crown(sphereCenter.current.x, sphereCenter.current.z, energy * intensity);
+        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.06, 0.045 * Math.min(2, downSpeed));
         splashCountRef.current += 1;
-      } else if (exitedWater && speed > 0.4) {
-        // Splash OUT: sheet of trailing droplets + small ripple ring
-        mpm.sheet(sphereCenter.current.x, sphereCenter.current.z, 0.0, speed * 0.8 * intensity);
+      }
+      // Exit: bottom rises out, sheet of water trailing up
+      if (dSub < -0.005 && upSpeed > 0.35 && subPrev > 0.02) {
+        mpm.sheet(sphereCenter.current.x, sphereCenter.current.z, Math.max(-0.02, yNow - sphereRadius * 0.3), upSpeed * 0.9 * intensity);
         waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.05, -0.018);
         splashCountRef.current += 1;
       }
 
       // High-velocity wake while submerged: small foam particles trail
-      if (yNow < -0.05 && speed > 1.4) {
-        // Spawn a tiny bursts of foam every few frames based on speed
-        if (Math.random() < Math.min(0.7, (speed - 1.4) * 0.25)) {
+      if (subNow > sphereRadius * 0.4 && speed > 1.2) {
+        if (Math.random() < Math.min(0.7, (speed - 1.0) * 0.3)) {
           const back = sphereVelocity.current.clone().normalize().multiplyScalar(-sphereRadius * 0.9);
           mpm.solver.particles.spawn(
             sphereCenter.current.x + back.x + (Math.random() - 0.5) * 0.05,
