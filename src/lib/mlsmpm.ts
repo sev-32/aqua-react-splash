@@ -127,6 +127,10 @@ class MpmGrid {
   // Momentum (will become velocity after divide by mass)
   mx: Float32Array; my: Float32Array; mz: Float32Array;
   mass: Float32Array;
+  // Sparse active-node list — populated during P2G, drained during grid-update + clear.
+  active: Int32Array;
+  activeCount = 0;
+  touched: Uint8Array;
 
   constructor(res: number) {
     this.res = res;
@@ -135,15 +139,30 @@ class MpmGrid {
     this.my = new Float32Array(n);
     this.mz = new Float32Array(n);
     this.mass = new Float32Array(n);
+    this.active = new Int32Array(n);
+    this.touched = new Uint8Array(n);
   }
 
   clear() {
-    this.mx.fill(0); this.my.fill(0); this.mz.fill(0);
-    this.mass.fill(0);
+    // Only zero the nodes we actually touched last step.
+    for (let a = 0; a < this.activeCount; a++) {
+      const idx = this.active[a];
+      this.mx[idx] = 0; this.my[idx] = 0; this.mz[idx] = 0;
+      this.mass[idx] = 0;
+      this.touched[idx] = 0;
+    }
+    this.activeCount = 0;
   }
 
   idx(i: number, j: number, k: number) {
     return (i * this.res + j) * this.res + k;
+  }
+
+  markTouched(idx: number) {
+    if (!this.touched[idx]) {
+      this.touched[idx] = 1;
+      this.active[this.activeCount++] = idx;
+    }
   }
 }
 
