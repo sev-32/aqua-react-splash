@@ -26,7 +26,7 @@ export function WaterScene() {
   const { camera, gl, scene } = useThree();
   const waterSim = useWaterSimulation();
   const caustics = useCaustics();
-  const mpm = useMlsMpm(6000);
+  const mpm = useMlsMpm(9000);
 
   const [initialized, setInitialized] = useState(false);
   const lightDir = useRef(new THREE.Vector3(2.0, 2.0, -1.0).normalize());
@@ -149,14 +149,30 @@ export function WaterScene() {
       if (dSub > 0.005 && downSpeed > 0.4) {
         const energy = downSpeed * (0.5 + subNow / sphereRadius);
         mpm.crown(sphereCenter.current.x, sphereCenter.current.z, energy * intensity);
-        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.06, 0.045 * Math.min(2, downSpeed));
+        mpm.breach(
+          sphereCenter.current.x, sphereCenter.current.y, sphereCenter.current.z, sphereRadius,
+          sphereVelocity.current.x, sphereVelocity.current.y, sphereVelocity.current.z, intensity,
+        );
+        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.075, 0.055 * Math.min(2.4, downSpeed));
         splashCountRef.current += 1;
       }
       // Exit: bottom rises out, sheet of water trailing up
       if (dSub < -0.005 && upSpeed > 0.35 && subPrev > 0.02) {
         mpm.sheet(sphereCenter.current.x, sphereCenter.current.z, Math.max(-0.02, yNow - sphereRadius * 0.3), upSpeed * 0.9 * intensity);
-        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.05, -0.018);
+        mpm.breach(
+          sphereCenter.current.x, sphereCenter.current.y, sphereCenter.current.z, sphereRadius,
+          sphereVelocity.current.x, sphereVelocity.current.y, sphereVelocity.current.z, intensity * 0.85,
+        );
+        waterSim.addDrop(sphereCenter.current.x, sphereCenter.current.z, 0.055, -0.022);
         splashCountRef.current += 1;
+      }
+
+      // High-velocity wake while submerged: MLS-MPM foam shed from the waterline
+      if (subNow > sphereRadius * 0.28 && speed > 0.75) {
+        mpm.breach(
+          sphereCenter.current.x, sphereCenter.current.y, sphereCenter.current.z, sphereRadius,
+          sphereVelocity.current.x, sphereVelocity.current.y, sphereVelocity.current.z, intensity * 0.35,
+        );
       }
 
       // High-velocity wake while submerged: small foam particles trail
