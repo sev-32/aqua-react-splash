@@ -137,14 +137,35 @@ export function useWaterSimulation() {
     targetB.current = tmp;
   }, [gl, scene, camera]);
 
+  const addCpuDrop = useCallback((x: number, z: number, radius = 0.03, strength = 0.01) => {
+    const height = cpuHeight.current;
+    const cx = x * 0.5 + 0.5;
+    const cz = z * 0.5 + 0.5;
+    const r = Math.max(radius, CPU_SAMPLE_DELTA);
+    const minX = Math.max(0, Math.floor((cx - r) * CPU_SAMPLE_SIZE));
+    const maxX = Math.min(CPU_SAMPLE_SIZE - 1, Math.ceil((cx + r) * CPU_SAMPLE_SIZE));
+    const minZ = Math.max(0, Math.floor((cz - r) * CPU_SAMPLE_SIZE));
+    const maxZ = Math.min(CPU_SAMPLE_SIZE - 1, Math.ceil((cz + r) * CPU_SAMPLE_SIZE));
+    for (let j = minZ; j <= maxZ; j++) {
+      const v = (j + 0.5) / CPU_SAMPLE_SIZE;
+      for (let i = minX; i <= maxX; i++) {
+        const u = (i + 0.5) / CPU_SAMPLE_SIZE;
+        let drop = Math.max(0, 1 - Math.hypot(cx - u, cz - v) / r);
+        drop = 0.5 - Math.cos(drop * Math.PI) * 0.5;
+        height[j * CPU_SAMPLE_SIZE + i] += drop * strength;
+      }
+    }
+  }, []);
+
   const addDrop = useCallback((x: number, y: number, radius = 0.03, strength = 0.01) => {
     if (!targetA.current) return;
+    addCpuDrop(x, y, radius, strength);
     dropMaterial.current.uniforms.tSim.value = targetA.current.texture;
     dropMaterial.current.uniforms.center.value.set(x, y);
     dropMaterial.current.uniforms.radius.value = radius;
     dropMaterial.current.uniforms.strength.value = strength;
     renderPass(dropMaterial.current);
-  }, [renderPass]);
+  }, [addCpuDrop, renderPass]);
 
   const moveSphere = useCallback((oldCenter: THREE.Vector3, newCenter: THREE.Vector3, radius: number) => {
     if (!targetA.current) return;
