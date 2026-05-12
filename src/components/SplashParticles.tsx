@@ -160,7 +160,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     material.uniforms.uLight.value.copy(light);
 
     const P = solver.particles;
-    const { offsets, sizes, alphas, foam } = buffers;
+    const { offsets, velocities, sizes, alphas, foam } = buffers;
     let n = 0;
     const cap = Math.min(P.count, MAX_RENDER_PARTICLES);
 
@@ -176,9 +176,12 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
       // Size scales with velocity (motion blur feel) + base size
       const vx = P.vx[i], vy = P.vy[i], vz = P.vz[i];
       const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      velocities[o] = vx;
+      velocities[o + 1] = vy;
+      velocities[o + 2] = vz;
       const isFoam = (fl & FLAG_FOAM) ? 1.0 : 0.0;
-      const base = isFoam ? 0.040 : 0.028;
-      sizes[n] = base + Math.min(0.045, speed * 0.0085);
+      const base = isFoam ? 0.020 : 0.015;
+      sizes[n] = base + Math.min(0.026, speed * 0.0045);
 
       // Fade in over first 60ms, fade out in last 25% of life
       const life = P.life[i];
@@ -190,6 +193,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     }
 
     buffers.aOffset.needsUpdate = true;
+    buffers.aVelocity.needsUpdate = true;
     buffers.aSize.needsUpdate = true;
     buffers.aAlpha.needsUpdate = true;
     buffers.aFoam.needsUpdate = true;
