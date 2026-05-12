@@ -61,13 +61,14 @@ const frag = /* glsl */ `
 
   varying float vAlpha;
   varying float vFoam;
+  varying float vSpeed;
   varying vec2 vUv;
 
   void main() {
     float r2 = dot(vUv, vUv);
     if (r2 > 1.0) discard;
-    // Soft falloff: bright core, smooth edge
-    float core = exp(-r2 * 3.0);
+    // Soft ellipsoidal falloff: connected fluid streaks, not bead-like spheres
+    float core = exp(-r2 * 2.35);
     float edge = smoothstep(1.0, 0.6, r2);
 
     // Approximate normal of a sphere splat for fake lighting
@@ -86,8 +87,9 @@ const frag = /* glsl */ `
     float rim = pow(1.0 - n.z, 3.0);
     col += (1.0 - vFoam) * vec3(0.6, 0.85, 1.0) * rim * 0.35;
 
-    float a = vAlpha * (core * 0.85 + edge * 0.4);
-    a = mix(a, vAlpha * (core * 1.1 + edge * 0.6), vFoam); // foam reads brighter
+    float sheet = smoothstep(0.06, 1.0, vSpeed) * (1.0 - vFoam);
+    float a = vAlpha * (core * 0.46 + edge * 0.3 + sheet * edge * 0.32);
+    a = mix(a, vAlpha * (core * 0.86 + edge * 0.55), vFoam); // foam reads brighter
     if (a < 0.01) discard;
     gl_FragColor = vec4(col, a);
   }
