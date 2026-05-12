@@ -148,6 +148,10 @@ export interface SphereProbe {
   fx: number; fy: number; fz: number;
 }
 
+export interface MpmSurfaceSampler {
+  heightAt: (x: number, z: number) => number;
+}
+
 export interface MpmSettleEvent {
   x: number;
   z: number;
@@ -181,14 +185,14 @@ export class MlsMpmSolver {
   private gridToWorldY(j: number) { return MPM_DOMAIN_Y_MIN + (j + 0.5) * MPM_DX; }
   private gridToWorldZ(k: number) { return MPM_DOMAIN_XZ_MIN + (k + 0.5) * MPM_DX; }
 
-  step(dt: number, sphere?: SphereProbe) {
+  step(dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) {
     const safeDt = Math.min(Math.max(dt, 0), 1 / 30);
     if (safeDt <= 0) return;
 
     const substeps = Math.min(5, Math.max(1, Math.ceil(safeDt / 0.0075)));
     const h = safeDt / substeps;
     this.settleEvents.length = 0;
-    for (let s = 0; s < substeps; s++) this.substep(h, sphere);
+    for (let s = 0; s < substeps; s++) this.substep(h, sphere, surface);
   }
 
   private inStencil(gx: number, gy: number, gz: number) {
@@ -208,7 +212,7 @@ export class MlsMpmSolver {
     ] as const;
   }
 
-  private substep(dt: number, sphere?: SphereProbe) {
+  private substep(dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) {
     const P = this.particles;
     const G = this.grid;
     G.clear();
@@ -217,7 +221,7 @@ export class MlsMpmSolver {
     this.p2gMassMomentum(P, G);
     this.p2gStress(P, G, dt);
     this.updateGrid(G, dt, sphere);
-    this.g2p(P, G, dt);
+    this.g2p(P, G, dt, surface);
   }
 
   private p2gMassMomentum(P: MpmParticles, G: MpmGrid) {
