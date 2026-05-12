@@ -212,7 +212,19 @@ export function useWaterSimulation() {
     renderPass(normalMaterial.current);
   }, [renderPass]);
 
+  const sampleHeight = useCallback((x: number, z: number) => {
+    const u = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1.001, (x * 0.5 + 0.5) * CPU_SAMPLE_SIZE - 0.5));
+    const v = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1.001, (z * 0.5 + 0.5) * CPU_SAMPLE_SIZE - 0.5));
+    const x0 = Math.floor(u), z0 = Math.floor(v);
+    const x1 = Math.min(CPU_SAMPLE_SIZE - 1, x0 + 1), z1 = Math.min(CPU_SAMPLE_SIZE - 1, z0 + 1);
+    const tx = u - x0, tz = v - z0;
+    const h = cpuHeight.current;
+    const h00 = h[z0 * CPU_SAMPLE_SIZE + x0], h10 = h[z0 * CPU_SAMPLE_SIZE + x1];
+    const h01 = h[z1 * CPU_SAMPLE_SIZE + x0], h11 = h[z1 * CPU_SAMPLE_SIZE + x1];
+    return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+  }, []);
+
   const getTexture = useCallback(() => targetA.current?.texture, []);
 
-  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture };
+  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture, sampleHeight };
 }
