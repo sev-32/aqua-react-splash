@@ -24,22 +24,30 @@ const MAX_RENDER_PARTICLES = 9000;
 
 const vert = /* glsl */ `
   attribute vec3 aOffset;
+  attribute vec3 aVelocity;
   attribute float aSize;
   attribute float aAlpha;
   attribute float aFoam;
 
   varying float vAlpha;
   varying float vFoam;
+  varying float vSpeed;
   varying vec2 vUv;
 
   void main() {
     vUv = uv * 2.0 - 1.0;
     vAlpha = aAlpha;
     vFoam = aFoam;
+    vSpeed = length(aVelocity);
 
-    // Camera-facing billboard: place quad in view space, scaled by aSize.
+    // Camera-facing anisotropic splat: velocity stretches water into sheets/streaks.
     vec4 mvCenter = modelViewMatrix * vec4(aOffset, 1.0);
-    mvCenter.xy += position.xy * aSize;
+    vec2 vel = (modelViewMatrix * vec4(aVelocity, 0.0)).xy;
+    vec2 tangent = length(vel) > 0.0001 ? normalize(vel) : vec2(1.0, 0.0);
+    vec2 bitangent = vec2(-tangent.y, tangent.x);
+    float major = aSize * mix(2.7, 4.6, clamp(vSpeed * 0.12, 0.0, 1.0));
+    float minor = aSize * mix(0.68, 1.05, aFoam);
+    mvCenter.xy += tangent * position.x * major + bitangent * position.y * minor;
     gl_Position = projectionMatrix * mvCenter;
   }
 `;
