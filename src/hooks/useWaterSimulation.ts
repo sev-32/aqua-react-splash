@@ -10,6 +10,8 @@ import {
 } from '../shaders/waterShaders';
 
 const TEXTURE_SIZE = 512;
+const CPU_SAMPLE_SIZE = 128;
+const CPU_SAMPLE_DELTA = 1 / CPU_SAMPLE_SIZE;
 
 export function useWaterSimulation() {
   const { gl } = useThree();
@@ -26,6 +28,10 @@ export function useWaterSimulation() {
   const camera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
   const quadGeom = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
   const quadMesh = useRef<THREE.Mesh>(null!);
+  const cpuHeight = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuVelocity = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuScratchHeight = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuScratchVelocity = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
 
   // Init targets + materials once
   useMemo(() => {
