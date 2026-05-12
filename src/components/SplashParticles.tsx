@@ -107,14 +107,16 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
   // Per-instance attribute arrays
   const buffers = useMemo(() => {
     const offsets = new Float32Array(MAX_RENDER_PARTICLES * 3);
+    const velocities = new Float32Array(MAX_RENDER_PARTICLES * 3);
     const sizes = new Float32Array(MAX_RENDER_PARTICLES);
     const alphas = new Float32Array(MAX_RENDER_PARTICLES);
     const foam = new Float32Array(MAX_RENDER_PARTICLES);
     const aOffset = new THREE.InstancedBufferAttribute(offsets, 3).setUsage(THREE.DynamicDrawUsage);
+    const aVelocity = new THREE.InstancedBufferAttribute(velocities, 3).setUsage(THREE.DynamicDrawUsage);
     const aSize = new THREE.InstancedBufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage);
     const aAlpha = new THREE.InstancedBufferAttribute(alphas, 1).setUsage(THREE.DynamicDrawUsage);
     const aFoam = new THREE.InstancedBufferAttribute(foam, 1).setUsage(THREE.DynamicDrawUsage);
-    return { offsets, sizes, alphas, foam, aOffset, aSize, aAlpha, aFoam };
+    return { offsets, velocities, sizes, alphas, foam, aOffset, aVelocity, aSize, aAlpha, aFoam };
   }, []);
 
   const material = useMemo(() => new THREE.ShaderMaterial({
@@ -139,6 +141,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     g.attributes.uv = geometry.attributes.uv;
     g.attributes.normal = geometry.attributes.normal;
     g.setAttribute('aOffset', buffers.aOffset);
+    g.setAttribute('aVelocity', buffers.aVelocity);
     g.setAttribute('aSize', buffers.aSize);
     g.setAttribute('aAlpha', buffers.aAlpha);
     g.setAttribute('aFoam', buffers.aFoam);
