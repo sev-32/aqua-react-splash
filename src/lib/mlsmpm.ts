@@ -148,6 +148,10 @@ export interface SphereProbe {
   fx: number; fy: number; fz: number;
 }
 
+export interface MpmSurfaceSampler {
+  heightAt: (x: number, z: number) => number;
+}
+
 export interface MpmSettleEvent {
   x: number;
   z: number;
@@ -181,14 +185,14 @@ export class MlsMpmSolver {
   private gridToWorldY(j: number) { return MPM_DOMAIN_Y_MIN + (j + 0.5) * MPM_DX; }
   private gridToWorldZ(k: number) { return MPM_DOMAIN_XZ_MIN + (k + 0.5) * MPM_DX; }
 
-  step(dt: number, sphere?: SphereProbe) {
+  step(dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) {
     const safeDt = Math.min(Math.max(dt, 0), 1 / 30);
     if (safeDt <= 0) return;
 
     const substeps = Math.min(5, Math.max(1, Math.ceil(safeDt / 0.0075)));
     const h = safeDt / substeps;
     this.settleEvents.length = 0;
-    for (let s = 0; s < substeps; s++) this.substep(h, sphere);
+    for (let s = 0; s < substeps; s++) this.substep(h, sphere, surface);
   }
 
   private inStencil(gx: number, gy: number, gz: number) {
@@ -208,7 +212,7 @@ export class MlsMpmSolver {
     ] as const;
   }
 
-  private substep(dt: number, sphere?: SphereProbe) {
+  private substep(dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) {
     const P = this.particles;
     const G = this.grid;
     G.clear();
@@ -217,7 +221,7 @@ export class MlsMpmSolver {
     this.p2gMassMomentum(P, G);
     this.p2gStress(P, G, dt);
     this.updateGrid(G, dt, sphere);
-    this.g2p(P, G, dt);
+    this.g2p(P, G, dt, surface);
   }
 
   private p2gMassMomentum(P: MpmParticles, G: MpmGrid) {
@@ -389,7 +393,7 @@ export class MlsMpmSolver {
     }
   }
 
-  private g2p(P: MpmParticles, G: MpmGrid, dt: number) {
+  private g2p(P: MpmParticles, G: MpmGrid, dt: number, surface?: MpmSurfaceSampler) {
     for (let p = 0; p < P.count; p++) {
       if (!(P.flags[p] & FLAG_ALIVE)) continue;
 
@@ -399,7 +403,7 @@ export class MlsMpmSolver {
       const gz = this.worldToGridZ(P.pz[p]);
 
       if (!this.inStencil(gx, gy, gz)) {
-        this.integrateBallistic(P, p, dt, prevY);
+        this.integrateBallistic(P, p, dt, prevY, surface);
         continue;
       }
 
@@ -449,11 +453,11 @@ export class MlsMpmSolver {
       P.py[p] += nvy * dt;
       P.pz[p] += nvz * dt;
       this.applyParticleWalls(P, p, dt);
-      this.finishParticle(P, p, dt, prevY);
+      this.finishParticle(P, p, dt, prevY, surface);
     }
   }
 
-  private integrateBallistic(P: MpmParticles, p: number, dt: number, prevY: number) {
+  private integrateBallistic(P: MpmParticles, p: number, dt: number, prevY: number, surface?: MpmSurfaceSampler) {
     P.vy[p] += GRAVITY * dt;
     P.px[p] += P.vx[p] * dt;
     P.py[p] += P.vy[p] * dt;
@@ -462,7 +466,7 @@ export class MlsMpmSolver {
     P.cyx[p] *= 0.9; P.cyy[p] *= 0.9; P.cyz[p] *= 0.9;
     P.czx[p] *= 0.9; P.czy[p] *= 0.9; P.czz[p] *= 0.9;
     this.applyParticleWalls(P, p, dt);
-    this.finishParticle(P, p, dt, prevY);
+    this.finishParticle(P, p, dt, prevY, surface);
   }
 
   private applyParticleWalls(P: MpmParticles, p: number, dt: number) {
@@ -485,13 +489,15 @@ export class MlsMpmSolver {
     }
   }
 
-  private finishParticle(P: MpmParticles, p: number, dt: number, prevY: number) {
+  private finishParticle(P: MpmParticles, p: number, dt: number, prevY: number, surface?: MpmSurfaceSampler) {
     P.life[p] += dt;
-    if (P.py[p] >= SURFACE_Y) P.flags[p] |= FLAG_AIRBORNE;
+    const surfaceY = surface ? surface.heightAt(P.px[p], P.pz[p]) : SURFACE_Y;
+    if (P.py[p] >= surfaceY) P.flags[p] |= FLAG_AIRBORNE;
     else P.flags[p] &= ~FLAG_AIRBORNE;
 
-    const crossedSurface = prevY > SURFACE_Y + 0.002 && P.py[p] <= SURFACE_Y && P.vy[p] < -0.03;
-    if (crossedSurface) {
+    const crossedSurface = prevY > surfaceY + 0.002 && P.py[p] <= surfaceY && P.vy[p] < -0.03;
+    const reenteredSurface = P.life[p] > 0.045 && P.py[p] <= surfaceY - 0.006 && P.vy[p] <= 0.18;
+    if (crossedSurface || reenteredSurface) {
       this.recordSettle(P, p);
       P.kill(p);
       return;
@@ -501,8 +507,8 @@ export class MlsMpmSolver {
                     P.pz[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.pz[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.py[p] < POOL_FLOOR_Y - 0.08 || P.py[p] > MPM_DOMAIN_Y_MAX + 0.3;
     const slow = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p] < 0.025;
-    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < SURFACE_Y - 0.08 && slow && P.life[p] > 0.2)) {
-      if (P.py[p] <= SURFACE_Y && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
+    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < surfaceY - 0.08 && slow && P.life[p] > 0.2)) {
+      if (P.py[p] <= surfaceY && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
       P.kill(p);
     }
   }

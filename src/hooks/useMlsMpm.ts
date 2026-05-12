@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import {
   MlsMpmSolver,
   SphereProbe,
+  MpmSurfaceSampler,
   vec3ToProbe,
   POOL_RIM_Y,
 } from '../lib/mlsmpm';
@@ -15,7 +16,7 @@ import {
 export interface MpmHandle {
   solver: MlsMpmSolver;
   /** Run one physics step. */
-  step: (dt: number, sphere?: SphereProbe) => void;
+  step: (dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) => void;
   /** Convenience: spawn helpers. */
   crown: (cx: number, cz: number, impactSpeed: number) => void;
   sheet: (cx: number, cz: number, yStart: number, upSpeed: number) => void;
@@ -36,7 +37,7 @@ export function useMlsMpm(maxParticles = 9000): MpmHandle {
   if (!handleRef.current) {
     handleRef.current = {
       solver,
-      step: (dt, sphere) => solver.step(dt, sphere),
+      step: (dt, sphere, surface) => solver.step(dt, sphere, surface),
       crown: (cx, cz, impactSpeed) => solver.spawnCrown(cx, cz, impactSpeed),
       sheet: (cx, cz, yStart, upSpeed) => solver.spawnSheet(cx, cz, yStart, upSpeed),
       impact: (cx, cz, energy = 1.0, count = 20) => solver.spawnImpact(cx, cz, energy, count),

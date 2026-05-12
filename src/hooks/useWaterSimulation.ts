@@ -10,6 +10,8 @@ import {
 } from '../shaders/waterShaders';
 
 const TEXTURE_SIZE = 512;
+const CPU_SAMPLE_SIZE = 128;
+const CPU_SAMPLE_DELTA = 1 / CPU_SAMPLE_SIZE;
 
 export function useWaterSimulation() {
   const { gl } = useThree();
@@ -26,6 +28,10 @@ export function useWaterSimulation() {
   const camera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
   const quadGeom = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
   const quadMesh = useRef<THREE.Mesh>(null!);
+  const cpuHeight = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuVelocity = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuScratchHeight = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
+  const cpuScratchVelocity = useRef(new Float32Array(CPU_SAMPLE_SIZE * CPU_SAMPLE_SIZE));
 
   // Init targets + materials once
   useMemo(() => {
@@ -131,14 +137,35 @@ export function useWaterSimulation() {
     targetB.current = tmp;
   }, [gl, scene, camera]);
 
+  const addCpuDrop = useCallback((x: number, z: number, radius = 0.03, strength = 0.01) => {
+    const height = cpuHeight.current;
+    const cx = x * 0.5 + 0.5;
+    const cz = z * 0.5 + 0.5;
+    const r = Math.max(radius, CPU_SAMPLE_DELTA);
+    const minX = Math.max(0, Math.floor((cx - r) * CPU_SAMPLE_SIZE));
+    const maxX = Math.min(CPU_SAMPLE_SIZE - 1, Math.ceil((cx + r) * CPU_SAMPLE_SIZE));
+    const minZ = Math.max(0, Math.floor((cz - r) * CPU_SAMPLE_SIZE));
+    const maxZ = Math.min(CPU_SAMPLE_SIZE - 1, Math.ceil((cz + r) * CPU_SAMPLE_SIZE));
+    for (let j = minZ; j <= maxZ; j++) {
+      const v = (j + 0.5) / CPU_SAMPLE_SIZE;
+      for (let i = minX; i <= maxX; i++) {
+        const u = (i + 0.5) / CPU_SAMPLE_SIZE;
+        let drop = Math.max(0, 1 - Math.hypot(cx - u, cz - v) / r);
+        drop = 0.5 - Math.cos(drop * Math.PI) * 0.5;
+        height[j * CPU_SAMPLE_SIZE + i] += drop * strength;
+      }
+    }
+  }, []);
+
   const addDrop = useCallback((x: number, y: number, radius = 0.03, strength = 0.01) => {
     if (!targetA.current) return;
+    addCpuDrop(x, y, radius, strength);
     dropMaterial.current.uniforms.tSim.value = targetA.current.texture;
     dropMaterial.current.uniforms.center.value.set(x, y);
     dropMaterial.current.uniforms.radius.value = radius;
     dropMaterial.current.uniforms.strength.value = strength;
     renderPass(dropMaterial.current);
-  }, [renderPass]);
+  }, [addCpuDrop, renderPass]);
 
   const moveSphere = useCallback((oldCenter: THREE.Vector3, newCenter: THREE.Vector3, radius: number) => {
     if (!targetA.current) return;
@@ -149,11 +176,35 @@ export function useWaterSimulation() {
     renderPass(sphereMaterial.current);
   }, [renderPass]);
 
+  const stepCpuSimulation = useCallback(() => {
+    const h = cpuHeight.current;
+    const v = cpuVelocity.current;
+    const nextH = cpuScratchHeight.current;
+    const nextV = cpuScratchVelocity.current;
+    nextH.set(h);
+    nextV.set(v);
+    for (let z = 1; z < CPU_SAMPLE_SIZE - 1; z++) {
+      const row = z * CPU_SAMPLE_SIZE;
+      for (let x = 1; x < CPU_SAMPLE_SIZE - 1; x++) {
+        const idx = row + x;
+        const avg = (h[idx - 1] + h[idx + 1] + h[idx - CPU_SAMPLE_SIZE] + h[idx + CPU_SAMPLE_SIZE]) * 0.25;
+        const vel = (v[idx] + (avg - h[idx]) * 2.0) * 0.995;
+        nextV[idx] = vel;
+        nextH[idx] = h[idx] + vel;
+      }
+    }
+    cpuHeight.current = nextH;
+    cpuVelocity.current = nextV;
+    cpuScratchHeight.current = h;
+    cpuScratchVelocity.current = v;
+  }, []);
+
   const stepSimulation = useCallback(() => {
     if (!targetA.current) return;
+    stepCpuSimulation();
     updateMaterial.current.uniforms.tSim.value = targetA.current.texture;
     renderPass(updateMaterial.current);
-  }, [renderPass]);
+  }, [renderPass, stepCpuSimulation]);
 
   const updateNormals = useCallback(() => {
     if (!targetA.current) return;
@@ -161,7 +212,19 @@ export function useWaterSimulation() {
     renderPass(normalMaterial.current);
   }, [renderPass]);
 
+  const sampleHeight = useCallback((x: number, z: number) => {
+    const u = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1.001, (x * 0.5 + 0.5) * CPU_SAMPLE_SIZE - 0.5));
+    const v = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1.001, (z * 0.5 + 0.5) * CPU_SAMPLE_SIZE - 0.5));
+    const x0 = Math.floor(u), z0 = Math.floor(v);
+    const x1 = Math.min(CPU_SAMPLE_SIZE - 1, x0 + 1), z1 = Math.min(CPU_SAMPLE_SIZE - 1, z0 + 1);
+    const tx = u - x0, tz = v - z0;
+    const h = cpuHeight.current;
+    const h00 = h[z0 * CPU_SAMPLE_SIZE + x0], h10 = h[z0 * CPU_SAMPLE_SIZE + x1];
+    const h01 = h[z1 * CPU_SAMPLE_SIZE + x0], h11 = h[z1 * CPU_SAMPLE_SIZE + x1];
+    return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+  }, []);
+
   const getTexture = useCallback(() => targetA.current?.texture, []);
 
-  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture };
+  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture, sampleHeight };
 }

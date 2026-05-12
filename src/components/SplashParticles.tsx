@@ -24,22 +24,30 @@ const MAX_RENDER_PARTICLES = 9000;
 
 const vert = /* glsl */ `
   attribute vec3 aOffset;
+  attribute vec3 aVelocity;
   attribute float aSize;
   attribute float aAlpha;
   attribute float aFoam;
 
   varying float vAlpha;
   varying float vFoam;
+  varying float vSpeed;
   varying vec2 vUv;
 
   void main() {
     vUv = uv * 2.0 - 1.0;
     vAlpha = aAlpha;
     vFoam = aFoam;
+    vSpeed = length(aVelocity);
 
-    // Camera-facing billboard: place quad in view space, scaled by aSize.
+    // Camera-facing anisotropic splat: velocity stretches water into sheets/streaks.
     vec4 mvCenter = modelViewMatrix * vec4(aOffset, 1.0);
-    mvCenter.xy += position.xy * aSize;
+    vec2 vel = (modelViewMatrix * vec4(aVelocity, 0.0)).xy;
+    vec2 tangent = length(vel) > 0.0001 ? normalize(vel) : vec2(1.0, 0.0);
+    vec2 bitangent = vec2(-tangent.y, tangent.x);
+    float major = aSize * mix(2.7, 4.6, clamp(vSpeed * 0.12, 0.0, 1.0));
+    float minor = aSize * mix(0.68, 1.05, aFoam);
+    mvCenter.xy += tangent * position.x * major + bitangent * position.y * minor;
     gl_Position = projectionMatrix * mvCenter;
   }
 `;
@@ -53,13 +61,14 @@ const frag = /* glsl */ `
 
   varying float vAlpha;
   varying float vFoam;
+  varying float vSpeed;
   varying vec2 vUv;
 
   void main() {
     float r2 = dot(vUv, vUv);
     if (r2 > 1.0) discard;
-    // Soft falloff: bright core, smooth edge
-    float core = exp(-r2 * 3.0);
+    // Soft ellipsoidal falloff: connected fluid streaks, not bead-like spheres
+    float core = exp(-r2 * 2.35);
     float edge = smoothstep(1.0, 0.6, r2);
 
     // Approximate normal of a sphere splat for fake lighting
@@ -78,8 +87,9 @@ const frag = /* glsl */ `
     float rim = pow(1.0 - n.z, 3.0);
     col += (1.0 - vFoam) * vec3(0.6, 0.85, 1.0) * rim * 0.35;
 
-    float a = vAlpha * (core * 0.85 + edge * 0.4);
-    a = mix(a, vAlpha * (core * 1.1 + edge * 0.6), vFoam); // foam reads brighter
+    float sheet = smoothstep(0.06, 1.0, vSpeed) * (1.0 - vFoam);
+    float a = vAlpha * (core * 0.46 + edge * 0.3 + sheet * edge * 0.32);
+    a = mix(a, vAlpha * (core * 0.86 + edge * 0.55), vFoam); // foam reads brighter
     if (a < 0.01) discard;
     gl_FragColor = vec4(col, a);
   }
@@ -97,14 +107,16 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
   // Per-instance attribute arrays
   const buffers = useMemo(() => {
     const offsets = new Float32Array(MAX_RENDER_PARTICLES * 3);
+    const velocities = new Float32Array(MAX_RENDER_PARTICLES * 3);
     const sizes = new Float32Array(MAX_RENDER_PARTICLES);
     const alphas = new Float32Array(MAX_RENDER_PARTICLES);
     const foam = new Float32Array(MAX_RENDER_PARTICLES);
     const aOffset = new THREE.InstancedBufferAttribute(offsets, 3).setUsage(THREE.DynamicDrawUsage);
+    const aVelocity = new THREE.InstancedBufferAttribute(velocities, 3).setUsage(THREE.DynamicDrawUsage);
     const aSize = new THREE.InstancedBufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage);
     const aAlpha = new THREE.InstancedBufferAttribute(alphas, 1).setUsage(THREE.DynamicDrawUsage);
     const aFoam = new THREE.InstancedBufferAttribute(foam, 1).setUsage(THREE.DynamicDrawUsage);
-    return { offsets, sizes, alphas, foam, aOffset, aSize, aAlpha, aFoam };
+    return { offsets, velocities, sizes, alphas, foam, aOffset, aVelocity, aSize, aAlpha, aFoam };
   }, []);
 
   const material = useMemo(() => new THREE.ShaderMaterial({
@@ -129,6 +141,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     g.attributes.uv = geometry.attributes.uv;
     g.attributes.normal = geometry.attributes.normal;
     g.setAttribute('aOffset', buffers.aOffset);
+    g.setAttribute('aVelocity', buffers.aVelocity);
     g.setAttribute('aSize', buffers.aSize);
     g.setAttribute('aAlpha', buffers.aAlpha);
     g.setAttribute('aFoam', buffers.aFoam);
@@ -147,7 +160,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     material.uniforms.uLight.value.copy(light);
 
     const P = solver.particles;
-    const { offsets, sizes, alphas, foam } = buffers;
+    const { offsets, velocities, sizes, alphas, foam } = buffers;
     let n = 0;
     const cap = Math.min(P.count, MAX_RENDER_PARTICLES);
 
@@ -163,9 +176,12 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
       // Size scales with velocity (motion blur feel) + base size
       const vx = P.vx[i], vy = P.vy[i], vz = P.vz[i];
       const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      velocities[o] = vx;
+      velocities[o + 1] = vy;
+      velocities[o + 2] = vz;
       const isFoam = (fl & FLAG_FOAM) ? 1.0 : 0.0;
-      const base = isFoam ? 0.040 : 0.028;
-      sizes[n] = base + Math.min(0.045, speed * 0.0085);
+      const base = isFoam ? 0.020 : 0.015;
+      sizes[n] = base + Math.min(0.026, speed * 0.0045);
 
       // Fade in over first 60ms, fade out in last 25% of life
       const life = P.life[i];
@@ -177,6 +193,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
     }
 
     buffers.aOffset.needsUpdate = true;
+    buffers.aVelocity.needsUpdate = true;
     buffers.aSize.needsUpdate = true;
     buffers.aAlpha.needsUpdate = true;
     buffers.aFoam.needsUpdate = true;
