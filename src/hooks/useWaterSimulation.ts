@@ -176,11 +176,35 @@ export function useWaterSimulation() {
     renderPass(sphereMaterial.current);
   }, [renderPass]);
 
+  const stepCpuSimulation = useCallback(() => {
+    const h = cpuHeight.current;
+    const v = cpuVelocity.current;
+    const nextH = cpuScratchHeight.current;
+    const nextV = cpuScratchVelocity.current;
+    nextH.set(h);
+    nextV.set(v);
+    for (let z = 1; z < CPU_SAMPLE_SIZE - 1; z++) {
+      const row = z * CPU_SAMPLE_SIZE;
+      for (let x = 1; x < CPU_SAMPLE_SIZE - 1; x++) {
+        const idx = row + x;
+        const avg = (h[idx - 1] + h[idx + 1] + h[idx - CPU_SAMPLE_SIZE] + h[idx + CPU_SAMPLE_SIZE]) * 0.25;
+        const vel = (v[idx] + (avg - h[idx]) * 2.0) * 0.995;
+        nextV[idx] = vel;
+        nextH[idx] = h[idx] + vel;
+      }
+    }
+    cpuHeight.current = nextH;
+    cpuVelocity.current = nextV;
+    cpuScratchHeight.current = h;
+    cpuScratchVelocity.current = v;
+  }, []);
+
   const stepSimulation = useCallback(() => {
     if (!targetA.current) return;
+    stepCpuSimulation();
     updateMaterial.current.uniforms.tSim.value = targetA.current.texture;
     renderPass(updateMaterial.current);
-  }, [renderPass]);
+  }, [renderPass, stepCpuSimulation]);
 
   const updateNormals = useCallback(() => {
     if (!targetA.current) return;
