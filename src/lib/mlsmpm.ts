@@ -220,7 +220,7 @@ export class MlsMpmSolver {
 
     this.p2gMassMomentum(P, G);
     this.p2gStress(P, G, dt);
-    this.updateGrid(G, dt, sphere);
+    this.updateGrid(G, dt, sphere, surface);
     this.g2p(P, G, dt, surface);
   }
 
@@ -332,7 +332,7 @@ export class MlsMpmSolver {
     }
   }
 
-  private updateGrid(G: MpmGrid, dt: number, sphere?: SphereProbe) {
+  private updateGrid(G: MpmGrid, dt: number, sphere?: SphereProbe, surface?: MpmSurfaceSampler) {
     const sphereR2 = sphere ? sphere.radius * sphere.radius : 0;
     for (let a = 0; a < G.activeCount; a++) {
       const idx = G.active[a];
@@ -350,6 +350,17 @@ export class MlsMpmSolver {
       let vx = G.mx[idx] / mass;
       let vy = G.my[idx] / mass + GRAVITY * dt;
       let vz = G.mz[idx] / mass;
+
+      if (surface && Math.abs(wx) <= POOL_HALF_EXTENT && Math.abs(wz) <= POOL_HALF_EXTENT) {
+        const surfaceY = surface.heightAt(wx, wz);
+        const penetration = surfaceY - wy;
+        if (penetration > 0 && wy < POOL_RIM_Y) {
+          vy += penetration * WALL_STIFFNESS * dt;
+          if (vy < 0) vy *= -0.08;
+          vx *= 0.985;
+          vz *= 0.985;
+        }
+      }
 
       if (wy < POOL_RIM_Y) {
         const pad = 0.018;
