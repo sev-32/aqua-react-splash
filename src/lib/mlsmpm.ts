@@ -34,10 +34,10 @@ export const POOL_RIM_Y = 2.0 / 12.0;
 export const POOL_HALF_EXTENT = 1.0;
 
 const PARTICLE_MASS = 1.0;
-const REST_DENSITY = 1.35;
-const STIFFNESS = 18.0;
-const DYNAMIC_VISCOSITY = 0.075;
-const GRAVITY = -3.8;
+const REST_DENSITY = 3.0;
+const STIFFNESS = 50.0;
+const DYNAMIC_VISCOSITY = 0.1;
+const GRAVITY = -0.4;
 const WALL_STIFFNESS = 18.0;
 const WALL_DAMPING = 0.42;
 const PARTICLE_LIFETIME = 3.2;
@@ -507,18 +507,17 @@ export class MlsMpmSolver {
     else P.flags[p] &= ~FLAG_AIRBORNE;
 
     const crossedSurface = prevY > surfaceY + 0.002 && P.py[p] <= surfaceY && P.vy[p] < -0.03;
-    const reenteredSurface = P.life[p] > 0.045 && P.py[p] <= surfaceY - 0.006 && P.vy[p] <= 0.18;
-    if (crossedSurface || reenteredSurface) {
+    if (crossedSurface) {
       this.recordSettle(P, p);
-      P.kill(p);
-      return;
+      P.vy[p] = Math.max(P.vy[p] * -0.12, 0.015);
+      P.py[p] = Math.max(P.py[p], surfaceY - 0.004);
     }
 
     const outside = P.px[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.px[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.pz[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.pz[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.py[p] < POOL_FLOOR_Y - 0.08 || P.py[p] > MPM_DOMAIN_Y_MAX + 0.3;
     const slow = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p] < 0.025;
-    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < surfaceY - 0.08 && slow && P.life[p] > 0.2)) {
+    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < surfaceY - 0.1 && slow && P.life[p] > 0.35)) {
       if (P.py[p] <= surfaceY && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
       P.kill(p);
     }
