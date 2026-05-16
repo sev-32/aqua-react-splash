@@ -1,18 +1,7 @@
-/**
- * SplashParticles — instanced renderer for MLS-MPM particles.
- *
- * Each particle is a camera-facing quad (billboard) with a soft circular
- * fragment splat. Color is derived from the existing height-field water
- * palette (deep cyan, fresnel-brightened with sun direction) plus a
- * white foam highlight for FLAG_FOAM particles. Foam particles use
- * additive blending; bulk water uses normal alpha for proper depth.
- *
- * Per-frame, we update three InstancedBufferAttributes from the SoA
- * particle storage: aOffset (position), aSize, aAlpha.
- */
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { MlsMpmSolver, FLAG_ALIVE, FLAG_FOAM } from '../lib/mlsmpm';
 
 interface SplashParticlesProps {
@@ -20,187 +9,78 @@ interface SplashParticlesProps {
   light: THREE.Vector3;
 }
 
-const MAX_RENDER_PARTICLES = 9000;
+type MarchingFluid = MarchingCubes & {
+  reset: () => void;
+  update: () => void;
+  addBall: (x: number, y: number, z: number, strength: number, subtract: number, color?: THREE.Color) => void;
+  isolation: number;
+};
 
-const vert = /* glsl */ `
-  attribute vec3 aOffset;
-  attribute vec3 aVelocity;
-  attribute float aSize;
-  attribute float aAlpha;
-  attribute float aFoam;
-
-  varying float vAlpha;
-  varying float vFoam;
-  varying float vSpeed;
-  varying vec2 vUv;
-
-  void main() {
-    vUv = uv * 2.0 - 1.0;
-    vAlpha = aAlpha;
-    vFoam = aFoam;
-    vSpeed = length(aVelocity);
-
-    // Camera-facing anisotropic splat: velocity stretches water into sheets/streaks.
-    vec4 mvCenter = modelViewMatrix * vec4(aOffset, 1.0);
-    vec2 vel = (modelViewMatrix * vec4(aVelocity, 0.0)).xy;
-    vec2 tangent = length(vel) > 0.0001 ? normalize(vel) : vec2(1.0, 0.0);
-    vec2 bitangent = vec2(-tangent.y, tangent.x);
-    float major = aSize * mix(2.7, 4.6, clamp(vSpeed * 0.12, 0.0, 1.0));
-    float minor = aSize * mix(0.68, 1.05, aFoam);
-    mvCenter.xy += tangent * position.x * major + bitangent * position.y * minor;
-    gl_Position = projectionMatrix * mvCenter;
-  }
-`;
-
-const frag = /* glsl */ `
-  precision highp float;
-  uniform vec3 uLight;
-  uniform vec3 uWaterDeep;
-  uniform vec3 uWaterShallow;
-  uniform vec3 uFoamColor;
-
-  varying float vAlpha;
-  varying float vFoam;
-  varying float vSpeed;
-  varying vec2 vUv;
-
-  void main() {
-    float r2 = dot(vUv, vUv);
-    if (r2 > 1.0) discard;
-    // Soft ellipsoidal falloff: connected fluid streaks, not bead-like spheres
-    float core = exp(-r2 * 2.35);
-    float edge = smoothstep(1.0, 0.6, r2);
-
-    // Approximate normal of a sphere splat for fake lighting
-    vec3 n = vec3(vUv.x, vUv.y, sqrt(max(0.0, 1.0 - r2)));
-    float lambert = clamp(dot(n, normalize(uLight)) * 0.5 + 0.5, 0.0, 1.0);
-
-    // Water tint: shallow at edges, deep at core, lit by sun
-    vec3 waterColor = mix(uWaterDeep, uWaterShallow, edge);
-    vec3 lit = waterColor * (0.45 + 0.85 * lambert);
-
-    // Foam: white core, additive feel
-    vec3 foamCol = uFoamColor * (0.55 + 0.6 * lambert);
-    vec3 col = mix(lit, foamCol, vFoam);
-
-    // Fake fresnel rim for glassy droplets (non-foam)
-    float rim = pow(1.0 - n.z, 3.0);
-    col += (1.0 - vFoam) * vec3(0.6, 0.85, 1.0) * rim * 0.35;
-
-    float sheet = smoothstep(0.06, 1.0, vSpeed) * (1.0 - vFoam);
-    float a = vAlpha * (core * 0.46 + edge * 0.3 + sheet * edge * 0.32);
-    a = mix(a, vAlpha * (core * 0.86 + edge * 0.55), vFoam); // foam reads brighter
-    if (a < 0.01) discard;
-    gl_FragColor = vec4(col, a);
-  }
-`;
+const DOMAIN_MIN = new THREE.Vector3(-1.16, -0.98, -1.16);
+const DOMAIN_SIZE = new THREE.Vector3(2.32, 2.42, 2.32);
+const WATER_COLOR = new THREE.Color(0.03, 0.34, 0.62);
+const FOAM_COLOR = new THREE.Color(0.92, 0.97, 1.0);
 
 export function SplashParticles({ solver, light }: SplashParticlesProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
+  const fluidRef = useRef<MarchingFluid>(null!);
 
-  // Geometry: a unit quad in XY centered at origin
-  const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(1, 1);
-    return g;
-  }, []);
-
-  // Per-instance attribute arrays
-  const buffers = useMemo(() => {
-    const offsets = new Float32Array(MAX_RENDER_PARTICLES * 3);
-    const velocities = new Float32Array(MAX_RENDER_PARTICLES * 3);
-    const sizes = new Float32Array(MAX_RENDER_PARTICLES);
-    const alphas = new Float32Array(MAX_RENDER_PARTICLES);
-    const foam = new Float32Array(MAX_RENDER_PARTICLES);
-    const aOffset = new THREE.InstancedBufferAttribute(offsets, 3).setUsage(THREE.DynamicDrawUsage);
-    const aVelocity = new THREE.InstancedBufferAttribute(velocities, 3).setUsage(THREE.DynamicDrawUsage);
-    const aSize = new THREE.InstancedBufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage);
-    const aAlpha = new THREE.InstancedBufferAttribute(alphas, 1).setUsage(THREE.DynamicDrawUsage);
-    const aFoam = new THREE.InstancedBufferAttribute(foam, 1).setUsage(THREE.DynamicDrawUsage);
-    return { offsets, velocities, sizes, alphas, foam, aOffset, aVelocity, aSize, aAlpha, aFoam };
-  }, []);
-
-  const material = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: vert,
-    fragmentShader: frag,
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: WATER_COLOR,
+    roughness: 0.02,
+    metalness: 0,
+    transmission: 0.7,
+    thickness: 0.24,
+    ior: 1.333,
     transparent: true,
-    depthWrite: false,
-    blending: THREE.NormalBlending,
-    uniforms: {
-      uLight: { value: new THREE.Vector3() },
-      uWaterDeep: { value: new THREE.Color(0.05, 0.20, 0.32) },
-      uWaterShallow: { value: new THREE.Color(0.32, 0.78, 0.95) },
-      uFoamColor: { value: new THREE.Color(0.95, 0.97, 1.0) },
-    },
+    opacity: 0.78,
+    vertexColors: true,
+    side: THREE.DoubleSide,
   }), []);
 
-  // Build instanced geometry once — attach attributes
-  const instancedGeometry = useMemo(() => {
-    const g = new THREE.InstancedBufferGeometry();
-    g.index = geometry.index;
-    g.attributes.position = geometry.attributes.position;
-    g.attributes.uv = geometry.attributes.uv;
-    g.attributes.normal = geometry.attributes.normal;
-    g.setAttribute('aOffset', buffers.aOffset);
-    g.setAttribute('aVelocity', buffers.aVelocity);
-    g.setAttribute('aSize', buffers.aSize);
-    g.setAttribute('aAlpha', buffers.aAlpha);
-    g.setAttribute('aFoam', buffers.aFoam);
-    g.instanceCount = 0;
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 5);
-    return g;
-  }, [geometry, buffers]);
+  const fluid = useMemo(() => {
+    const mc = new MarchingCubes(34, material, false, true, 18000) as MarchingFluid;
+    mc.isolation = 58;
+    mc.scale.copy(DOMAIN_SIZE);
+    mc.position.copy(DOMAIN_MIN).addScaledVector(DOMAIN_SIZE, 0.5);
+    mc.frustumCulled = false;
+    mc.renderOrder = 4;
+    return mc;
+  }, [material]);
 
   useEffect(() => () => {
-    geometry.dispose();
-    instancedGeometry.dispose();
+    fluid.geometry.dispose();
     material.dispose();
-  }, [geometry, instancedGeometry, material]);
+  }, [fluid, material]);
 
   useFrame(() => {
-    material.uniforms.uLight.value.copy(light);
-
     const P = solver.particles;
-    const { offsets, velocities, sizes, alphas, foam } = buffers;
-    let n = 0;
-    const cap = Math.min(P.count, MAX_RENDER_PARTICLES);
+    fluid.reset();
 
-    for (let i = 0; i < cap; i++) {
+    let emitted = 0;
+    const stride = Math.max(1, Math.ceil(P.count / 2600));
+    for (let i = 0; i < P.count; i += stride) {
       const fl = P.flags[i];
       if (!(fl & FLAG_ALIVE)) continue;
 
-      const o = n * 3;
-      offsets[o] = P.px[i];
-      offsets[o + 1] = P.py[i];
-      offsets[o + 2] = P.pz[i];
+      const x = (P.px[i] - DOMAIN_MIN.x) / DOMAIN_SIZE.x;
+      const y = (P.py[i] - DOMAIN_MIN.y) / DOMAIN_SIZE.y;
+      const z = (P.pz[i] - DOMAIN_MIN.z) / DOMAIN_SIZE.z;
+      if (x <= 0.02 || x >= 0.98 || y <= 0.02 || y >= 0.98 || z <= 0.02 || z >= 0.98) continue;
 
-      // Size scales with velocity (motion blur feel) + base size
-      const vx = P.vx[i], vy = P.vy[i], vz = P.vz[i];
-      const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
-      velocities[o] = vx;
-      velocities[o + 1] = vy;
-      velocities[o + 2] = vz;
-      const isFoam = (fl & FLAG_FOAM) ? 1.0 : 0.0;
-      const base = isFoam ? 0.020 : 0.015;
-      sizes[n] = base + Math.min(0.026, speed * 0.0045);
-
-      // Fade in over first 60ms, fade out in last 25% of life
-      const life = P.life[i];
-      const fadeIn = Math.min(1, life / 0.06);
-      const fadeOut = Math.min(1, Math.max(0, (4.5 - life) / (4.5 * 0.25)));
-      alphas[n] = 0.85 * fadeIn * fadeOut;
-      foam[n] = isFoam;
-      n++;
+      const speed = Math.hypot(P.vx[i], P.vy[i], P.vz[i]);
+      const density = Math.max(0.45, Math.min(2.2, P.density[i]));
+      const isFoam = !!(fl & FLAG_FOAM);
+      const strength = (isFoam ? 0.115 : 0.15) * (0.85 + density * 0.18) * (stride > 1 ? stride * 0.55 : 1);
+      const subtract = isFoam ? 16 : 13.5 + Math.min(2.5, speed * 0.28);
+      fluid.addBall(x, y, z, strength, subtract, isFoam ? FOAM_COLOR : WATER_COLOR);
+      emitted++;
+      if (emitted > 3200) break;
     }
 
-    buffers.aOffset.needsUpdate = true;
-    buffers.aVelocity.needsUpdate = true;
-    buffers.aSize.needsUpdate = true;
-    buffers.aAlpha.needsUpdate = true;
-    buffers.aFoam.needsUpdate = true;
-    instancedGeometry.instanceCount = n;
+    fluid.visible = emitted > 0;
+    if (emitted > 0) fluid.update();
+    material.envMapIntensity = 0.8 + Math.max(0, light.y) * 0.35;
   });
 
-  return (
-    <mesh geometry={instancedGeometry as unknown as THREE.BufferGeometry} material={material} frustumCulled={false} renderOrder={5} />
-  );
+  return <primitive ref={fluidRef} object={fluid} />;
 }
