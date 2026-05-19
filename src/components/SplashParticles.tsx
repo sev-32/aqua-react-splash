@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { MlsMpmSolver, FLAG_ALIVE, FLAG_FOAM } from '../lib/mlsmpm';
 
 interface SplashParticlesProps {
@@ -9,17 +8,80 @@ interface SplashParticlesProps {
   light: THREE.Vector3;
 }
 
-type MarchingFluid = MarchingCubes & {
-  reset: () => void;
-  update: () => void;
-  addBall: (x: number, y: number, z: number, strength: number, subtract: number, color?: THREE.Color) => void;
-  isolation: number;
-};
+const WATER_COLOR = new THREE.Color(0.045, 0.34, 0.58);
+const FOAM_COLOR = new THREE.Color(0.92, 0.98, 1.0);
 
-const DOMAIN_MIN = new THREE.Vector3(-1.16, -0.98, -1.16);
-const DOMAIN_SIZE = new THREE.Vector3(2.32, 2.42, 2.32);
-const WATER_COLOR = new THREE.Color(0.03, 0.34, 0.62);
-const FOAM_COLOR = new THREE.Color(0.92, 0.97, 1.0);
+const fluidVertexShader = /* glsl */ `
+  attribute vec2 corner;
+  attribute vec3 aPosition;
+  attribute vec3 aVelocity;
+  attribute float aDensity;
+  attribute float aFoam;
+
+  uniform float uMinParticleSize;
+  uniform float uSphereSize;
+  uniform float uExposureScaleMin;
+  uniform float uExposureScaleMax;
+  uniform float uExposureScaleDensity;
+  uniform float uElongationEnabled;
+  uniform float uElongationMax;
+  uniform float uElongationSpeedFactor;
+
+  varying vec2 vUv;
+  varying float vFoam;
+  varying float vSpeed;
+
+  void main() {
+    float exposureScale = clamp(aDensity * uExposureScaleDensity, uExposureScaleMin, uExposureScaleMax);
+    float size = max(uMinParticleSize, uSphereSize * exposureScale);
+
+    vec3 velocityView = (modelViewMatrix * vec4(aVelocity, 0.0)).xyz;
+    float speed = length(aVelocity);
+    vec2 axis = normalize(velocityView.xy + vec2(0.001));
+    float stretchFactor = 1.0 + min(uElongationMax - 1.0, speed * uElongationSpeedFactor);
+    vec2 localPos = corner * size;
+    float along = dot(localPos, axis);
+    vec2 perp = localPos - along * axis;
+    vec2 stretched = mix(localPos, perp + axis * (along * stretchFactor), uElongationEnabled);
+
+    vec3 viewPosition = (modelViewMatrix * vec4(aPosition, 1.0)).xyz;
+    gl_Position = projectionMatrix * vec4(viewPosition + vec3(stretched, 0.0), 1.0);
+    vUv = corner + 0.5;
+    vFoam = aFoam;
+    vSpeed = speed;
+  }
+`;
+
+const fluidFragmentShader = /* glsl */ `
+  precision highp float;
+
+  uniform vec3 uFluidColor;
+  uniform vec3 uFoamColor;
+  uniform vec3 uLight;
+  uniform float uParticleAlpha;
+
+  varying vec2 vUv;
+  varying float vFoam;
+  varying float vSpeed;
+
+  void main() {
+    vec2 normalxy = vUv * 2.0 - 1.0;
+    float r2 = dot(normalxy, normalxy);
+    if (r2 > 1.0) discard;
+
+    float thickness = sqrt(1.0 - r2);
+    vec3 normal = normalize(vec3(normalxy, thickness));
+    vec3 lightDir = normalize(vec3(uLight.x, max(0.08, uLight.y), abs(uLight.z) + 0.35));
+    float diffuse = max(0.0, dot(normal, lightDir));
+    float fresnel = pow(1.0 - thickness, 2.2);
+    float foam = clamp(vFoam + fresnel * 0.45 + vSpeed * 0.025, 0.0, 1.0);
+    vec3 color = mix(uFluidColor, uFoamColor, foam);
+    color += vec3(0.18, 0.24, 0.28) * diffuse * thickness;
+
+    float alpha = uParticleAlpha * thickness * (0.72 + 0.38 * diffuse);
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
 
 export function SplashParticles({ solver, light }: SplashParticlesProps) {
   const fluidRef = useRef<MarchingFluid>(null!);
