@@ -1,6 +1,7 @@
 import { useRef, useMemo, useCallback, useEffect } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
+import { MpmParticles, FLAG_ALIVE } from '../lib/mlsmpm';
 import {
   simulationVertexShader,
   dropFragmentShader,
@@ -206,6 +207,59 @@ export function useWaterSimulation() {
     renderPass(updateMaterial.current);
   }, [renderPass, stepCpuSimulation]);
 
+  const coupleMpmParticles = useCallback((particles: MpmParticles) => {
+    const height = cpuHeight.current;
+    const maxY = cpuScratchVelocity.current;
+    maxY.fill(-Infinity);
+
+    for (let i = 0; i < particles.count; i++) {
+      if (!(particles.flags[i] & FLAG_ALIVE)) continue;
+      if (Math.abs(particles.px[i]) > 1 || Math.abs(particles.pz[i]) > 1) continue;
+      const ix = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1, Math.floor((particles.px[i] * 0.5 + 0.5) * CPU_SAMPLE_SIZE)));
+      const iz = Math.max(0, Math.min(CPU_SAMPLE_SIZE - 1, Math.floor((particles.pz[i] * 0.5 + 0.5) * CPU_SAMPLE_SIZE)));
+      const idx = iz * CPU_SAMPLE_SIZE + ix;
+      if (particles.py[i] > maxY[idx]) maxY[idx] = particles.py[i];
+    }
+
+    let changed = 0;
+    for (let z = 1; z < CPU_SAMPLE_SIZE - 1; z++) {
+      for (let x = 1; x < CPU_SAMPLE_SIZE - 1; x++) {
+        let sum = 0;
+        let count = 0;
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const y = maxY[(z + dz) * CPU_SAMPLE_SIZE + x + dx];
+            if (Number.isFinite(y) && y > 0) { sum += y; count++; }
+          }
+        }
+        if (count > 0) {
+          const idx = z * CPU_SAMPLE_SIZE + x;
+          const eta = sum / count;
+          height[idx] += (eta - height[idx]) * 0.18;
+          changed++;
+        }
+      }
+    }
+
+    if (changed > 0) {
+      // Reference analogue: particle ride/impact buffers alter the heightfield;
+      // in this WebGL port we stamp the same CPU mirror back into the visible
+      // ping-pong texture through a compact set of surface drops.
+      const stride = Math.max(1, Math.ceil(changed / 24));
+      let n = 0;
+      for (let z = 1; z < CPU_SAMPLE_SIZE - 1; z++) {
+        for (let x = 1; x < CPU_SAMPLE_SIZE - 1; x++) {
+          const y = maxY[z * CPU_SAMPLE_SIZE + x];
+          if (!Number.isFinite(y) || y <= 0 || (n++ % stride) !== 0) continue;
+          const wx = ((x + 0.5) / CPU_SAMPLE_SIZE) * 2 - 1;
+          const wz = ((z + 0.5) / CPU_SAMPLE_SIZE) * 2 - 1;
+          const strength = Math.min(0.018, Math.max(0.0015, y * 0.012));
+          addDrop(wx, wz, 0.026, strength);
+        }
+      }
+    }
+  }, [addDrop]);
+
   const updateNormals = useCallback(() => {
     if (!targetA.current) return;
     normalMaterial.current.uniforms.tSim.value = targetA.current.texture;
@@ -226,5 +280,5 @@ export function useWaterSimulation() {
 
   const getTexture = useCallback(() => targetA.current?.texture, []);
 
-  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture, sampleHeight };
+  return { addDrop, moveSphere, stepSimulation, updateNormals, getTexture, sampleHeight, coupleMpmParticles };
 }
