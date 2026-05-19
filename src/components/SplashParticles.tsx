@@ -84,65 +84,85 @@ const fluidFragmentShader = /* glsl */ `
 `;
 
 export function SplashParticles({ solver, light }: SplashParticlesProps) {
-  const fluidRef = useRef<MarchingFluid>(null!);
+  const meshRef = useRef<THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>>(null!);
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: WATER_COLOR,
-    roughness: 0.02,
-    metalness: 0,
-    transmission: 0.7,
-    thickness: 0.24,
-    ior: 1.333,
+  const { geometry, positions, velocities, densities, foam } = useMemo(() => {
+    const maxInstances = solver.particles.capacity;
+    const geom = new THREE.InstancedBufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
+    geom.setAttribute('corner', new THREE.BufferAttribute(new Float32Array([
+      0.5, 0.5, 0.5, -0.5, -0.5, -0.5,
+      0.5, 0.5, -0.5, -0.5, -0.5, 0.5,
+    ]), 2));
+
+    const pos = new Float32Array(maxInstances * 3);
+    const vel = new Float32Array(maxInstances * 3);
+    const den = new Float32Array(maxInstances);
+    const foamAttr = new Float32Array(maxInstances);
+    geom.setAttribute('aPosition', new THREE.InstancedBufferAttribute(pos, 3));
+    geom.setAttribute('aVelocity', new THREE.InstancedBufferAttribute(vel, 3));
+    geom.setAttribute('aDensity', new THREE.InstancedBufferAttribute(den, 1));
+    geom.setAttribute('aFoam', new THREE.InstancedBufferAttribute(foamAttr, 1));
+    geom.instanceCount = 0;
+    geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.1, 0), 2.2);
+    return { geometry: geom, positions: pos, velocities: vel, densities: den, foam: foamAttr };
+  }, [solver]);
+
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: fluidVertexShader,
+    fragmentShader: fluidFragmentShader,
     transparent: true,
-    opacity: 0.78,
-    vertexColors: true,
-    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.NormalBlending,
+    uniforms: {
+      uFluidColor: { value: WATER_COLOR },
+      uFoamColor: { value: FOAM_COLOR },
+      uLight: { value: new THREE.Vector3() },
+      uMinParticleSize: { value: 0.018 },
+      uSphereSize: { value: 0.052 },
+      uExposureScaleMin: { value: 0.55 },
+      uExposureScaleMax: { value: 1.8 },
+      uExposureScaleDensity: { value: 0.42 },
+      uElongationEnabled: { value: 1.0 },
+      uElongationMax: { value: 5.6 },
+      uElongationSpeedFactor: { value: 0.34 },
+      uParticleAlpha: { value: 0.72 },
+    },
   }), []);
 
-  const fluid = useMemo(() => {
-    const mc = new MarchingCubes(34, material, false, true, 18000) as MarchingFluid;
-    mc.isolation = 58;
-    mc.scale.copy(DOMAIN_SIZE);
-    mc.position.copy(DOMAIN_MIN).addScaledVector(DOMAIN_SIZE, 0.5);
-    mc.frustumCulled = false;
-    mc.renderOrder = 4;
-    return mc;
-  }, [material]);
-
   useEffect(() => () => {
-    fluid.geometry.dispose();
+    geometry.dispose();
     material.dispose();
-  }, [fluid, material]);
+  }, [geometry, material]);
 
   useFrame(() => {
     const P = solver.particles;
-    fluid.reset();
-
     let emitted = 0;
-    const stride = Math.max(1, Math.ceil(P.count / 2600));
-    for (let i = 0; i < P.count; i += stride) {
+    const maxInstances = P.capacity;
+    for (let i = 0; i < P.count && emitted < maxInstances; i++) {
       const fl = P.flags[i];
       if (!(fl & FLAG_ALIVE)) continue;
-
-      const x = (P.px[i] - DOMAIN_MIN.x) / DOMAIN_SIZE.x;
-      const y = (P.py[i] - DOMAIN_MIN.y) / DOMAIN_SIZE.y;
-      const z = (P.pz[i] - DOMAIN_MIN.z) / DOMAIN_SIZE.z;
-      if (x <= 0.02 || x >= 0.98 || y <= 0.02 || y >= 0.98 || z <= 0.02 || z >= 0.98) continue;
-
-      const speed = Math.hypot(P.vx[i], P.vy[i], P.vz[i]);
-      const density = Math.max(0.45, Math.min(2.2, P.density[i]));
-      const isFoam = !!(fl & FLAG_FOAM);
-      const strength = (isFoam ? 0.115 : 0.15) * (0.85 + density * 0.18) * (stride > 1 ? stride * 0.55 : 1);
-      const subtract = isFoam ? 16 : 13.5 + Math.min(2.5, speed * 0.28);
-      fluid.addBall(x, y, z, strength, subtract, isFoam ? FOAM_COLOR : WATER_COLOR);
+      const p3 = emitted * 3;
+      positions[p3] = P.px[i];
+      positions[p3 + 1] = P.py[i];
+      positions[p3 + 2] = P.pz[i];
+      velocities[p3] = P.vx[i];
+      velocities[p3 + 1] = P.vy[i];
+      velocities[p3 + 2] = P.vz[i];
+      densities[emitted] = Math.max(0.1, P.density[i]);
+      foam[emitted] = fl & FLAG_FOAM ? 1 : 0;
       emitted++;
-      if (emitted > 3200) break;
     }
 
-    fluid.visible = emitted > 0;
-    if (emitted > 0) fluid.update();
-    material.envMapIntensity = 0.8 + Math.max(0, light.y) * 0.35;
+    geometry.instanceCount = emitted;
+    geometry.attributes.aPosition.needsUpdate = true;
+    geometry.attributes.aVelocity.needsUpdate = true;
+    geometry.attributes.aDensity.needsUpdate = true;
+    geometry.attributes.aFoam.needsUpdate = true;
+    material.uniforms.uLight.value.copy(light);
+    if (meshRef.current) meshRef.current.visible = emitted > 0;
   });
 
-  return <primitive ref={fluidRef} object={fluid} />;
+  return <mesh ref={meshRef} geometry={geometry} material={material} frustumCulled={false} renderOrder={4} />;
 }
