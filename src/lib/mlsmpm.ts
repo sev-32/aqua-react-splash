@@ -353,12 +353,13 @@ export class MlsMpmSolver {
 
       if (surface && Math.abs(wx) <= POOL_HALF_EXTENT && Math.abs(wz) <= POOL_HALF_EXTENT) {
         const surfaceY = surface.heightAt(wx, wz);
-        const penetration = surfaceY - wy;
-        if (penetration > 0 && wy < POOL_RIM_Y) {
-          vy += penetration * WALL_STIFFNESS * dt;
-          if (vy < 0) vy *= -0.08;
-          vx *= 0.985;
-          vz *= 0.985;
+        const eta = surfaceY - SURFACE_Y;
+        const band = 3.0 * MPM_DX;
+        if (Math.abs(wy - surfaceY) < band) {
+          // Matches the reference updateGrid heightfield coupling: near the
+          // MLS-MPM/wave interface, heightfield elevation injects vertical grid
+          // velocity instead of treating the free surface like a hard floor.
+          vy += 0.03 * eta;
         }
       }
 
@@ -509,8 +510,10 @@ export class MlsMpmSolver {
     const crossedSurface = prevY > surfaceY + 0.002 && P.py[p] <= surfaceY && P.vy[p] < -0.03;
     if (crossedSurface) {
       this.recordSettle(P, p);
-      P.vy[p] = Math.max(P.vy[p] * -0.12, 0.015);
-      P.py[p] = Math.max(P.py[p], surfaceY - 0.004);
+      P.py[p] = surfaceY + 0.003;
+      P.vy[p] = Math.max(-P.vy[p] * 0.16, 0.012);
+      P.vx[p] *= 0.72;
+      P.vz[p] *= 0.72;
     }
 
     const outside = P.px[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.px[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
