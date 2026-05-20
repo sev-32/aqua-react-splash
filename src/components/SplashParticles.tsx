@@ -111,6 +111,7 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: fluidVertexShader,
     fragmentShader: fluidFragmentShader,
+    side: THREE.DoubleSide,
     transparent: true,
     depthWrite: false,
     depthTest: false,
