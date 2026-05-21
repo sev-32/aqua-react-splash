@@ -28,12 +28,23 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen bg-ink overflow-hidden relative">
-      <iframe
-        title="WebGPU MLS-MPM Water"
-        src="/mlsmpm-webgpu.html"
-        className="absolute inset-0 h-full w-full border-0"
-        allow="fullscreen"
-      />
+      {webGpuState === 'available' && (
+        <iframe
+          title="WebGPU MLS-MPM Water"
+          src="/mlsmpm-webgpu.html"
+          className="absolute inset-0 h-full w-full border-0"
+          allow="fullscreen"
+        />
+      )}
+
+      {webGpuState === 'checking' && (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-background px-6 text-center text-foreground">
+          <div className="max-w-xl space-y-3">
+            <h1 className="text-2xl font-semibold">Checking WebGPU support…</h1>
+            <p className="text-sm text-muted-foreground">The real provided MLS-MPM solver requires a WebGPU adapter.</p>
+          </div>
+        </div>
+      )}
 
       {webGpuState === 'missing' && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-background/95 px-6 text-center text-foreground">
