@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 
+type WebGpuNavigator = Navigator & {
+  gpu?: {
+    requestAdapter: () => Promise<unknown>;
+  };
+};
+
 const Index = () => {
   const [webGpuState, setWebGpuState] = useState<'checking' | 'available' | 'missing'>('checking');
 
   useEffect(() => {
-    if (!('gpu' in navigator)) {
+    const nav = navigator as WebGpuNavigator;
+    if (!nav.gpu) {
       setWebGpuState('missing');
       return;
     }
 
     let cancelled = false;
-    navigator.gpu.requestAdapter().then((adapter) => {
+    nav.gpu.requestAdapter().then((adapter) => {
       if (!cancelled) setWebGpuState(adapter ? 'available' : 'missing');
     }).catch(() => {
       if (!cancelled) setWebGpuState('missing');
