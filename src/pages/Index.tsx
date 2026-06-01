@@ -1,62 +1,36 @@
-import { useEffect, useState } from 'react';
-
-type WebGpuNavigator = Navigator & {
-  gpu?: {
-    requestAdapter: () => Promise<unknown>;
-  };
-};
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { WaterScene } from '../components/WaterScene';
+import { WaterUI } from '../components/WaterUI';
 
 const Index = () => {
-  const [webGpuState, setWebGpuState] = useState<'checking' | 'available' | 'missing'>('checking');
-
-  useEffect(() => {
-    const nav = navigator as WebGpuNavigator;
-    if (!nav.gpu) {
-      setWebGpuState('missing');
-      return;
-    }
-
-    let cancelled = false;
-    nav.gpu.requestAdapter().then((adapter) => {
-      if (!cancelled) setWebGpuState(adapter ? 'available' : 'missing');
-    }).catch(() => {
-      if (!cancelled) setWebGpuState('missing');
-    });
-
-    return () => { cancelled = true; };
-  }, []);
-
   return (
-    <div className="h-screen w-screen bg-ink overflow-hidden relative">
-      {webGpuState === 'available' && (
-        <iframe
-          title="WebGPU MLS-MPM Water"
-          src="/mlsmpm-webgpu.html"
-          className="absolute inset-0 h-full w-full border-0"
-          allow="fullscreen"
+    <main className="relative h-screen w-screen overflow-hidden bg-ink">
+      <Canvas
+        camera={{ position: [0.35, 1.15, 2.45], fov: 45, near: 0.01, far: 100 }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        dpr={[1, 2]}
+        className="absolute inset-0 h-full w-full"
+      >
+        <WaterScene />
+        <OrbitControls
+          target={[0, -0.12, 0]}
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={0.55}
+          zoomSpeed={0.65}
+          panSpeed={0.35}
+          minDistance={1.25}
+          maxDistance={5}
+          mouseButtons={{
+            LEFT: undefined,
+            MIDDLE: undefined,
+            RIGHT: 0,
+          }}
         />
-      )}
-
-      {webGpuState === 'checking' && (
-        <div className="absolute inset-0 z-10 grid place-items-center bg-background px-6 text-center text-foreground">
-          <div className="max-w-xl space-y-3">
-            <h1 className="text-2xl font-semibold">Checking WebGPU support…</h1>
-            <p className="text-sm text-muted-foreground">The real provided MLS-MPM solver requires a WebGPU adapter.</p>
-          </div>
-        </div>
-      )}
-
-      {webGpuState === 'missing' && (
-        <div className="absolute inset-0 z-10 grid place-items-center bg-background/95 px-6 text-center text-foreground">
-          <div className="max-w-xl space-y-4">
-            <h1 className="text-2xl font-semibold">WebGPU is required for the provided MLS-MPM solver.</h1>
-            <p className="text-sm text-muted-foreground">
-              This page now loads the actual WebGPU MLS-MPM reference app from your provided code. The Lovable preview browser may not expose a GPU adapter, so run it in a WebGPU-capable Chrome/Edge browser on real hardware.
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
+      </Canvas>
+      <WaterUI />
+    </main>
   );
 };
 
