@@ -236,6 +236,9 @@ export class MlsMpmSolver {
       const dx = gx - (ci + 0.5), dy = gy - (cj + 0.5), dz = gz - (ck + 0.5);
       const wx = this.weights(dx), wy = this.weights(dy), wz = this.weights(dz);
 
+      const pvx = P.vx[p] * MPM_INV_DX;
+      const pvy = P.vy[p] * MPM_INV_DX;
+      const pvz = P.vz[p] * MPM_INV_DX;
       const cxx = P.cxx[p], cxy = P.cxy[p], cxz = P.cxz[p];
       const cyx = P.cyx[p], cyy = P.cyy[p], cyz = P.cyz[p];
       const czx = P.czx[p], czy = P.czy[p], czz = P.czz[p];
@@ -258,9 +261,9 @@ export class MlsMpmSolver {
             const qz = czx * cellDx + czy * cellDy + czz * cellDz;
             const m = w * PARTICLE_MASS;
             G.mass[idx] += m;
-            G.mx[idx] += m * (P.vx[p] + qx);
-            G.my[idx] += m * (P.vy[p] + qy);
-            G.mz[idx] += m * (P.vz[p] + qz);
+            G.mx[idx] += m * (pvx + qx);
+            G.my[idx] += m * (pvy + qy);
+            G.mz[idx] += m * (pvz + qz);
             G.mark(idx);
           }
         }
@@ -348,7 +351,7 @@ export class MlsMpmSolver {
       const wz = this.gridToWorldZ(k);
 
       let vx = G.mx[idx] / mass;
-      let vy = G.my[idx] / mass + GRAVITY * dt;
+      let vy = G.my[idx] / mass + GRAVITY * MPM_INV_DX * dt;
       let vz = G.mz[idx] / mass;
 
       if (surface && Math.abs(wx) <= POOL_HALF_EXTENT && Math.abs(wz) <= POOL_HALF_EXTENT) {
@@ -380,7 +383,10 @@ export class MlsMpmSolver {
         if (d2 < sphereR2 && d2 > 1e-8) {
           const d = Math.sqrt(d2);
           const nx = dx / d, ny = dy / d, nz = dz / d;
-          const rel = (vx - sphere.vx) * nx + (vy - sphere.vy) * ny + (vz - sphere.vz) * nz;
+          const svx = sphere.vx * MPM_INV_DX;
+          const svy = sphere.vy * MPM_INV_DX;
+          const svz = sphere.vz * MPM_INV_DX;
+          const rel = (vx - svx) * nx + (vy - svy) * ny + (vz - svz) * nz;
           if (rel < 0) {
             const push = -rel + (sphere.radius - d) * WALL_STIFFNESS * dt;
             const dvx = push * nx;
@@ -395,8 +401,9 @@ export class MlsMpmSolver {
       }
 
       const sp2 = vx * vx + vy * vy + vz * vz;
-      if (sp2 > MAX_VELOCITY * MAX_VELOCITY) {
-        const s = MAX_VELOCITY / Math.sqrt(sp2);
+      const maxGridVelocity = MAX_VELOCITY * MPM_INV_DX;
+      if (sp2 > maxGridVelocity * maxGridVelocity) {
+        const s = maxGridVelocity / Math.sqrt(sp2);
         vx *= s; vy *= s; vz *= s;
       }
       G.mx[idx] = vx;
@@ -456,14 +463,14 @@ export class MlsMpmSolver {
         }
       }
 
-      P.vx[p] = nvx; P.vy[p] = nvy; P.vz[p] = nvz;
+      P.vx[p] = nvx * MPM_DX; P.vy[p] = nvy * MPM_DX; P.vz[p] = nvz * MPM_DX;
       P.cxx[p] = cxx * 4; P.cxy[p] = cxy * 4; P.cxz[p] = cxz * 4;
       P.cyx[p] = cyx * 4; P.cyy[p] = cyy * 4; P.cyz[p] = cyz * 4;
       P.czx[p] = czx * 4; P.czy[p] = czy * 4; P.czz[p] = czz * 4;
 
-      P.px[p] += nvx * dt;
-      P.py[p] += nvy * dt;
-      P.pz[p] += nvz * dt;
+      P.px[p] += P.vx[p] * dt;
+      P.py[p] += P.vy[p] * dt;
+      P.pz[p] += P.vz[p] * dt;
       this.applyParticleWalls(P, p, dt);
       this.finishParticle(P, p, dt, prevY, surface);
     }
