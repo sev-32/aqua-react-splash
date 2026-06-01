@@ -463,14 +463,14 @@ export class MlsMpmSolver {
         }
       }
 
-      P.vx[p] = nvx; P.vy[p] = nvy; P.vz[p] = nvz;
+      P.vx[p] = nvx * MPM_DX; P.vy[p] = nvy * MPM_DX; P.vz[p] = nvz * MPM_DX;
       P.cxx[p] = cxx * 4; P.cxy[p] = cxy * 4; P.cxz[p] = cxz * 4;
       P.cyx[p] = cyx * 4; P.cyy[p] = cyy * 4; P.cyz[p] = cyz * 4;
       P.czx[p] = czx * 4; P.czy[p] = czy * 4; P.czz[p] = czz * 4;
 
-      P.px[p] += nvx * dt;
-      P.py[p] += nvy * dt;
-      P.pz[p] += nvz * dt;
+      P.px[p] += P.vx[p] * dt;
+      P.py[p] += P.vy[p] * dt;
+      P.pz[p] += P.vz[p] * dt;
       this.applyParticleWalls(P, p, dt);
       this.finishParticle(P, p, dt, prevY, surface);
     }
