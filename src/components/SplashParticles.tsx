@@ -125,9 +125,9 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
       uExposureScaleMin: { value: 0.7 },
       uExposureScaleMax: { value: 2.2 },
       uExposureScaleDensity: { value: 0.5 },
-      uElongationEnabled: { value: 1.0 },
-      uElongationMax: { value: 4.0 },
-      uElongationSpeedFactor: { value: 0.28 },
+      uElongationEnabled: { value: 0.0 },
+      uElongationMax: { value: 1.0 },
+      uElongationSpeedFactor: { value: 0.0 },
       uParticleAlpha: { value: 0.98 },
     },
   }), []);
