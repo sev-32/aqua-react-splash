@@ -289,7 +289,7 @@ export function WaterScene() {
         onMove={handleSphereMove}
       />
 
-      {/* MLS-MPM splash particles — instanced billboards */}
+      {/* MLS-MPM splash fluid — implicit connected droplet surface */}
       <SplashParticles solver={mpm.solver} light={lightDir.current} />
     </group>
   );
