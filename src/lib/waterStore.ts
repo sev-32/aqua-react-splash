@@ -36,12 +36,12 @@ export interface MpmParams {
 }
 
 export const defaultMpmParams: MpmParams = {
-  particleSize: 1.0,
-  metaballIsolation: 80,
-  formRadius: 0.15,
-  breakRadius: 0.32,
-  connectionMemory: 0.35,
-  tendrilSamples: 5,
+  particleSize: 0.55,
+  metaballIsolation: 96,
+  formRadius: 0.08,
+  breakRadius: 0.19,
+  connectionMemory: 0.28,
+  tendrilSamples: 4,
   tendrilThinPower: 1.6,
   splashBackGain: 1.0,
   spawnThreshold: 0.12,
