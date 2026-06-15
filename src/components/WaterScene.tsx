@@ -290,7 +290,17 @@ export function WaterScene() {
       />
 
       {/* MLS-MPM splash fluid — implicit connected droplet surface */}
-      <SplashParticles solver={mpm.solver} light={lightDir.current} />
+      <SplashParticles
+        solver={mpm.solver}
+        light={lightDir.current}
+        waterTexture={waterTexture}
+        causticsTexture={causticsTexture}
+        tilesTexture={tilesTexture}
+        skyTexture={skyTexture}
+        eye={camera.position}
+        sphereCenter={sphereCenter.current}
+        sphereRadius={sphereRadius}
+      />
     </group>
   );
 }
