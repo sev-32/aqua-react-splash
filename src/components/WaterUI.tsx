@@ -187,6 +187,7 @@ export function WaterUI() {
                 <Dial label="Surface Threshold" value={mpmParams.metaballIsolation} min={35} max={130} step={1} onChange={(v) => updateMpm({ metaballIsolation: v })} />
                 <Dial label="Connect · Form" value={mpmParams.formRadius} min={0.04} max={0.32} step={0.005} decimals={3} onChange={(v) => updateMpm({ formRadius: v })} />
                 <Dial label="Connect · Break" value={mpmParams.breakRadius} min={0.06} max={0.62} step={0.005} decimals={3} onChange={(v) => updateMpm({ breakRadius: Math.max(v, mpmParams.formRadius + 0.01) })} />
+                <Dial label="Connect · Memory" value={mpmParams.connectionMemory} min={0} max={1.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ connectionMemory: v })} />
                 <Dial label="Tendril Samples" value={mpmParams.tendrilSamples} min={1} max={12} step={1} onChange={(v) => updateMpm({ tendrilSamples: v })} />
                 <Dial label="Tendril Thin" value={mpmParams.tendrilThinPower} min={0.4} max={4} step={0.1} decimals={1} onChange={(v) => updateMpm({ tendrilThinPower: v })} />
                 <Dial label="Splashback Gain" value={mpmParams.splashBackGain} min={0} max={4} step={0.05} decimals={2} onChange={(v) => updateMpm({ splashBackGain: v })} />
