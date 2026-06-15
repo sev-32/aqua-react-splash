@@ -52,13 +52,14 @@ export class MpmConnectivityGraph {
       const d = Math.hypot(dx, dy, dz);
       c.distance = d;
       c.age += dt;
-      if (d > breakRadius) {
+      if (d > breakRadius * (1 + params.connectionMemory) || c.strength < 0.025) {
         this.connections.delete(key);
         continue;
       }
       const stretch = Math.max(0, (d - formRadius) / Math.max(1e-5, breakRadius - formRadius));
-      const target = Math.pow(1 - stretch, 0.65);
-      c.strength += (target - c.strength) * Math.min(1, dt * 14);
+      const target = Math.pow(Math.max(0, 1 - stretch), 0.65);
+      const rate = d > breakRadius ? 2.4 / Math.max(0.08, params.connectionMemory) : 14;
+      c.strength += (target - c.strength) * Math.min(1, dt * rate);
     }
 
     if (this.connections.size >= maxConnections) return;
