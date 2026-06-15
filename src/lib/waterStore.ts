@@ -15,7 +15,40 @@ export interface WaterState {
   splashEvents: number;
   // Splash intensity multiplier (0–2)
   splashIntensity: number;
+  mpmParams: MpmParams;
 }
+
+export interface MpmParams {
+  particleSize: number;
+  metaballIsolation: number;
+  formRadius: number;
+  breakRadius: number;
+  tendrilSamples: number;
+  tendrilThinPower: number;
+  splashBackGain: number;
+  spawnThreshold: number;
+  spawnCountMultiplier: number;
+  lifetimeMultiplier: number;
+  reflectionStrength: number;
+  refractionStrength: number;
+  colorMix: number;
+}
+
+export const defaultMpmParams: MpmParams = {
+  particleSize: 1.0,
+  metaballIsolation: 80,
+  formRadius: 0.15,
+  breakRadius: 0.32,
+  tendrilSamples: 5,
+  tendrilThinPower: 1.6,
+  splashBackGain: 1.0,
+  spawnThreshold: 0.12,
+  spawnCountMultiplier: 1.0,
+  lifetimeMultiplier: 1.0,
+  reflectionStrength: 1.0,
+  refractionStrength: 1.0,
+  colorMix: 1.0,
+};
 
 const state: WaterState = {
   fps: 0,
@@ -28,6 +61,7 @@ const state: WaterState = {
   particleCount: 0,
   splashEvents: 0,
   splashIntensity: 1.0,
+  mpmParams: defaultMpmParams,
 };
 
 const listeners = new Set<Listener>();
