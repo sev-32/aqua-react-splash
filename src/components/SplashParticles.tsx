@@ -69,7 +69,7 @@ export function SplashParticles({
   }), [tilesTexture, skyTexture, sphereRadius]);
 
   const surface = useMemo(() => {
-    const mesh = new MarchingCubes(34, material, false, false, 70000);
+    const mesh = new MarchingCubes(44, material, false, false, 70000);
     mesh.isolation = 80;
     mesh.position.set(0, DOMAIN_CENTER_Y, 0);
     mesh.scale.set(DOMAIN_XZ_SIZE * 0.5, DOMAIN_Y_SIZE * 0.5, DOMAIN_XZ_SIZE * 0.5);
@@ -114,8 +114,8 @@ export function SplashParticles({
       const speed = Math.hypot(P.vx[i], P.vy[i], P.vz[i]);
       const densityBoost = Math.min(0.16, Math.max(0, (P.density[i] - 1.5) * 0.035));
       const isFoam = (fl & FLAG_FOAM) !== 0;
-      const strength = (0.34 + densityBoost + Math.min(0.16, speed * 0.018) + (isFoam ? 0.035 : 0)) * params.particleSize;
-      const subtract = Math.max(4, 14 / Math.max(0.2, params.particleSize));
+      const strength = (0.16 + densityBoost * 0.55 + Math.min(0.055, speed * 0.008) + (isFoam ? 0.018 : 0)) * params.particleSize;
+      const subtract = Math.max(12, 28 / Math.max(0.2, params.particleSize));
       surface.addBall(toMarchX(P.px[i]), toMarchY(P.py[i]), toMarchZ(P.pz[i]), strength, subtract);
     }
 
@@ -125,8 +125,8 @@ export function SplashParticles({
       for (let s = 1; s <= samplesAlong; s++) {
         const t = s / (samplesAlong + 1);
         const waist = Math.pow(Math.sin(Math.PI * t), params.tendrilThinPower);
-        const strength = (0.055 + 0.15 * c.strength) * waist * params.particleSize;
-        const subtract = 16 + 10 * stretch;
+        const strength = (0.025 + 0.065 * c.strength) * waist * params.particleSize;
+        const subtract = 30 + 18 * stretch;
         surface.addBall(
           toMarchX(P.px[c.a] + (P.px[c.b] - P.px[c.a]) * t),
           toMarchY(P.py[c.a] + (P.py[c.b] - P.py[c.a]) * t),
