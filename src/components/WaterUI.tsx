@@ -15,20 +15,21 @@ function Stat({ label, value, unit }: { label: string; value: string; unit?: str
 }
 
 function Dial({
-  label, value, min, max, onChange, suffix,
-}: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string }) {
+  label, value, min, max, onChange, suffix, step = 1, decimals = 0,
+}: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string; step?: number; decimals?: number }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between">
         <label className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</label>
         <span className="font-mono text-xs text-primary tabular-nums">
-          {value.toFixed(0)}{suffix}
+          {value.toFixed(decimals)}{suffix}
         </span>
       </div>
       <input
         type="range"
         min={min}
         max={max}
+        step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full h-[2px] bg-bone/15 appearance-none cursor-pointer accent-primary
@@ -65,6 +66,12 @@ export function WaterUI() {
   const particleCount = useWaterStore((s) => s.particleCount);
   const splashEvents = useWaterStore((s) => s.splashEvents);
   const splashIntensity = useWaterStore((s) => s.splashIntensity);
+  const paused = useWaterStore((s) => s.paused);
+  const mpmParams = useWaterStore((s) => s.mpmParams);
+
+  const updateMpm = (patch: Partial<typeof mpmParams>) => {
+    waterStore.set({ mpmParams: { ...waterStore.get().mpmParams, ...patch } });
+  };
 
   useEffect(() => {
     const i = setInterval(() => setTime(new Date()), 1000);
@@ -124,7 +131,7 @@ export function WaterUI() {
         transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
         className="fixed top-24 right-6 z-20 w-[280px] pointer-events-none max-h-[calc(100vh-8rem)]"
       >
-        <div className="relative panel p-5 corner-bracket pointer-events-auto">
+        <div className="relative panel p-5 corner-bracket pointer-events-auto max-h-[calc(100vh-8rem)] overflow-y-auto overflow-x-hidden">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">Instrument</div>
@@ -170,6 +177,28 @@ export function WaterUI() {
               suffix="%"
               onChange={(v) => waterStore.set({ splashIntensity: v / 100 })}
             />
+            <details className="group pt-1" open>
+              <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-copper">
+                MPM Fluid
+                <span className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
+              </summary>
+              <div className="mt-3 space-y-4">
+                <Dial label="Particle Size" value={mpmParams.particleSize} min={0.25} max={2.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ particleSize: v })} />
+                <Dial label="Surface Threshold" value={mpmParams.metaballIsolation} min={35} max={130} step={1} onChange={(v) => updateMpm({ metaballIsolation: v })} />
+                <Dial label="Connect · Form" value={mpmParams.formRadius} min={0.04} max={0.32} step={0.005} decimals={3} onChange={(v) => updateMpm({ formRadius: v })} />
+                <Dial label="Connect · Break" value={mpmParams.breakRadius} min={0.06} max={0.62} step={0.005} decimals={3} onChange={(v) => updateMpm({ breakRadius: Math.max(v, mpmParams.formRadius + 0.01) })} />
+                <Dial label="Connect · Memory" value={mpmParams.connectionMemory} min={0} max={1.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ connectionMemory: v })} />
+                <Dial label="Tendril Samples" value={mpmParams.tendrilSamples} min={1} max={12} step={1} onChange={(v) => updateMpm({ tendrilSamples: v })} />
+                <Dial label="Tendril Thin" value={mpmParams.tendrilThinPower} min={0.4} max={4} step={0.1} decimals={1} onChange={(v) => updateMpm({ tendrilThinPower: v })} />
+                <Dial label="Splashback Gain" value={mpmParams.splashBackGain} min={0} max={4} step={0.05} decimals={2} onChange={(v) => updateMpm({ splashBackGain: v })} />
+                <Dial label="Spawn Threshold" value={mpmParams.spawnThreshold} min={0} max={2} step={0.02} decimals={2} onChange={(v) => updateMpm({ spawnThreshold: v })} />
+                <Dial label="Spawn Count" value={mpmParams.spawnCountMultiplier} min={0.2} max={3} step={0.05} decimals={2} onChange={(v) => updateMpm({ spawnCountMultiplier: v })} />
+                <Dial label="Lifetime" value={mpmParams.lifetimeMultiplier} min={0.25} max={4} step={0.05} decimals={2} onChange={(v) => updateMpm({ lifetimeMultiplier: v })} />
+                <Dial label="Reflection" value={mpmParams.reflectionStrength} min={0} max={2} step={0.05} decimals={2} onChange={(v) => updateMpm({ reflectionStrength: v })} />
+                <Dial label="Refraction" value={mpmParams.refractionStrength} min={0} max={2} step={0.05} decimals={2} onChange={(v) => updateMpm({ refractionStrength: v })} />
+                <Dial label="Water Tint" value={mpmParams.colorMix} min={0} max={1.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ colorMix: v })} />
+              </div>
+            </details>
           </div>
 
           <div className="my-5 h-px bg-bone/10" />
@@ -180,7 +209,7 @@ export function WaterUI() {
             <ActionBtn onClick={() => waterCommands.emit('storm')}>Storm</ActionBtn>
             <ActionBtn onClick={() => waterCommands.emit('reset')}>Reset</ActionBtn>
             <ActionBtn onClick={() => waterStore.set({ paused: !waterStore.get().paused })}>
-              {useWaterStore((s) => s.paused) ? 'Resume' : 'Pause'}
+              {paused ? 'Resume' : 'Pause'}
             </ActionBtn>
           </div>
         </div>

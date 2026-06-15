@@ -305,6 +305,53 @@ export const waterBelowFragmentShader = /* glsl */ `
   }
 `;
 
+export const splashWaterVertexShader = /* glsl */ `
+  varying vec3 vPosition;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  void main() {
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vPosition = worldPosition.xyz;
+    vWorldPosition = worldPosition.xyz;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  }
+`;
+
+export const splashWaterFragmentShader = /* glsl */ `
+  precision highp float;
+  ${helpers}
+  ${surfaceRayBody}
+
+  uniform float uReflectionStrength;
+  uniform float uRefractionStrength;
+  uniform float uColorMix;
+
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  void main() {
+    vec3 normal = normalize(vWorldNormal);
+    vec3 incomingRay = normalize(vWorldPosition - eye);
+    if (dot(normal, -incomingRay) < 0.0) normal = -normal;
+
+    vec3 reflectedRay = reflect(incomingRay, normal);
+    vec3 refractedRay = refract(incomingRay, normal, IOR_AIR / IOR_WATER);
+    float fresnel = mix(0.25, 1.0, pow(max(0.0, 1.0 - dot(normal, -incomingRay)), 3.0));
+
+    vec3 tint = mix(vec3(1.0), abovewaterColor, clamp(uColorMix, 0.0, 1.5));
+    vec3 reflectedColor = getSurfaceRayColor(vWorldPosition + normal * 0.003, reflectedRay, tint) * uReflectionStrength;
+    vec3 refractedColor = getSurfaceRayColor(vWorldPosition - normal * 0.003, refractedRay, tint) * uRefractionStrength;
+
+    vec3 halfVector = normalize(light - incomingRay);
+    float specular = pow(max(0.0, dot(normal, halfVector)), 180.0) * 2.0;
+    vec3 color = mix(refractedColor, reflectedColor, fresnel) + vec3(specular) * vec3(1.0, 0.92, 0.78);
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
 export { waterVertexShader };
 
 // ─── POOL CUBE ───────────────────────────────────────────────────────────────

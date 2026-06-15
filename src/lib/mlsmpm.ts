@@ -16,6 +16,7 @@
  */
 
 import * as THREE from 'three';
+import { waterStore } from './waterStore';
 
 export const MPM_GRID_RES = 36;
 export const MPM_GRID_X = 36;
@@ -527,14 +528,15 @@ export class MlsMpmSolver {
                     P.pz[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.pz[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.py[p] < POOL_FLOOR_Y - 0.08 || P.py[p] > MPM_DOMAIN_Y_MAX + 0.3;
     const slow = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p] < 0.025;
-    if (outside || P.life[p] > PARTICLE_LIFETIME || (P.py[p] < surfaceY - 0.1 && slow && P.life[p] > 0.35)) {
+    const lifetime = PARTICLE_LIFETIME * Math.max(0.25, waterStore.get().mpmParams.lifetimeMultiplier);
+    if (outside || P.life[p] > lifetime || (P.py[p] < surfaceY - 0.1 && slow && P.life[p] > 0.35)) {
       if (P.py[p] <= surfaceY && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
       P.kill(p);
     }
   }
 
   private recordSettle(P: MpmParticles, p: number) {
-    this.settleEvents.push({ x: P.px[p], z: P.pz[p], vy: P.vy[p], weight: PARTICLE_MASS });
+    this.settleEvents.push({ x: P.px[p], z: P.pz[p], vy: P.vy[p], weight: Math.max(0.35, P.density[p] / REST_DENSITY) });
   }
 
   spawnCrown(cx: number, cz: number, impactSpeed: number, count = 72, radius = 0.23) {

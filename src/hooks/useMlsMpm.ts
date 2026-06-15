@@ -12,6 +12,7 @@ import {
   vec3ToProbe,
   POOL_RIM_Y,
 } from '../lib/mlsmpm';
+import { waterStore } from '../lib/waterStore';
 
 export interface MpmHandle {
   solver: MlsMpmSolver;
@@ -38,16 +39,33 @@ export function useMlsMpm(maxParticles = 9000): MpmHandle {
     handleRef.current = {
       solver,
       step: (dt, sphere, surface) => solver.step(dt, sphere, surface),
-      crown: (cx, cz, impactSpeed) => solver.spawnCrown(cx, cz, impactSpeed),
-      sheet: (cx, cz, yStart, upSpeed) => solver.spawnSheet(cx, cz, yStart, upSpeed),
-      impact: (cx, cz, energy = 1.0, count = 20) => solver.spawnImpact(cx, cz, energy, count),
-      breach: (cx, cy, cz, radius, vx, vy, vz, intensity = 1.0) => solver.spawnSphereBreach(cx, cy, cz, radius, vx, vy, vz, intensity),
+      crown: (cx, cz, impactSpeed) => {
+        const p = waterStore.get().mpmParams;
+        if (impactSpeed < p.spawnThreshold) return;
+        solver.spawnCrown(cx, cz, impactSpeed, Math.round(72 * p.spawnCountMultiplier));
+      },
+      sheet: (cx, cz, yStart, upSpeed) => {
+        const p = waterStore.get().mpmParams;
+        if (upSpeed < p.spawnThreshold) return;
+        solver.spawnSheet(cx, cz, yStart, upSpeed, Math.round(54 * p.spawnCountMultiplier));
+      },
+      impact: (cx, cz, energy = 1.0, count = 20) => {
+        const p = waterStore.get().mpmParams;
+        if (energy < p.spawnThreshold) return;
+        solver.spawnImpact(cx, cz, energy, Math.round(count * p.spawnCountMultiplier));
+      },
+      breach: (cx, cy, cz, radius, vx, vy, vz, intensity = 1.0) => {
+        const p = waterStore.get().mpmParams;
+        if (Math.hypot(vx, vy, vz) * intensity < p.spawnThreshold) return;
+        solver.spawnSphereBreach(cx, cy, cz, radius, vx, vy, vz, intensity * p.spawnCountMultiplier);
+      },
       drainSettleEvents: (onSettle) => {
         for (const e of solver.settleEvents) {
           // Map vertical impact velocity to a small ripple strength.
           // Negative vy = downward = bigger splash.
-          const speed = Math.min(6, Math.abs(e.vy));
-          const strength = Math.min(0.03, 0.0022 * speed) * Math.sign(e.vy || -1) * -1;
+          const p = waterStore.get().mpmParams;
+          const speed = Math.min(8, Math.abs(e.vy));
+          const strength = Math.min(0.08, 0.0018 * Math.pow(speed, 1.5) * Math.max(0.5, e.weight) * p.splashBackGain) * Math.sign(e.vy || -1) * -1;
           onSettle(e.x, e.z, strength);
         }
         solver.settleEvents.length = 0;
