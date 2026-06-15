@@ -306,11 +306,13 @@ export const waterBelowFragmentShader = /* glsl */ `
 `;
 
 export const splashWaterVertexShader = /* glsl */ `
+  varying vec3 vPosition;
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
 
   void main() {
     vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vPosition = worldPosition.xyz;
     vWorldPosition = worldPosition.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
     gl_Position = projectionMatrix * viewMatrix * worldPosition;
