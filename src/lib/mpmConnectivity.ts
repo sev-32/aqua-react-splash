@@ -1,4 +1,4 @@
-import { MpmParams } from './waterStore';
+import type { MpmParams } from './waterStore';
 
 export interface MpmConnection {
   a: number;
