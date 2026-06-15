@@ -23,6 +23,7 @@ export interface MpmParams {
   metaballIsolation: number;
   formRadius: number;
   breakRadius: number;
+  connectionMemory: number;
   tendrilSamples: number;
   tendrilThinPower: number;
   splashBackGain: number;
@@ -39,6 +40,7 @@ export const defaultMpmParams: MpmParams = {
   metaballIsolation: 80,
   formRadius: 0.15,
   breakRadius: 0.32,
+  connectionMemory: 0.35,
   tendrilSamples: 5,
   tendrilThinPower: 1.6,
   splashBackGain: 1.0,
