@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { MarchingCubes } from 'three-stdlib';
+import { splashWaterFragmentShader, splashWaterVertexShader } from '../shaders/waterShaders';
+import { MpmConnectivityGraph } from '../lib/mpmConnectivity';
+import { waterStore } from '../lib/waterStore';
 import {
   MlsMpmSolver,
   FLAG_ALIVE,
@@ -15,34 +18,55 @@ import {
 interface SplashParticlesProps {
   solver: MlsMpmSolver;
   light: THREE.Vector3;
+  waterTexture: THREE.Texture | undefined;
+  causticsTexture: THREE.Texture | undefined;
+  tilesTexture: THREE.Texture;
+  skyTexture: THREE.CubeTexture;
+  eye: THREE.Vector3;
+  sphereCenter: THREE.Vector3;
+  sphereRadius: number;
 }
 
-const WATER_COLOR = new THREE.Color(0.045, 0.34, 0.58);
-const FOAM_COLOR = new THREE.Color(0.92, 0.98, 1.0);
 const DOMAIN_XZ_SIZE = MPM_DOMAIN_XZ_MAX - MPM_DOMAIN_XZ_MIN;
 const DOMAIN_Y_SIZE = MPM_DOMAIN_Y_MAX - MPM_DOMAIN_Y_MIN;
 const DOMAIN_CENTER_Y = (MPM_DOMAIN_Y_MIN + MPM_DOMAIN_Y_MAX) * 0.5;
-const MAX_SURFACE_SAMPLES = 640;
-const MAX_BRIDGES = 900;
-const BRIDGE_RADIUS = 0.18;
-const HASH_CELL = 0.15;
+const MAX_SURFACE_SAMPLES = 900;
 
 const clamp01 = (v: number) => Math.max(0.001, Math.min(0.999, v));
+const toMarchX = (x: number) => clamp01((x - MPM_DOMAIN_XZ_MIN) / DOMAIN_XZ_SIZE);
+const toMarchY = (y: number) => clamp01((y - MPM_DOMAIN_Y_MIN) / DOMAIN_Y_SIZE);
+const toMarchZ = (z: number) => clamp01((z - MPM_DOMAIN_XZ_MIN) / DOMAIN_XZ_SIZE);
 
-export function SplashParticles({ solver, light }: SplashParticlesProps) {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: WATER_COLOR,
-    emissive: new THREE.Color(0.0, 0.03, 0.055),
-    roughness: 0.04,
-    metalness: 0,
-    transmission: 0.22,
-    thickness: 0.18,
-    ior: 1.333,
-    transparent: true,
-    opacity: 0.78,
-    depthWrite: false,
+export function SplashParticles({
+  solver,
+  light,
+  waterTexture,
+  causticsTexture,
+  tilesTexture,
+  skyTexture,
+  eye,
+  sphereCenter,
+  sphereRadius,
+}: SplashParticlesProps) {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: splashWaterVertexShader,
+    fragmentShader: splashWaterFragmentShader,
+    uniforms: {
+      water: { value: null as THREE.Texture | null },
+      tiles: { value: tilesTexture },
+      causticTex: { value: null as THREE.Texture | null },
+      sky: { value: skyTexture },
+      eye: { value: new THREE.Vector3() },
+      light: { value: new THREE.Vector3() },
+      sphereCenter: { value: new THREE.Vector3() },
+      sphereRadius: { value: sphereRadius },
+      uReflectionStrength: { value: 1.0 },
+      uRefractionStrength: { value: 1.0 },
+      uColorMix: { value: 1.0 },
+    },
     side: THREE.DoubleSide,
-  }), []);
+    depthWrite: true,
+  }), [tilesTexture, skyTexture, sphereRadius]);
 
   const surface = useMemo(() => {
     const mesh = new MarchingCubes(34, material, false, false, 70000);
@@ -56,10 +80,8 @@ export function SplashParticles({ solver, light }: SplashParticlesProps) {
   }, [material]);
 
   const scratch = useRef({
-    x: new Float32Array(MAX_SURFACE_SAMPLES),
-    y: new Float32Array(MAX_SURFACE_SAMPLES),
-    z: new Float32Array(MAX_SURFACE_SAMPLES),
-    hash: new Map<string, number[]>(),
+    ids: new Int32Array(MAX_SURFACE_SAMPLES),
+    connectivity: new MpmConnectivityGraph(),
   });
 
   useEffect(() => () => {
