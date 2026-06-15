@@ -131,7 +131,7 @@ export function WaterUI() {
         transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
         className="fixed top-24 right-6 z-20 w-[280px] pointer-events-none max-h-[calc(100vh-8rem)]"
       >
-        <div className="relative panel p-5 corner-bracket pointer-events-auto">
+        <div className="relative panel p-5 corner-bracket pointer-events-auto max-h-[calc(100vh-8rem)] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">Instrument</div>
