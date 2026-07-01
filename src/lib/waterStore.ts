@@ -15,6 +15,12 @@ export interface WaterState {
   splashEvents: number;
   // Splash intensity multiplier (0–2)
   splashIntensity: number;
+  // Splash time-speed multiplier (0.1–3)
+  splashSpeed: number;
+  // Visual pool scale (0.5–2.5)
+  poolScale: number;
+  // Sphere radius in unit-pool space (0.05–0.6)
+  sphereRadius: number;
   mpmParams: MpmParams;
 }
 
@@ -63,6 +69,9 @@ const state: WaterState = {
   particleCount: 0,
   splashEvents: 0,
   splashIntensity: 1.0,
+  splashSpeed: 1.0,
+  poolScale: 1.0,
+  sphereRadius: 0.25,
   mpmParams: defaultMpmParams,
 };
 

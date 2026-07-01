@@ -8,7 +8,7 @@ import { WaterSurface } from './WaterSurface';
 import { PoolEnvironment } from './PoolEnvironment';
 import { DraggableSphere } from './DraggableSphere';
 import { SplashParticles } from './SplashParticles';
-import { waterStore, waterCommands } from '../lib/waterStore';
+import { waterStore, waterCommands, useWaterStore } from '../lib/waterStore';
 import { generateProceduralSky, generateTilesTexture } from '../lib/proceduralAssets';
 
 /**
@@ -35,7 +35,8 @@ export function WaterScene() {
   const oldSphereCenter = useRef(new THREE.Vector3(-0.4, -0.75, 0.2));
   const sphereVelocity = useRef(new THREE.Vector3());
   const lastSphereY = useRef(sphereCenter.current.y);
-  const sphereRadius = 0.25;
+  const sphereRadius = useWaterStore((s) => s.sphereRadius);
+  const poolScale = useWaterStore((s) => s.poolScale);
 
   const rippleCountRef = useRef(0);
   const splashCountRef = useRef(0);
@@ -208,7 +209,7 @@ export function WaterScene() {
 
       // ── MLS-MPM particle step with sphere coupling ──────────────────────
       const probe = mpm.buildProbe(sphereCenter.current, sphereVelocity.current, sphereRadius);
-      mpm.step(dt, probe, { heightAt: waterSim.sampleHeight });
+      mpm.step(dt * Math.max(0.01, state.splashSpeed), probe, { heightAt: waterSim.sampleHeight });
 
       // ── Re-couple settled particles → height-field as tiny ripples ──────
       mpm.drainSettleEvents((x, z, strength) => {
@@ -257,7 +258,7 @@ export function WaterScene() {
   const causticsTexture = caustics.getTexture();
 
   return (
-    <group>
+    <group scale={poolScale}>
       <PoolEnvironment
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
