@@ -8,7 +8,7 @@ import { WaterSurface } from './WaterSurface';
 import { PoolEnvironment } from './PoolEnvironment';
 import { DraggableSphere } from './DraggableSphere';
 import { SplashParticles } from './SplashParticles';
-import { waterStore, waterCommands } from '../lib/waterStore';
+import { waterStore, waterCommands, useWaterStore } from '../lib/waterStore';
 import { generateProceduralSky, generateTilesTexture } from '../lib/proceduralAssets';
 
 /**
