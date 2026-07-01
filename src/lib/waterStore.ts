@@ -69,6 +69,9 @@ const state: WaterState = {
   particleCount: 0,
   splashEvents: 0,
   splashIntensity: 1.0,
+  splashSpeed: 1.0,
+  poolScale: 1.0,
+  sphereRadius: 0.25,
   mpmParams: defaultMpmParams,
 };
 
