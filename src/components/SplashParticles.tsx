@@ -115,8 +115,12 @@ export function SplashParticles({
       const speed = Math.hypot(P.vx[i], P.vy[i], P.vz[i]);
       const densityBoost = Math.min(0.16, Math.max(0, (P.density[i] - 1.5) * 0.035));
       const isFoam = (fl & FLAG_FOAM) !== 0;
-      const strength = (0.16 + densityBoost * 0.55 + Math.min(0.055, speed * 0.008) + (isFoam ? 0.018 : 0)) * params.particleSize;
-      const subtract = Math.max(12, 28 / Math.max(0.2, params.particleSize));
+      const isMelt = (fl & FLAG_MELTING) !== 0;
+      // Melting particles fatten and fade so their metaball visually merges with the heightfield surface.
+      const meltFade = isMelt ? Math.max(0, 1 - P.life[i] / Math.max(0.05, params.meltDuration)) : 1;
+      const meltBoost = isMelt ? params.meltRadiusBoost * (0.55 + 0.75 * meltFade) : 1;
+      const strength = (0.16 + densityBoost * 0.55 + Math.min(0.055, speed * 0.008) + (isFoam ? 0.018 : 0)) * params.particleSize * meltBoost;
+      const subtract = Math.max(12, 28 / Math.max(0.2, params.particleSize * meltBoost));
       surface.addBall(toMarchX(P.px[i]), toMarchY(P.py[i]), toMarchZ(P.pz[i]), strength, subtract);
     }
 
