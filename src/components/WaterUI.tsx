@@ -180,6 +180,35 @@ export function WaterUI() {
               suffix="%"
               onChange={(v) => waterStore.set({ splashIntensity: v / 100 })}
             />
+            <Dial
+              label="Splash · Speed"
+              value={splashSpeed}
+              min={0.1}
+              max={3}
+              step={0.05}
+              decimals={2}
+              suffix="×"
+              onChange={(v) => waterStore.set({ splashSpeed: v })}
+            />
+            <Dial
+              label="Pool · Size"
+              value={poolScale}
+              min={0.5}
+              max={2.5}
+              step={0.05}
+              decimals={2}
+              suffix="×"
+              onChange={(v) => waterStore.set({ poolScale: v })}
+            />
+            <Dial
+              label="Sphere · Size"
+              value={sphereRadius}
+              min={0.05}
+              max={0.6}
+              step={0.01}
+              decimals={2}
+              onChange={(v) => waterStore.set({ sphereRadius: v })}
+            />
             <details className="group pt-1" open>
               <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-copper">
                 MPM Fluid
