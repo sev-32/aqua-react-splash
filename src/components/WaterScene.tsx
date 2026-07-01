@@ -35,8 +35,8 @@ export function WaterScene() {
   const oldSphereCenter = useRef(new THREE.Vector3(-0.4, -0.75, 0.2));
   const sphereVelocity = useRef(new THREE.Vector3());
   const lastSphereY = useRef(sphereCenter.current.y);
-  const sphereRadiusRef = useRef(waterStore.get().sphereRadius);
-  const sphereRadius = sphereRadiusRef.current;
+  const sphereRadius = useWaterStore((s) => s.sphereRadius);
+  const poolScale = useWaterStore((s) => s.poolScale);
 
   const rippleCountRef = useRef(0);
   const splashCountRef = useRef(0);
