@@ -209,7 +209,7 @@ export function WaterScene() {
 
       // ── MLS-MPM particle step with sphere coupling ──────────────────────
       const probe = mpm.buildProbe(sphereCenter.current, sphereVelocity.current, sphereRadius);
-      mpm.step(dt, probe, { heightAt: waterSim.sampleHeight });
+      mpm.step(dt * Math.max(0.01, state.splashSpeed), probe, { heightAt: waterSim.sampleHeight });
 
       // ── Re-couple settled particles → height-field as tiny ripples ──────
       mpm.drainSettleEvents((x, z, strength) => {
