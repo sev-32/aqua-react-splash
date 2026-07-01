@@ -299,19 +299,18 @@ export function WaterScene() {
         />
       </group>
 
-      {/* Sphere lives in the same scaled frame visually, but keeps its unit
-          radius so it appears smaller as the pool grows. */}
-      <group scale={poolScale}>
-        <DraggableSphere
-          position={sphereCenter.current}
-          radius={sphereRadius}
-          waterTexture={waterTexture}
-          causticsTexture={causticsTexture}
-          tilesTexture={tilesTexture}
-          light={lightDir.current}
-          onMove={handleSphereMove}
-        />
-      </group>
+      {/* Sphere is intentionally NOT scaled with the pool — this way, a larger
+          poolScale genuinely makes the pool bigger relative to the sphere,
+          rather than zooming the entire scene toward the camera. */}
+      <DraggableSphere
+        position={sphereCenter.current}
+        radius={sphereRadius}
+        waterTexture={waterTexture}
+        causticsTexture={causticsTexture}
+        tilesTexture={tilesTexture}
+        light={lightDir.current}
+        onMove={handleSphereMove}
+      />
     </group>
   );
 }
