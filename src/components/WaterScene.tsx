@@ -258,7 +258,7 @@ export function WaterScene() {
   const causticsTexture = caustics.getTexture();
 
   return (
-    <group>
+    <group scale={poolScale}>
       <PoolEnvironment
         waterTexture={waterTexture}
         causticsTexture={causticsTexture}
