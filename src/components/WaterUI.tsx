@@ -229,10 +229,6 @@ export function WaterUI() {
                 <Dial label="Reflection" value={mpmParams.reflectionStrength} min={0} max={2} step={0.05} decimals={2} onChange={(v) => updateMpm({ reflectionStrength: v })} />
                 <Dial label="Refraction" value={mpmParams.refractionStrength} min={0} max={2} step={0.05} decimals={2} onChange={(v) => updateMpm({ refractionStrength: v })} />
                 <Dial label="Water Tint" value={mpmParams.colorMix} min={0} max={1.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ colorMix: v })} />
-                <Dial label="Gravity" value={-mpmParams.gravity} min={0} max={2.5} step={0.05} decimals={2} onChange={(v) => updateMpm({ gravity: -v })} />
-                <Dial label="Melt · Duration" value={mpmParams.meltDuration} min={0.05} max={1.5} step={0.05} decimals={2} suffix="s" onChange={(v) => updateMpm({ meltDuration: v })} />
-                <Dial label="Melt · Blend" value={mpmParams.meltRadiusBoost} min={1} max={3} step={0.05} decimals={2} suffix="×" onChange={(v) => updateMpm({ meltRadiusBoost: v })} />
-                <Dial label="Impact Ripple" value={mpmParams.impactRippleGain} min={0} max={4} step={0.05} decimals={2} suffix="×" onChange={(v) => updateMpm({ impactRippleGain: v })} />
               </div>
             </details>
           </div>
