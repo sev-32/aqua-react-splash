@@ -66,6 +66,9 @@ export function WaterUI() {
   const particleCount = useWaterStore((s) => s.particleCount);
   const splashEvents = useWaterStore((s) => s.splashEvents);
   const splashIntensity = useWaterStore((s) => s.splashIntensity);
+  const splashSpeed = useWaterStore((s) => s.splashSpeed);
+  const poolScale = useWaterStore((s) => s.poolScale);
+  const sphereRadius = useWaterStore((s) => s.sphereRadius);
   const paused = useWaterStore((s) => s.paused);
   const mpmParams = useWaterStore((s) => s.mpmParams);
 
