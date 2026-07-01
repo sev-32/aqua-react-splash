@@ -358,7 +358,7 @@ export class MlsMpmSolver {
       const wz = this.gridToWorldZ(k);
 
       let vx = G.mx[idx] / mass;
-      let vy = G.my[idx] / mass + GRAVITY * MPM_INV_DX * dt;
+      let vy = G.my[idx] / mass + currentGravity() * MPM_INV_DX * dt;
       let vz = G.mz[idx] / mass;
 
       if (surface && Math.abs(wx) <= POOL_HALF_EXTENT && Math.abs(wz) <= POOL_HALF_EXTENT) {
@@ -484,7 +484,7 @@ export class MlsMpmSolver {
   }
 
   private integrateBallistic(P: MpmParticles, p: number, dt: number, prevY: number, surface?: MpmSurfaceSampler) {
-    P.vy[p] += GRAVITY * dt;
+    P.vy[p] += currentGravity() * dt;
     P.px[p] += P.vx[p] * dt;
     P.py[p] += P.vy[p] * dt;
     P.pz[p] += P.vz[p] * dt;
