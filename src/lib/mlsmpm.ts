@@ -38,7 +38,7 @@ const PARTICLE_MASS = 1.0;
 const REST_DENSITY = 3.0;
 const STIFFNESS = 50.0;
 const DYNAMIC_VISCOSITY = 0.1;
-const GRAVITY = -0.4;
+const DEFAULT_GRAVITY = -0.4;
 const WALL_STIFFNESS = 18.0;
 const WALL_DAMPING = 0.42;
 const PARTICLE_LIFETIME = 3.2;
@@ -46,9 +46,15 @@ const MAX_VELOCITY = 13.0;
 const SURFACE_Y = 0.0;
 const GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
 
+function currentGravity() {
+  const g = waterStore.get().mpmParams.gravity;
+  return typeof g === 'number' ? g : DEFAULT_GRAVITY;
+}
+
 export const FLAG_ALIVE = 1 << 0;
 export const FLAG_AIRBORNE = 1 << 1;
 export const FLAG_FOAM = 1 << 2;
+export const FLAG_MELTING = 1 << 3;
 
 export class MpmParticles {
   capacity: number;
