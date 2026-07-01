@@ -9,6 +9,7 @@ import {
   MlsMpmSolver,
   FLAG_ALIVE,
   FLAG_FOAM,
+  FLAG_MELTING,
   MPM_DOMAIN_XZ_MIN,
   MPM_DOMAIN_XZ_MAX,
   MPM_DOMAIN_Y_MIN,
