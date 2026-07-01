@@ -39,6 +39,11 @@ export interface MpmParams {
   reflectionStrength: number;
   refractionStrength: number;
   colorMix: number;
+  // New:
+  gravity: number;          // -2.5 .. 0
+  meltDuration: number;     // seconds a particle lingers as metaball after absorption
+  meltRadiusBoost: number;  // multiplier on metaball radius while melting (blends with heightfield)
+  impactRippleGain: number; // scales heightfield drop strength on absorption
 }
 
 export const defaultMpmParams: MpmParams = {
@@ -56,6 +61,10 @@ export const defaultMpmParams: MpmParams = {
   reflectionStrength: 1.0,
   refractionStrength: 1.0,
   colorMix: 1.0,
+  gravity: -0.4,
+  meltDuration: 0.35,
+  meltRadiusBoost: 1.65,
+  impactRippleGain: 1.0,
 };
 
 const state: WaterState = {

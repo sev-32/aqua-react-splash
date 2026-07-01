@@ -38,7 +38,7 @@ const PARTICLE_MASS = 1.0;
 const REST_DENSITY = 3.0;
 const STIFFNESS = 50.0;
 const DYNAMIC_VISCOSITY = 0.1;
-const GRAVITY = -0.4;
+const DEFAULT_GRAVITY = -0.4;
 const WALL_STIFFNESS = 18.0;
 const WALL_DAMPING = 0.42;
 const PARTICLE_LIFETIME = 3.2;
@@ -46,9 +46,15 @@ const MAX_VELOCITY = 13.0;
 const SURFACE_Y = 0.0;
 const GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
 
+function currentGravity() {
+  const g = waterStore.get().mpmParams.gravity;
+  return typeof g === 'number' ? g : DEFAULT_GRAVITY;
+}
+
 export const FLAG_ALIVE = 1 << 0;
 export const FLAG_AIRBORNE = 1 << 1;
 export const FLAG_FOAM = 1 << 2;
+export const FLAG_MELTING = 1 << 3;
 
 export class MpmParticles {
   capacity: number;
@@ -352,7 +358,7 @@ export class MlsMpmSolver {
       const wz = this.gridToWorldZ(k);
 
       let vx = G.mx[idx] / mass;
-      let vy = G.my[idx] / mass + GRAVITY * MPM_INV_DX * dt;
+      let vy = G.my[idx] / mass + currentGravity() * MPM_INV_DX * dt;
       let vz = G.mz[idx] / mass;
 
       if (surface && Math.abs(wx) <= POOL_HALF_EXTENT && Math.abs(wz) <= POOL_HALF_EXTENT) {
@@ -478,7 +484,7 @@ export class MlsMpmSolver {
   }
 
   private integrateBallistic(P: MpmParticles, p: number, dt: number, prevY: number, surface?: MpmSurfaceSampler) {
-    P.vy[p] += GRAVITY * dt;
+    P.vy[p] += currentGravity() * dt;
     P.px[p] += P.vx[p] * dt;
     P.py[p] += P.vy[p] * dt;
     P.pz[p] += P.vz[p] * dt;
@@ -511,26 +517,48 @@ export class MlsMpmSolver {
 
   private finishParticle(P: MpmParticles, p: number, dt: number, prevY: number, surface?: MpmSurfaceSampler) {
     P.life[p] += dt;
+    const params = waterStore.get().mpmParams;
     const surfaceY = surface ? surface.heightAt(P.px[p], P.pz[p]) : SURFACE_Y;
-    if (P.py[p] >= surfaceY) P.flags[p] |= FLAG_AIRBORNE;
-    else P.flags[p] &= ~FLAG_AIRBORNE;
+    const airborne = P.py[p] > surfaceY + 0.004;
+    if (airborne) P.flags[p] |= FLAG_AIRBORNE; else P.flags[p] &= ~FLAG_AIRBORNE;
 
-    const crossedSurface = prevY > surfaceY + 0.002 && P.py[p] <= surfaceY && P.vy[p] < -0.03;
+    const melting = (P.flags[p] & FLAG_MELTING) !== 0;
+    const crossedSurface = !melting && prevY > surfaceY + 0.002 && P.py[p] <= surfaceY && P.vy[p] < -0.02;
+
     if (crossedSurface) {
-      this.recordSettle(P, p);
-      P.py[p] = surfaceY + 0.003;
-      P.vy[p] = Math.max(-P.vy[p] * 0.16, 0.012);
-      P.vx[p] *= 0.72;
-      P.vz[p] *= 0.72;
+      // ABSORB (no bounce). Stronger radial wave scaled by impact energy.
+      const impactVy = Math.abs(P.vy[p]);
+      const horiz = Math.hypot(P.vx[p], P.vz[p]);
+      const energy = impactVy * (0.6 + horiz * 0.25);
+      const gain = Math.max(0, params.impactRippleGain);
+      this.settleEvents.push({
+        x: P.px[p], z: P.pz[p], vy: -impactVy,
+        weight: gain * Math.max(0.5, Math.min(3.5, 0.5 + energy * 1.4)) * Math.max(0.35, P.density[p] / REST_DENSITY),
+      });
+      // Snap to surface, kill motion, mark melting so metaball briefly blends with heightfield.
+      P.py[p] = surfaceY;
+      P.vx[p] = 0; P.vy[p] = 0; P.vz[p] = 0;
+      P.cxx[p] = P.cxy[p] = P.cxz[p] = 0;
+      P.cyx[p] = P.cyy[p] = P.cyz[p] = 0;
+      P.czx[p] = P.czy[p] = P.czz[p] = 0;
+      P.flags[p] |= FLAG_MELTING;
+      P.flags[p] &= ~FLAG_AIRBORNE;
+      P.life[p] = 0; // reuse life as melt timer
+    }
+
+    if (P.flags[p] & FLAG_MELTING) {
+      // Ride the heightfield surface while melting so the metaball blends.
+      P.py[p] = surfaceY;
+      const meltDur = Math.max(0.05, params.meltDuration);
+      if (P.life[p] >= meltDur) { P.kill(p); return; }
     }
 
     const outside = P.px[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.px[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.pz[p] < MPM_DOMAIN_XZ_MIN - 0.2 || P.pz[p] > MPM_DOMAIN_XZ_MAX + 0.2 ||
                     P.py[p] < POOL_FLOOR_Y - 0.08 || P.py[p] > MPM_DOMAIN_Y_MAX + 0.3;
     const slow = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p] < 0.025;
-    const lifetime = PARTICLE_LIFETIME * Math.max(0.25, waterStore.get().mpmParams.lifetimeMultiplier);
+    const lifetime = PARTICLE_LIFETIME * Math.max(0.25, params.lifetimeMultiplier);
     if (outside || P.life[p] > lifetime || (P.py[p] < surfaceY - 0.1 && slow && P.life[p] > 0.35)) {
-      if (P.py[p] <= surfaceY && Math.abs(P.px[p]) <= 1 && Math.abs(P.pz[p]) <= 1) this.recordSettle(P, p);
       P.kill(p);
     }
   }

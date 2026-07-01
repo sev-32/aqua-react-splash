@@ -258,28 +258,50 @@ export function WaterScene() {
   const causticsTexture = caustics.getTexture();
 
   return (
-    <group scale={poolScale}>
-      <PoolEnvironment
-        waterTexture={waterTexture}
-        causticsTexture={causticsTexture}
-        tilesTexture={tilesTexture}
-        light={lightDir.current}
-        sphereCenter={sphereCenter.current}
-        sphereRadius={sphereRadius}
-      />
+    <group>
+      {/* Pool + water + splash are scaled together — sphere stays at its true
+          size so a larger poolScale genuinely enlarges the pool relative to the
+          sphere (not a camera zoom). Sphere position is treated as unit-pool
+          coordinates, then scaled into world space to remain inside the pool. */}
+      <group scale={poolScale}>
+        <PoolEnvironment
+          waterTexture={waterTexture}
+          causticsTexture={causticsTexture}
+          tilesTexture={tilesTexture}
+          light={lightDir.current}
+          sphereCenter={sphereCenter.current}
+          sphereRadius={sphereRadius}
+        />
 
-      <WaterSurface
-        waterTexture={waterTexture}
-        causticsTexture={causticsTexture}
-        tilesTexture={tilesTexture}
-        skyTexture={skyTexture}
-        eye={camera.position}
-        light={lightDir.current}
-        sphereCenter={sphereCenter.current}
-        sphereRadius={sphereRadius}
-        onDropAdd={handleDropAdd}
-      />
+        <WaterSurface
+          waterTexture={waterTexture}
+          causticsTexture={causticsTexture}
+          tilesTexture={tilesTexture}
+          skyTexture={skyTexture}
+          eye={camera.position}
+          light={lightDir.current}
+          sphereCenter={sphereCenter.current}
+          sphereRadius={sphereRadius}
+          onDropAdd={handleDropAdd}
+        />
 
+        {/* MLS-MPM splash fluid — implicit connected droplet surface */}
+        <SplashParticles
+          solver={mpm.solver}
+          light={lightDir.current}
+          waterTexture={waterTexture}
+          causticsTexture={causticsTexture}
+          tilesTexture={tilesTexture}
+          skyTexture={skyTexture}
+          eye={camera.position}
+          sphereCenter={sphereCenter.current}
+          sphereRadius={sphereRadius}
+        />
+      </group>
+
+      {/* Sphere is intentionally NOT scaled with the pool — this way, a larger
+          poolScale genuinely makes the pool bigger relative to the sphere,
+          rather than zooming the entire scene toward the camera. */}
       <DraggableSphere
         position={sphereCenter.current}
         radius={sphereRadius}
@@ -288,19 +310,6 @@ export function WaterScene() {
         tilesTexture={tilesTexture}
         light={lightDir.current}
         onMove={handleSphereMove}
-      />
-
-      {/* MLS-MPM splash fluid — implicit connected droplet surface */}
-      <SplashParticles
-        solver={mpm.solver}
-        light={lightDir.current}
-        waterTexture={waterTexture}
-        causticsTexture={causticsTexture}
-        tilesTexture={tilesTexture}
-        skyTexture={skyTexture}
-        eye={camera.position}
-        sphereCenter={sphereCenter.current}
-        sphereRadius={sphereRadius}
       />
     </group>
   );
