@@ -889,6 +889,22 @@
     state.jibHalyardLoadPathInstalled = true;
   }
 
+  function sparBox(nodes, pad, out) {
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (const node of nodes) {
+      const x = node.x;
+      if (x.x < x0) x0 = x.x; if (x.x > x1) x1 = x.x;
+      if (x.y < y0) y0 = x.y; if (x.y > y1) y1 = x.y;
+      if (x.z < z0) z0 = x.z; if (x.z > z1) z1 = x.z;
+    }
+    out[0] = x0 - pad; out[1] = x1 + pad; out[2] = y0 - pad; out[3] = y1 + pad; out[4] = z0 - pad; out[5] = z1 + pad;
+    return out;
+  }
+
+  function insideBox(box, p) {
+    return p.x >= box[0] && p.x <= box[1] && p.y >= box[2] && p.y <= box[3] && p.z >= box[4] && p.z <= box[5];
+  }
+
   class SailSparContactConstraint {
     constructor() {
       this.lambda = 0;
@@ -896,6 +912,8 @@
       this._closest = new Vec3();
       this._delta = new Vec3();
       this._normal = new Vec3();
+      this._mastBox = new Float64Array(6);
+      this._boomBox = new Float64Array(6);
     }
 
     _particleCapsule(p, a, b, radius, type) {
@@ -939,12 +957,25 @@
       this.lambda += 1;
       const active = [layout.main, layout.jib];
       if (isSpinnakerPhysical()) active.push(layout.spin);
+      // V8 broad phase: one AABB around the whole mast and one around the boom,
+      // padded by the largest capsule reach plus the bounded per-contact
+      // correction. Particles outside both boxes cannot touch any capsule, so
+      // the unchanged per-segment narrow phase is skipped for them.
+      const reach = 0.041 + params.clothThicknessM + params.clothCollisionMarginM + params.collisionMaxCorrectionM * 2;
+      const mastBox = sparBox(rig.mast, mastRadiusAt(0) + reach, this._mastBox);
+      const boomBox = sparBox(rig.boom, reach, this._boomBox);
       for (const sail of active) {
         for (let r = 0; r < sail.length; r++) {
           for (let c = 0; c < sail[r].length; c++) {
             if (sail === layout.main && c === 0) continue;
             const p = sail[r][c];
-            for (let i = 0; i < rig.mast.length - 1; i++) {
+            const nearMast = insideBox(mastBox, p.x);
+            if (!nearMast && !insideBox(boomBox, p.x)) continue;
+            if (nearMast) for (let i = 0; i < rig.mast.length - 1; i++) {
+              const q = p.x, sa = rig.mast[i].x, sb = rig.mast[i + 1].x;
+              if (q.x < Math.min(sa.x, sb.x) - reach || q.x > Math.max(sa.x, sb.x) + reach ||
+                q.y < Math.min(sa.y, sb.y) - reach || q.y > Math.max(sa.y, sb.y) + reach ||
+                q.z < Math.min(sa.z, sb.z) - reach || q.z > Math.max(sa.z, sb.z) + reach) continue;
               this._particleCapsule(
                 p,
                 rig.mast[i],
@@ -1062,6 +1093,14 @@
     return out.copy(a).addScaledVector(ab, v).addScaledVector(ac, w);
   }
 
+  const SAIL_SAIL_BUCKETS = 2048;
+  const sailSailGridConfig = { cellM: 0.5, slackM: 0.03 };
+  const sailSailGrids = new Map();
+
+  function sailSailHash(x, y, z) {
+    return ((Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) >>> 0) & (SAIL_SAIL_BUCKETS - 1);
+  }
+
   class SailSailContactConstraint {
     constructor() {
       this.lambda = 0;
@@ -1072,12 +1111,107 @@
       this._bary = new Float64Array(3);
     }
 
+    // V8 broad phase. The original narrow phase below is unchanged, but it used
+    // to run every particle against every triangle of the other sail (O(n*m),
+    // ~65% of total solver time). Triangles are now bucketed into a uniform
+    // hash grid rebuilt per call; each particle only visits the triangles whose
+    // expanded AABB overlaps its own cell. The AABB margin also covers the
+    // bounded (collisionMaxCorrectionM) vertex motion that earlier
+    // resolutions in the same pass can cause, so candidate sets are a
+    // superset of the brute-force hits and results are identical.
+    _buildGrid(triPoints, triangles, threshold) {
+      // One grid per triangle set, reused across solver iterations until any
+      // vertex has moved more than gridSlackM since the build. Cells are
+      // padded by that slack plus the contact threshold and twice the bounded
+      // per-contact correction, so every triangle whose current padded AABB
+      // contains a particle is still listed in that particle's cell.
+      let grid = sailSailGrids.get(triangles);
+      if (!grid) {
+        grid = {
+          counts: new Int32Array(SAIL_SAIL_BUCKETS),
+          starts: new Int32Array(SAIL_SAIL_BUCKETS + 1),
+          fill: new Int32Array(SAIL_SAIL_BUCKETS),
+          entries: new Int32Array(4096),
+          cellRanges: new Int32Array(6 * triangles.length),
+          built: new Float64Array(3 * triPoints.length),
+          valid: false,
+          builds: 0,
+          reuses: 0,
+        };
+        sailSailGrids.set(triangles, grid);
+      }
+      const slack = sailSailGridConfig.slackM;
+      if (grid.valid) {
+        let moved = false;
+        const built = grid.built;
+        for (let i = 0, o = 0; i < triPoints.length; i++, o += 3) {
+          const x = triPoints[i].x;
+          if (Math.abs(x.x - built[o]) > slack || Math.abs(x.y - built[o + 1]) > slack || Math.abs(x.z - built[o + 2]) > slack) {
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) {
+          grid.reuses++;
+          return grid;
+        }
+      }
+      const cell = sailSailGridConfig.cellM;
+      const pad = threshold + params.collisionMaxCorrectionM * 2 + slack;
+      const counts = grid.counts;
+      counts.fill(0);
+      const n = triangles.length;
+      const ranges = grid.cellRanges;
+      let total = 0;
+      for (let t = 0; t < n; t++) {
+        const tri = triangles[t];
+        const a = triPoints[tri[0]].x, b = triPoints[tri[1]].x, c = triPoints[tri[2]].x;
+        const x0 = Math.floor((Math.min(a.x, b.x, c.x) - pad) / cell), x1 = Math.floor((Math.max(a.x, b.x, c.x) + pad) / cell);
+        const y0 = Math.floor((Math.min(a.y, b.y, c.y) - pad) / cell), y1 = Math.floor((Math.max(a.y, b.y, c.y) + pad) / cell);
+        const z0 = Math.floor((Math.min(a.z, b.z, c.z) - pad) / cell), z1 = Math.floor((Math.max(a.z, b.z, c.z) + pad) / cell);
+        const o = t * 6;
+        ranges[o] = x0; ranges[o + 1] = x1; ranges[o + 2] = y0; ranges[o + 3] = y1; ranges[o + 4] = z0; ranges[o + 5] = z1;
+        for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+          counts[sailSailHash(x, y, z)]++;
+          total++;
+        }
+      }
+      let offset = 0;
+      for (let i = 0; i < SAIL_SAIL_BUCKETS; i++) {
+        grid.starts[i] = offset;
+        offset += counts[i];
+      }
+      grid.starts[SAIL_SAIL_BUCKETS] = offset;
+      if (grid.entries.length < total) grid.entries = new Int32Array(Math.max(total, grid.entries.length * 2));
+      grid.fill.set(grid.starts.subarray(0, SAIL_SAIL_BUCKETS));
+      for (let t = 0; t < n; t++) {
+        const o = t * 6;
+        for (let x = ranges[o]; x <= ranges[o + 1]; x++) for (let y = ranges[o + 2]; y <= ranges[o + 3]; y++) for (let z = ranges[o + 4]; z <= ranges[o + 5]; z++) {
+          const h = sailSailHash(x, y, z);
+          grid.entries[grid.fill[h]++] = t;
+        }
+      }
+      const built = grid.built;
+      for (let i = 0, o = 0; i < triPoints.length; i++, o += 3) {
+        const x = triPoints[i].x;
+        built[o] = x.x; built[o + 1] = x.y; built[o + 2] = x.z;
+      }
+      grid.valid = true;
+      grid.builds++;
+      return grid;
+    }
+
     _resolve(points, triPoints, triangles) {
       const threshold = 2 * params.clothThicknessM + params.clothCollisionMarginM;
+      const grid = this._buildGrid(triPoints, triangles, threshold);
+      const cell = sailSailGridConfig.cellM;
       for (const p of points) {
         let bestTri = null;
         let bestDistance = threshold;
-        for (const tri of triangles) {
+        const h = sailSailHash(Math.floor(p.x.x / cell), Math.floor(p.x.y / cell), Math.floor(p.x.z / cell));
+        const end = grid.starts[h + 1];
+        for (let k = grid.starts[h]; k < end; k++) {
+          const tri = triangles[grid.entries[k]];
           const a = triPoints[tri[0]];
           const b = triPoints[tri[1]];
           const c = triPoints[tri[2]];

@@ -10,6 +10,9 @@
     "test:cpu": "node tests/cpu/lighting-reference.test.mjs && node tests/cpu/atmosphere-reference.test.mjs && node tests/cpu/atmosphere-transport-v7.test.mjs && node tests/cpu/atmosphere-worker-v7.test.mjs && node tests/cpu/radiometric-coupling.test.mjs && node tests/cpu/semantic-assets.test.mjs && node tests/cpu/fixed-step-clock.test.mjs && node tests/cpu/hull-binary-asset.test.mjs",
     "test:browser": "xvfb-run -a python tests/browser/verify_foundry_v7.py",
     "verify": "npm run build && npm run test:cpu && npm run test:browser",
-    "build:assets": "python tools/build_hull_binary.py"
+    "build:assets": "python3 tools/build_hull_binary.py"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
   }
 }
