@@ -65,6 +65,29 @@ describe('Representability Limiter (heightfield → splash release)', () => {
     expect(sum0 - sum1).toBeCloseTo(r.volume, 12); // exact escrow: removed == released
   });
 
+  it('a surface rising faster than it can hold together releases water with its jet speed (volume exact)', () => {
+    const n = 32, dx = 1, dt = 1 / 30;
+    // A smooth impact mound (slopes below the envelope) that rose 0.7 m in one frame (w = 21 m/s).
+    const eta = new Float64Array(n * n), prev = new Float64Array(n * n), phi = new Float64Array(n * n);
+    for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) {
+      const r2 = (x - 16) ** 2 + (z - 16) ** 2;
+      eta[z * n + x] = 0.9 * Math.exp(-r2 / 9);
+      prev[z * n + x] = 0.2 * Math.exp(-r2 / 9);
+    }
+    const before = eta.reduce((a, v) => a + v, 0) * dx * dx;
+    const slopeOnly = limitRepresentability(new Float64Array(eta), phi, prev, n, dx, dt, 0.62, 0.5);
+    expect(slopeOnly.volume).toBe(0);                  // shape alone is representable
+    const wCrit = 1.3 * Math.sqrt(9.81 * dx);
+    const r = limitRepresentability(eta, phi, prev, n, dx, dt, 0.62, 0.5, undefined, wCrit);
+    const after = eta.reduce((a, v) => a + v, 0) * dx * dx;
+    expect(r.volume).toBeGreaterThan(0.05);
+    expect(after + r.volume).toBeCloseTo(before, 10);  // nothing invented, nothing lost
+    expect(r.momentumY / r.volume).toBeGreaterThan(wCrit); // leaves at jet speed
+    // A gently heaving swell (w ≈ ωa ≈ 0.5 m/s) never triggers.
+    const swell = new Float64Array(n * n).fill(0.5), swellPrev = new Float64Array(n * n).fill(0.48);
+    expect(limitRepresentability(swell, phi, swellPrev, n, dx, dt, 0.62, 0.5, undefined, wCrit).volume).toBe(0);
+  });
+
   it('repeated limiting converges to the envelope', () => {
     const n = 32, dx = 0.5, maxSlope = 0.6;
     const eta = new Float64Array(n * n), phi = new Float64Array(n * n);

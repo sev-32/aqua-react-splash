@@ -56,10 +56,11 @@ void main(){
   vec3 H = normalize(V + uSunDir);
   float spec = pow(max(dot(n, H), 0.0), mix(24.0, 160.0, wet))*mix(0.08, 0.35, wet);
   vec3 amb = textureLod(uEnv, dirToEquirect(normalize(n + vec3(0.0, 0.4, 0.0))), uEnvLevels - 3.0).rgb;
-  vec3 col = albedo*(sunE*ndl/3.14159 + amb*0.9) + sunE*spec*0.05;
-  // Below the waterline the surface itself is refracted by the water shader; add in-water haze here.
+  // Under the waterline only DOWNWELLING light reaches the hull (Beer–Lambert with depth);
+  // the view path through the water is the water shader's job (it refracts this frame).
   float depth = max(uWaterline - worldY, 0.0);
-  col *= exp(-uAbsorb*depth*0.6);
+  vec3 down = exp(-uAbsorb*depth*1.2);
+  vec3 col = albedo*(sunE*ndl/3.14159*down + amb*0.9*mix(vec3(1.0), down*0.6, step(0.001, depth))) + sunE*spec*0.05*down;
   float dist = length(vRel);
   vec3 haze = textureLod(uEnv, dirToEquirect(normalize(vec3(-V.x, 0.035, -V.z))), 3.0).rgb;
   col = mix(haze, col, exp(-dist*uFogDensity));

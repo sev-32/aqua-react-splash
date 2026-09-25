@@ -426,3 +426,25 @@ void main(){
   }
   o = uMode == 0 ? acc/float(uBlock*uBlock) : acc;
 }`;
+
+/** Escrowed splash water landing back on the shore field: Gaussian volume deposits (∫ = V). */
+export const SHORE_DEPOSIT_FS = /* glsl */ `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D uState;
+uniform int uCount;
+uniform vec4 uDeposits[16];   // local x, z (m), radius (m), peak depth (m) = V/(πr²)
+uniform float uDx;
+out vec4 o;
+void main(){
+  ivec2 c = ivec2(gl_FragCoord.xy);
+  vec4 s = texelFetch(uState, c, 0);
+  vec2 p = (vec2(c) + 0.5)*uDx;
+  float add = 0.0;
+  for (int i = 0; i < 16; i++){
+    if (i >= uCount) break;
+    vec2 d = p - uDeposits[i].xy;
+    add += uDeposits[i].w*exp(-dot(d, d)/(uDeposits[i].z*uDeposits[i].z));
+  }
+  o = vec4(s.x + add, s.yz, s.w);
+}`;

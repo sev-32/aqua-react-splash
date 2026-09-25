@@ -157,6 +157,7 @@ uniform sampler2D uRelB;
 uniform float uDt;
 uniform float uMaxSlope;
 uniform float uRelax;
+uniform float uWCrit;       // fastest coherent surface rise (m/s) before water detaches
 uniform int uLimiter;
 uniform float uSponge;       // width in cells
 uniform float uFoamLife;
@@ -175,14 +176,21 @@ void main(){
   float e0 = st.x;
   float lo = min(min(eta(c + ivec2(1,0)), eta(c - ivec2(1,0))), min(eta(c + ivec2(0,1)), eta(c - ivec2(0,1))));
   float released = 0.0;
+  float w = (e0 - aux.w)/max(uDt, 1e-4);                 // vertical surface velocity
   if (uLimiter == 1){
+    // (1) Shape: a crest steeper than the envelope cannot be a single-valued surface.
     float ex = e0 - lo - uMaxSlope*uDx;
     if (ex > 0.0){
       released = ex*uRelax;
-      st.x -= released;
     }
+    // (2) Motion: a surface rising faster than gravity can hold it together throws
+    //     water off (impacts, bow sheets). The excess rise leaves as a jet.
+    if (w > uWCrit && e0 > 0.0){
+      released += min((w - uWCrit)*uDt*uRelax*0.6, e0);
+    }
+    released = min(released, max(e0 - lo, 0.0) + max(e0, 0.0));
+    st.x -= released;
   }
-  float w = (e0 - aux.w)/max(uDt, 1e-4);                 // vertical surface velocity
   vec2 u = vec2(phi(c + ivec2(1,0)) - phi(c - ivec2(1,0)), phi(c + ivec2(0,1)) - phi(c - ivec2(0,1)))/(2.0*uDx);
   if (released > 0.0){
     float V = released*uDx*uDx;

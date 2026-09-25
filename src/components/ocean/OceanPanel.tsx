@@ -251,7 +251,13 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                     {Object.entries(t.gpu).map(([k, v]) => <Stat key={k} label={`gpu · ${k}`} value={`${v.toFixed(2)} ms`} />)}
                     <Stat label="Interaction tiles" value={String(t.tiles)} />
                     <Stat label="Shore field" value={t.shoreActive ? 'active' : 'idle'} />
-                    <Stat label="Splash particles" value={String(t.sprayLive)} />
+                    <Stat label="Splash particles (T4 MPM)" value={String(t.sprayLive)} />
+                    {(() => {
+                      const x = t as unknown as Record<string, number>;
+                      return x.splashEmitted !== undefined ? (
+                        <Stat label="Splash water: air / home" value={`${(x.splashAirborne ?? 0).toFixed(2)} / ${(x.splashSettled ?? 0).toFixed(2)} of ${x.splashEmitted.toFixed(2)} m³`} />
+                      ) : null;
+                    })()}
                     <Stat label="Receipts" value={String(t.receipts)} />
                     <Stat label="Quality" value={engine.quality} />
                   </div>

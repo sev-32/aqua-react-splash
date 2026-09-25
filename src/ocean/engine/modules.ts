@@ -3,6 +3,7 @@ import { BodiesModule } from '../modules/bodiesModule';
 import { InteractionModule } from '../modules/interactionModule';
 import { WorldModule } from '../modules/worldModule';
 import { ShoreModule } from '../modules/shoreModule';
+import { SplashModule } from '../modules/splashModule';
 import { beachPose } from '../world/terrain';
 import { registerAction, oceanActions } from './actions';
 
@@ -11,6 +12,7 @@ export interface StandardModules {
   shore: ShoreModule;
   bodies: BodiesModule;
   interaction: InteractionModule;
+  splash: SplashModule;
 }
 
 /**
@@ -38,6 +40,8 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
     },
   };
   engine.addModule(directTiles);
+  // After every producer of releases (tiles, shore) in the same frame.
+  const splash = engine.addModule(new SplashModule(engine, interaction, shore, bodies)) as SplashModule;
 
   registerAction('spawnBoat', (_e, at) => bodies.spawnBoat(at as never));
   registerAction('dropRock', (_e, at) => bodies.dropRock(at as never));
@@ -78,7 +82,7 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
     }
   });
   engine.onPick = (w) => { if (w) oceanActions.click(engine, w); };
-  const mods = { world, shore, bodies, interaction };
+  const mods = { world, shore, bodies, interaction, splash };
   (window as unknown as { __THALASSA_MODULES__: StandardModules }).__THALASSA_MODULES__ = mods;
   return mods;
 }

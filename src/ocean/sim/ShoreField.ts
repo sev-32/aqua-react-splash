@@ -8,7 +8,7 @@
  */
 import { Program, Target, Quad, FULLSCREEN_VS, createTexture, FMT, PingPong, type GL } from '../gl/context';
 import { AsyncReader } from '../gl/asyncReader';
-import { SHORE_INIT_FS, SHORE_STEP_FS, SHORE_BREAK_FS, SHORE_OUTPUT_FS, SHORE_REDUCE_FS } from './shoreShaders';
+import { SHORE_INIT_FS, SHORE_STEP_FS, SHORE_BREAK_FS, SHORE_OUTPUT_FS, SHORE_REDUCE_FS, SHORE_DEPOSIT_FS } from './shoreShaders';
 import type { World } from '../world/World';
 import type { SpectralOcean } from '../ocean/SpectralOcean';
 import type { ReleasePatch } from './InteractionTiles';
@@ -43,6 +43,10 @@ export class ShoreField {
   readonly origin: [number, number];
   private quad: Quad;
   private pInit: Program; private pStep: Program; private pBreak: Program; private pOut: Program; private pReduce: Program;
+  private pDeposit: Program;
+  private deposits: [number, number, number, number][] = [];
+  /** Volume returned by the splash ledger (m³). */
+  depositedVolume = 0;
   private state: PingPong;
   private stage: Target;      // SSP-RK2 intermediate U¹
   private fields: PingPong;   // MRT 4: brk, lip, foam, rel
@@ -77,6 +81,7 @@ export class ShoreField {
     this.pBreak = new Program(gl, 'shore.break', FULLSCREEN_VS, SHORE_BREAK_FS);
     this.pOut = new Program(gl, 'shore.output', FULLSCREEN_VS, SHORE_OUTPUT_FS);
     this.pReduce = new Program(gl, 'shore.reduce', FULLSCREEN_VS, SHORE_REDUCE_FS);
+    this.pDeposit = new Program(gl, 'shore.deposit', FULLSCREEN_VS, SHORE_DEPOSIT_FS);
     const f32 = FMT.rgba32f(gl);
     // Filtered fields in half float (linear filtering is universal); the release accumulator needs full float.
     const lin = { ...FMT.rgba16f(gl), filter: gl.LINEAR };
@@ -136,6 +141,28 @@ export class ShoreField {
     p.set('uCascadeCount', ocean.cascades).set('uSizes', sizes).set('uCascOffset', offs).tex('uDispArr', disp);
   }
 
+  /** Queue landing splash water (world x, z; footprint r; volume V). Applied on the next step. */
+  deposit(x: number, z: number, r: number, V: number) {
+    const lx = x - this.origin[0], lz = z - this.origin[1];
+    if (lx < 0 || lz < 0 || lx > this.size || lz > this.size) return false;
+    this.deposits.push([lx, lz, r, V / (Math.PI * r * r)]);
+    this.depositedVolume += V;
+    return true;
+  }
+
+  private applyDeposits() {
+    const gl = this.gl;
+    while (this.deposits.length) {
+      const batch = this.deposits.splice(0, 16);
+      const data = new Float32Array(64);
+      batch.forEach((d, i) => data.set(d, i * 4));
+      this.pDeposit.use().set('uCount', batch.length).set('uDeposits', data).set('uDx', this.dx).tex('uState', this.state.read.texture);
+      this.state.write.bind();
+      this.quad.draw();
+      this.state.swap();
+    }
+  }
+
   /**
    * Advance by dt with CFL substepping. `disp` is the spectral displacement at
    * the END of the step (the live array, or a probe while catching up);
@@ -144,6 +171,9 @@ export class ShoreField {
   step(ocean: SpectralOcean, dt: number, waveDirDeg: number, incoming = 1, disp: WebGLTexture = ocean.dispArray, release = true) {
     const gl = this.gl;
     if (dt <= 0) return;
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+    if (this.deposits.length) this.applyDeposits();
     const dtMax = (0.3 * this.dx) / this.cMax;   // CFL 0.3: positivity of the 2-D MUSCL-HR scheme
     const sub = Math.min(Math.ceil(dt / dtMax), 24);
     const h = dt / sub;
@@ -255,7 +285,7 @@ export class ShoreField {
   }
 
   dispose() {
-    [this.pInit, this.pStep, this.pBreak, this.pOut, this.pReduce].forEach((p) => p.dispose());
+    [this.pInit, this.pStep, this.pBreak, this.pOut, this.pReduce, this.pDeposit].forEach((p) => p.dispose());
     this.state.dispose();
     this.stage.dispose();
     this.fields.dispose();

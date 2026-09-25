@@ -322,6 +322,7 @@ export class InteractionTiles {
 
       // 3. Limiter + sponge + foam (+ release accumulation).
       this.pLimit.use().set('uN', n).set('uDx', cfg.dx).set('uDt', dt).set('uMaxSlope', cfg.maxSlope).set('uRelax', cfg.relax)
+        .set('uWCrit', 1.3 * Math.sqrt(9.81 * Math.max(cfg.dx, 0.5)))
         .set('uLimiter', cfg.limiter ? 1 : 0).set('uSponge', n * 0.1).set('uFoamLife', cfg.foamLife).set('uOrigin', t.origin)
         .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture)
         .tex('uRelA', t.release.read.textures[0]).tex('uRelB', t.release.read.textures[1]);

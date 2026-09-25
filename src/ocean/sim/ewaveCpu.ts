@@ -111,6 +111,8 @@ export function limitRepresentability(
   eta: Float64Array, phi: Float64Array, etaPrev: Float64Array | null,
   n: number, dx: number, dt: number, maxSlope: number, relax: number,
   releaseMap?: Float64Array,
+  /** Fastest coherent surface rise (m/s); faster-rising water detaches (GPU: uWCrit). */
+  wCrit = Infinity,
 ): Release {
   const out: Release = { volume: 0, momentumX: 0, momentumY: 0, momentumZ: 0, cells: 0 };
   const limit = maxSlope * dx;
@@ -120,7 +122,10 @@ export function limitRepresentability(
       const i = z * n + x;
       const lo = Math.min(eta[i - 1], eta[i + 1], eta[i - n], eta[i + n]);
       const e = eta[i] - lo - limit;
-      if (e > 0) removed[i] = e * relax;
+      let r = e > 0 ? e * relax : 0;
+      const w = etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
+      if (w > wCrit && eta[i] > 0) r += Math.min((w - wCrit) * dt * relax * 0.6, eta[i]);
+      removed[i] = Math.min(r, Math.max(eta[i] - lo, 0) + Math.max(eta[i], 0));
     }
   for (let z = 1; z < n - 1; z++)
     for (let x = 1; x < n - 1; x++) {

@@ -139,8 +139,9 @@ export class SpectralMirror {
   private bilerp(grid: Float32Array, u: number, v: number): number {
     const M = this.m;
     const x = (u - Math.floor(u)) * M, z = (v - Math.floor(v)) * M;
-    const x0 = Math.floor(x), z0 = Math.floor(z);
-    const fx = x - x0, fz = z - z0;
+    // u − floor(u) of a tiny negative u rounds to exactly 1 → wrap the index, never read past the grid.
+    const x0 = Math.floor(x) % M, z0 = Math.floor(z) % M;
+    const fx = x - Math.floor(x), fz = z - Math.floor(z);
     const x1 = (x0 + 1) % M, z1 = (z0 + 1) % M;
     const a = grid[z0 * M + x0], b = grid[z0 * M + x1], c = grid[z1 * M + x0], d = grid[z1 * M + x1];
     return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz;

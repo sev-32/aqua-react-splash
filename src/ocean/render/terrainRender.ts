@@ -145,7 +145,9 @@ void main(){
   // Caustic networks are centimetre-to-metre patterns: beyond ~150 m they average out (and alias).
   float caustFade = 1.0 - smoothstep(40.0, 160.0, length(vRel));
   float caust = h < 0.0 && caustFade > 0.0 ? mix(1.0, caustics(vWorld + uSunDir.xz*depth*0.3, depth), caustFade) : 1.0;
-  vec3 col = albedo*(uSunE*ndl*shadow*caust/3.14159 + amb*(0.85 + 0.15*n.y));
+  // Seabed: only downwelling light arrives (Beer–Lambert over the water column).
+  vec3 down = depth > 0.0 ? exp(-uAbsorb*depth*1.15) : vec3(1.0);
+  vec3 col = albedo*(uSunE*ndl*shadow*caust/3.14159*down + amb*(0.85 + 0.15*n.y)*mix(vec3(1.0), down*0.7, step(0.001, depth)));
   // Wet sand is glossy: a little sky reflection.
   vec3 R = reflect(-V, n);
   col += wet*0.06*textureLod(uEnv, dirToEquirect(normalize(vec3(R.x, abs(R.y), R.z))), 2.0).rgb;

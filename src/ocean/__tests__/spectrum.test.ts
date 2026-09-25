@@ -176,6 +176,16 @@ describe('spectral statistics and mirror', () => {
     expect(b).toBe(d);
   });
 
+  it('mirror samples stay finite at tiny negative coordinates (index wrap at u → 1⁻)', () => {
+    const mirror = new SpectralMirror(32);
+    mirror.rebuild(model, layout, 42, [1, 1, 1]);
+    mirror.evaluate(4);
+    for (const x of [-5.3e-15, -1e-12, -0, 0, 1e-15, -layout.sizes[0]]) {
+      const s = mirror.sample(x, -0.88);
+      expect(Number.isFinite(s.height) && Number.isFinite(s.vx) && Number.isFinite(s.vy) && Number.isFinite(s.vz)).toBe(true);
+    }
+  });
+
   it('choppy displacement moves surface points toward crests (Gerstner sense)', () => {
     // Single deterministic swell mode, check horizontal displacement sign against height gradient.
     const mirror = new SpectralMirror(32);
