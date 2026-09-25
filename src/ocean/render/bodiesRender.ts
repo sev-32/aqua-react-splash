@@ -39,8 +39,14 @@ uniform float uWaterline;     // world water height at the body (m)
 uniform vec3 uAbsorb;
 uniform float uRough;
 uniform float uFogDensity;
+uniform sampler2D uCloudShadow; uniform vec4 uCloudRect;   // camera-relative xz min, size, strength
 void main(){
   vec3 V = normalize(-vRel);
+  vec3 sunE = uSunE;
+  if (uCloudRect.w > 0.0){
+    vec2 cuv = (vRel.xz - uCloudRect.xy)/uCloudRect.z;
+    if (all(greaterThan(cuv, vec2(0.0))) && all(lessThan(cuv, vec2(1.0)))) sunE *= mix(1.0, texture(uCloudShadow, cuv).r, uCloudRect.w);
+  }
   vec3 n = normalize(vN);
   if (dot(n, V) < 0.0) n = -n;   // generated meshes: light both faces consistently
   float worldY = vRel.y + uCamY;
@@ -50,7 +56,7 @@ void main(){
   vec3 H = normalize(V + uSunDir);
   float spec = pow(max(dot(n, H), 0.0), mix(24.0, 160.0, wet))*mix(0.08, 0.35, wet);
   vec3 amb = textureLod(uEnv, dirToEquirect(normalize(n + vec3(0.0, 0.4, 0.0))), uEnvLevels - 3.0).rgb;
-  vec3 col = albedo*(uSunE*ndl/3.14159 + amb*0.9) + uSunE*spec*0.05;
+  vec3 col = albedo*(sunE*ndl/3.14159 + amb*0.9) + sunE*spec*0.05;
   // Below the waterline the surface itself is refracted by the water shader; add in-water haze here.
   float depth = max(uWaterline - worldY, 0.0);
   col *= exp(-uAbsorb*depth*0.6);
@@ -219,11 +225,14 @@ export class BodiesRenderer {
   draw(bodies: Body[], f: {
     viewProj: Float32Array; cam: Vec3; env: WebGLTexture; envLevels: number; sunDir: Vec3; sunE: Vec3; skyE: Vec3;
     absorb: Vec3; fogDensity: number; waterAt: (x: number, z: number) => number;
+    cloud?: { texture: WebGLTexture; rect: [number, number, number]; strength: number } | null;
   }) {
     const gl = this.gl;
     const p = this.prog.use();
     p.set('uViewProj', f.viewProj).tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uSunDir', f.sunDir)
       .set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uCamY', f.cam[1]).set('uAbsorb', f.absorb).set('uFogDensity', f.fogDensity);
+    if (f.cloud) p.tex('uCloudShadow', f.cloud.texture).set('uCloudRect', [f.cloud.rect[0] - f.cam[0], f.cloud.rect[1] - f.cam[2], f.cloud.rect[2], f.cloud.strength]);
+    else p.tex('uCloudShadow', f.env).set('uCloudRect', [0, 0, 1, 0]);
     gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
     gl.enable(gl.CULL_FACE);

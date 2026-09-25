@@ -94,7 +94,8 @@ export class BodiesModule implements EngineModule {
     this.renderer.draw(this.bodies, {
       viewProj: engine.camera.viewProj, cam: engine.camera.position, env: engine.sky.texture, envLevels: engine.sky.levels,
       sunDir: engine.sky.sunDir, sunE: engine.sky.sunRadiance, skyE: engine.skyE, absorb: s.optics.absorb,
-      fogDensity: s.optics.fogDensity, waterAt: (x, z) => engine.sampleWater(x, z).height,
+      fogDensity: s.optics.fogDensity*(1 + 5*s.weather.precipitation), waterAt: (x, z) => engine.sampleWater(x, z).height,
+      cloud: engine.cloudShadow,
     });
     return true;
   }

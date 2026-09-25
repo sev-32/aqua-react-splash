@@ -3,7 +3,8 @@
  * of truth" lesson), plus quality tiers and water-type optics presets.
  */
 import { DEFAULT_SEA_CONTROLS, type SeaStateControls } from '../spectrum/seaStates';
-import { DEFAULT_SKY, type SkyParams } from '../render/sky';
+import { DEFAULT_SKY, type SkyParams, type SkyQuality } from '../render/sky';
+import { DEFAULT_WEATHER, type WeatherParams } from '../atmos/weather';
 import { DEFAULT_POST, type PostParams } from '../render/post';
 import type { WaterOptics } from '../render/OceanSurface';
 import type { CdlodConfig } from '../render/cdlod';
@@ -22,18 +23,23 @@ export interface QualityTier {
   tileN: number;
   shoreN: number;
   sprayCapacity: number;
+  sky: SkyQuality;
 }
 
 const cd = (leafSize: number, patchQuads: number, levels: number, coverage = 42000): CdlodConfig => ({
   leafSize, patchQuads, levels, rangeK: 2.4, coverage, morphFraction: 0.32,
 });
 
+const sky = (envWidth: number, cloudScale: number, cloudSteps: number, lightSteps: number, envSteps: number, envSlices: number, shadowN: number, noiseN: number): SkyQuality => ({
+  envWidth, cloudScale, cloudSteps, lightSteps, envSteps, envSlices, shadowN, shadowSize: 24000, noiseN,
+});
+
 export const QUALITY: Record<QualityName, QualityTier> = {
-  capture: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 1, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 4096 },
-  low: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 0.75, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 8192 },
-  medium: { fftN: 256, cascadeSizes: [1379, 263, 17.9], mirrorN: 64, skyWidth: 1024, cdlod: cd(8, 32, 13), renderScale: 1, maxDpr: 1.25, tileN: 256, shoreN: 384, sprayCapacity: 16384 },
-  high: { fftN: 256, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 1024, cdlod: cd(6, 48, 14), renderScale: 1, maxDpr: 1.5, tileN: 256, shoreN: 512, sprayCapacity: 32768 },
-  ultra: { fftN: 512, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 2048, cdlod: cd(4, 64, 15), renderScale: 1, maxDpr: 2, tileN: 512, shoreN: 512, sprayCapacity: 65536 },
+  capture: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 1, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 4096, sky: sky(512, 0.3, 48, 4, 28, 4, 128, 64) },
+  low: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 0.75, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 8192, sky: sky(512, 0.25, 36, 4, 20, 8, 128, 64) },
+  medium: { fftN: 256, cascadeSizes: [1379, 263, 17.9], mirrorN: 64, skyWidth: 1024, cdlod: cd(8, 32, 13), renderScale: 1, maxDpr: 1.25, tileN: 256, shoreN: 384, sprayCapacity: 16384, sky: sky(1024, 0.33, 56, 5, 28, 8, 256, 128) },
+  high: { fftN: 256, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 1024, cdlod: cd(6, 48, 14), renderScale: 1, maxDpr: 1.5, tileN: 256, shoreN: 512, sprayCapacity: 32768, sky: sky(1024, 0.5, 72, 6, 32, 8, 256, 128) },
+  ultra: { fftN: 512, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 2048, cdlod: cd(4, 64, 15), renderScale: 1, maxDpr: 2, tileN: 512, shoreN: 512, sprayCapacity: 65536, sky: sky(2048, 0.5, 112, 6, 40, 8, 512, 128) },
 };
 
 export interface WaterType {
@@ -70,6 +76,7 @@ export interface EngineSettings {
   loopPeriod: number;       // >0: seamlessly looping ocean (s)
   sea: SeaStateControls;
   sky: SkyParams;
+  weather: WeatherParams;
   post: PostParams;
   waterType: string;
   optics: WaterOptics;
@@ -125,6 +132,7 @@ export function defaultSettings(quality: QualityName = 'high'): EngineSettings {
     loopPeriod: 0,
     sea: { ...DEFAULT_SEA_CONTROLS },
     sky: { ...DEFAULT_SKY },
+    weather: { ...DEFAULT_WEATHER },
     post: { ...DEFAULT_POST },
     waterType: 'oceanic',
     optics: opticsFor(WATER_TYPES[0]),

@@ -111,12 +111,12 @@ export class Program {
     return this.uniforms.has(name);
   }
 
-  /** Bind a texture to a sampler uniform (unit assigned at link time). Array samplers bind as TEXTURE_2D_ARRAY. */
+  /** Bind a texture to a sampler uniform (unit assigned at link time). Array/3D samplers bind to their targets. */
   tex(name: string, texture: WebGLTexture | null, target?: number): this {
     const u = this.uniforms.get(name);
     if (!u) return this;
     const gl = this.gl;
-    const t = target ?? (u.type === 0x8dc1 ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D);
+    const t = target ?? (u.type === 0x8dc1 ? gl.TEXTURE_2D_ARRAY : u.type === 0x8b5f ? gl.TEXTURE_3D : gl.TEXTURE_2D);
     gl.activeTexture(gl.TEXTURE0 + u.unit);
     gl.bindTexture(t, texture);
     return this;

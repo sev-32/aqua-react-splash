@@ -6,6 +6,7 @@ import type { OceanEngine } from './OceanEngine';
 import type { CameraPose } from './camera';
 import { CAMERA_PRESETS } from './cameraPresets';
 import { oceanActions } from './actions';
+import { applyWeatherMorph } from '../atmos/weather';
 
 export interface ThalassaApi {
   ready: boolean;
@@ -53,7 +54,9 @@ export function installCaptureApi(engine: OceanEngine) {
     },
     set(path, value) {
       if (path === 'waterType') engine.setWaterType(String(value));
+      else if (path === 'weather.morph') Object.assign(engine.settings.weather, applyWeatherMorph(engine.settings.weather, Number(value)));
       else setPath(engine.settings, path, value);
+      if (path === 'sea.morph' || path === 'sea.directionOffsetDeg') engine.settings.weather.coupleSea = false;
       if (path.startsWith('sea.') || path === 'loopPeriod' || path.startsWith('foam.')) engine.markSeaDirty();
     },
     get: (path) => getPath(engine.settings, path),

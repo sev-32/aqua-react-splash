@@ -67,6 +67,9 @@ export interface SurfaceFrame {
   terrain: HeightBinding | null;
   scene: { color: WebGLTexture; depth: WebGLTexture; viewport: [number, number]; near: number; far: number } | null;
   geoLodBias: number;
+  /** Cloud-shadow map (absolute world rect) and rain from the weather. */
+  cloud: { texture: WebGLTexture; rect: [number, number, number]; strength: number } | null;
+  rain: number;
 }
 
 export class OceanSurface {
@@ -190,9 +193,13 @@ export class OceanSurface {
       .tex('uSlopeLut', ocean.slopeLutTex).set('uLogKMin', stats?.logKMin ?? 0).set('uLogKMax', stats?.logKMax ?? 1)
       .set('uRoughnessGain', o.roughnessGain).set('uIor', o.ior)
       .set('uAbsorb', o.absorb).set('uBackscatter', o.backscatter).set('uScatter', o.scatter)
-      .set('uSss', o.sss).set('uSigHeight', hs).set('uGlitter', o.glitter).set('uFogDensity', o.fogDensity)
+      .set('uSss', o.sss).set('uSigHeight', hs).set('uGlitter', o.glitter).set('uFogDensity', o.fogDensity*(1 + 5*f.rain))
+      .set('uRain', f.rain)
       .set('uTime', f.time).set('uDebug', f.debug).set('uFoamGain', o.foamGain)
       .set('uFoamLife', ocean.foam.life);
+    if (f.cloud) {
+      p.tex('uCloudShadow', f.cloud.texture).set('uCloudRect', [f.cloud.rect[0] - f.cam[0], f.cloud.rect[1] - f.cam[2], f.cloud.rect[2], f.cloud.strength]);
+    } else p.tex('uCloudShadow', this.dummy).set('uCloudRect', [0, 0, 1, 0]);
     if (f.tierMap) {
       p.tex('uTierMap', f.tierMap.texture).set('uTierRect', [f.tierMap.rect[0] - f.cam[0], f.tierMap.rect[1] - f.cam[2], f.tierMap.rect[2], 1]);
     } else p.tex('uTierMap', this.dummy).set('uTierRect', [0, 0, 1, 0]);

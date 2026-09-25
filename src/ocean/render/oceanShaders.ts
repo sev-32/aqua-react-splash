@@ -16,8 +16,8 @@ import { SKY_COMMON_GLSL } from './sky';
 
 export const MAX_TILES = 4;
 export const MAX_LEVELS = 16;
-// Sampler budget: the fragment stage binds 13 units (cascade arrays ×3, tile array,
-// shore ×2, terrain ×2, env, slope LUT, tier map, scene colour/depth) — inside the 16-unit floor.
+// Sampler budget: the fragment stage binds 14 units (cascade arrays ×3, tile array,
+// shore ×2, terrain ×2, env, slope LUT, tier map, scene colour/depth, cloud shadow) — inside the 16-unit floor.
 
 export const OCEAN_COMMON_GLSL = /* glsl */ `
 #define PI 3.14159265358979
@@ -190,6 +190,11 @@ uniform float uFoamLife;
 uniform sampler2DArray uFoamArr;  // layer = cascade: (mass, mass·age, air, coverage)
 uniform sampler2D uShoreExtra;  // (wetness, bubbles, foam-on-sand, age)
 uniform sampler2D uTierMap;     // scheduler tier overlay (debug)
+// Weather (Nimbus lighting authority): cloud-shadow map + rain
+uniform sampler2D uCloudShadow;  // sun transmittance through the deck (R)
+uniform vec4 uCloudRect;         // rel minX, minZ, size, strength
+uniform float uRain;             // 0..1
+vec3 gSunE;                      // sun irradiance after cloud shadowing (set in main)
 uniform vec4 uTierRect;         // rel minX, minZ, size, 1
 // Screen-space refraction (scene behind the water: terrain, hulls)
 uniform sampler2D uSceneColor;
@@ -241,7 +246,7 @@ vec3 sunGlitter(vec3 n, vec3 V, vec4 mom){
   float al = sqrt(max(0.5*(a + c), 1e-6));
   float Gm = smithG1(NoV, al)*smithG1(NoL, al);
   float F = fresnelDielectric(max(dot(V, H), 0.0), 1.0, uIor);
-  return uSunE*uGlitter*min(F*D*Gm/(4.0*NoV), 400.0);
+  return gSunE*uGlitter*min(F*D*Gm/(4.0*NoV), 400.0);
 }
 
 /** Gordon et al. irradiance reflectance: R = 0.0949u + 0.0794u², u = b_b/(a + b_b). */
@@ -249,8 +254,37 @@ vec3 upwelling(float Fsun){
   vec3 u = uBackscatter/(uAbsorb + uBackscatter);
   vec3 R = 0.0949*u + 0.0794*u*u;
   float mu = max(uSunDir.y, 0.0);
-  vec3 Ed = (uSunE*mu*(1.0 - Fsun) + uSkyE*0.93);
+  vec3 Ed = (gSunE*mu*(1.0 - Fsun) + uSkyE*0.93);
   return R*Ed/PI;
+}
+
+/**
+ * Rain on the sea: every drop launches a capillary ring (radius grows ~0.35 m/s,
+ * ~4 cm wavelength, e-folding in ~0.3 s). Two cell layers, cadence set by the
+ * rain rate. Returns the slope (∂η/∂x, ∂η/∂z); beyond what pixels can resolve
+ * the caller turns rain into roughness instead.
+ */
+vec2 rainRipples(vec2 p, float t, float rain){
+  vec2 g = vec2(0.0);
+  float period = 1.6/(0.25 + 1.75*rain);
+  for (int layer = 0; layer < 2; layer++){
+    float sc = layer == 0 ? 0.5 : 0.31;
+    vec2 q = p/sc + float(layer)*vec2(17.3, 9.1);
+    vec2 cell = floor(q);
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
+      vec2 c = cell + vec2(float(i), float(j));
+      vec2 hc = h22(c + float(layer)*31.7);
+      if (hc.x > 0.35 + 0.65*rain) continue;          // sparse drops in light rain
+      float age = fract(t/period + hc.y)*period;
+      vec2 d = (q - c - h22(c + 5.3))*sc;
+      float r = length(d);
+      float x = r - 0.35*age;
+      float env = exp(-age*3.4)*smoothstep(0.0, 0.03, age)*exp(-x*x/0.0012);
+      float dh = -0.012*157.0*sin(157.0*x)*env;         // k = 2π/4 cm
+      g += dh*d/max(r, 1e-3);
+    }
+  }
+  return g;
 }
 
 // ── foam micro-structure (POSEIDON R6.4.5 polarity-correct aging, compacted) ──
@@ -300,6 +334,12 @@ vec3 tierColor(float t){
 }
 
 void main(){
+  float cloudVis = 1.0;
+  if (uCloudRect.w > 0.0){
+    vec2 cuv = (vParam - uCloudRect.xy)/uCloudRect.z;
+    if (all(greaterThan(cuv, vec2(0.0))) && all(lessThan(cuv, vec2(1.0)))) cloudVis = mix(1.0, texture(uCloudShadow, cuv).r, uCloudRect.w);
+  }
+  gSunE = uSunE*cloudVis;
   // Wet/dry is decided by the solver (W4): dry cells of the shore field are not water.
   // Per-fragment from the filtered depth (the mesh is far coarser than the solver grid).
   if (vShore.x > 0.5 && texture(uShoreSurf, (vParam - uShoreRect.xy)/uShoreRect.z).w < 0.003) discard;
@@ -337,6 +377,10 @@ void main(){
     shoreMass = vShore.z*vShore.x*0.55;
     shoreAge01 = sat(texture(uShoreExtra, suv).w/9.0);
   }
+  // Rain rings where the pixel can hold a 4 cm ripple; farther out rain is roughness.
+  float fpRain = max(max(length(dFdx(vParam)), length(dFdy(vParam))), 1e-3);
+  float rainVis = uRain > 0.001 ? 1.0 - smoothstep(0.008, 0.03, fpRain) : 0.0;
+  if (rainVis > 0.0){ vec2 rr = rainRipples(vParam + uCamOffset[0], uTime, uRain)*rainVis; Sx += rr.x; Sz += rr.y; }
   float J = (1.0 + Dxx)*(1.0 + Dzz) - Dxz*Dxz;
   vec3 n = vec3(Sz*Dxz - (1.0 + Dzz)*Sx, max(J, 0.08), Dxz*Sx - Sz*(1.0 + Dxx));
   n = normalize(n);
@@ -345,6 +389,9 @@ void main(){
   // ── roughness from everything the pixel cannot resolve ──
   float footprint = max(max(length(dFdx(vParam)), length(dFdy(vParam))), 1e-3);
   vec4 mom = slopeMoments(footprint);
+  // Unresolved rain rings add isotropic slope variance (≈0.004 at 25 mm/h).
+  float rainVar = uRain*0.004*(1.0 - rainVis);
+  mom += vec4(rainVar, rainVar, 0.0, 2.0*rainVar);
   float rough = sqrt(max(mom.w, 1e-6));
 
   vec3 col;
@@ -366,7 +413,7 @@ void main(){
     vec3 Lh = normalize(vec3(uSunDir.x, 0.0, uSunDir.z) + vec3(1e-4));
     float back = pow(sat(dot(-V, Lh)*0.5 + 0.5), 5.0)*sat(1.0 - abs(V.y)*1.6);
     vec3 thin = exp(-uAbsorb*3.5)*uBackscatter/(uAbsorb + uBackscatter + 1e-4);
-    body += uSss*crest*back*uSunE*thin*0.9;
+    body += uSss*crest*back*gSunE*thin*0.9;
 
     // Screen-space refraction for shallow water over terrain / hulls.
     vec3 transmitted = body;
@@ -389,7 +436,7 @@ void main(){
     float shoreBubbles = 0.0;
     if (vShore.x > 0.0) shoreBubbles = texture(uShoreExtra, (vParam - uShoreRect.xy)/uShoreRect.z).y*vShore.x;
     float air = sat(foamAir*0.45 + localFoam*0.3 + shoreBubbles*0.8);
-    transmitted += air*(uSkyE + uSunE*max(uSunDir.y, 0.0))*vec3(0.035, 0.085, 0.085);
+    transmitted += air*(uSkyE + gSunE*max(uSunDir.y, 0.0))*vec3(0.035, 0.085, 0.085);
 
     col = mix(transmitted, refl, Fv) + sunGlitter(n, V, mom)*(1.0 - sat(foamMass));
 
@@ -420,7 +467,7 @@ void main(){
       vec2 q = (vParam + uCamOffset[0])*1.1;
       float cover = foamTopology(q, mass, age01, footprint);
       float ndl = max(dot(n, uSunDir), 0.0);
-      vec3 foamCol = 0.82*(uSunE*(0.25 + 0.75*ndl) + uSkyE)/PI;
+      vec3 foamCol = 0.82*(gSunE*(0.25 + 0.75*ndl) + uSkyE)/PI;
       foamCol *= mix(1.0, 0.86, age01);
       col = mix(col, foamCol, cover*0.92);
     }

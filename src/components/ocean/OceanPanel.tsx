@@ -4,6 +4,7 @@ import type { OceanEngine, EngineTelemetry } from '../../ocean';
 import { SEA_STATES, WATER_TYPES, DEBUG_VIEWS } from '../../ocean';
 import { CAMERA_PRESETS } from '../../ocean/engine/cameraPresets';
 import { oceanActions } from '../../ocean/engine/actions';
+import { WEATHER_PRESETS, applyWeatherMorph, weatherLabel } from '../../ocean/atmos/weather';
 
 /* ───────────────────────────── primitives ───────────────────────────── */
 
@@ -76,8 +77,14 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
   const [collapsed, setCollapsed] = useState(false);
   const s = engine.settings;
   const rerender = () => force((x) => x + 1);
-  const sea = (patch: Partial<typeof s.sea>) => { Object.assign(s.sea, patch); engine.markSeaDirty(); rerender(); };
+  const sea = (patch: Partial<typeof s.sea>) => {
+    // Taking the sea by hand releases it from the weather's wind.
+    if (patch.morph !== undefined || patch.directionOffsetDeg !== undefined) s.weather.coupleSea = false;
+    Object.assign(s.sea, patch); engine.markSeaDirty(); rerender();
+  };
   const sky = (patch: Partial<typeof s.sky>) => { Object.assign(s.sky, patch); rerender(); };
+  const weather = (patch: Partial<typeof s.weather>) => { Object.assign(s.weather, patch); rerender(); };
+  const weatherMorph = (m: number) => { Object.assign(s.weather, applyWeatherMorph(s.weather, m)); rerender(); };
   const optics = (patch: Partial<typeof s.optics>) => { Object.assign(s.optics, patch); rerender(); };
   const foam = (patch: Partial<typeof s.foam>) => { Object.assign(s.foam, patch); engine.ocean.foam = s.foam; rerender(); };
   const post = (patch: Partial<typeof s.post>) => { Object.assign(s.post, patch); rerender(); };
@@ -92,6 +99,9 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
           <span className="text-primary">●</span> THALASSA · Ocean engine · <Link to="/" className="pointer-events-auto text-copper hover:text-primary">pool lab ↗</Link>
         </div>
         <div className="mt-1 font-display text-3xl font-light leading-none text-bone">{t?.seaLabel ?? '—'}</div>
+        <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-bone/70">
+          {t ? `${t.weatherLabel} · U10 ${t.windSpeed.toFixed(1)} m/s${t.seaCoupled ? ' · sea follows wind' : ''}` : ''}
+        </div>
         <div className="mt-2 grid grid-cols-3 gap-x-4 font-mono text-[10px] tabular-nums text-bone/80">
           <span>Hs {t ? t.hs.toFixed(2) : '–'} m</span>
           <span>Tp {t ? t.tp.toFixed(1) : '–'} s</span>
@@ -194,12 +204,30 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 <Chip onClick={() => engine.ocean.clearFoam()}>Clear foam</Chip>
               </Section>
 
+              <Section title="Weather (Nimbus)">
+                <div className="flex flex-wrap gap-1">
+                  {WEATHER_PRESETS.map((w, i) => (
+                    <Chip key={w.id} active={Math.abs(s.weather.morph - i) < 0.02} onClick={() => weatherMorph(i)}>{w.label}</Chip>
+                  ))}
+                </div>
+                <Slider label={`Clear → storm · ${weatherLabel(s.weather.morph)}`} value={s.weather.morph} min={0} max={WEATHER_PRESETS.length - 1} onChange={weatherMorph} />
+                <Slider label="Cloud cover" value={s.weather.coverage} min={0} max={1} onChange={(v) => weather({ coverage: v })} />
+                <Slider label="Genus (stratus → Cb)" value={s.weather.cloudType} min={0} max={1} onChange={(v) => weather({ cloudType: v })} />
+                <Slider label="Cloud base" value={s.weather.cloudBase} min={300} max={4000} step={10} digits={0} unit=" m" onChange={(v) => weather({ cloudBase: v })} />
+                <Slider label="Deck depth" value={s.weather.cloudThick} min={400} max={8000} step={10} digits={0} unit=" m" onChange={(v) => weather({ cloudThick: v })} />
+                <Slider label="Cloud density" value={s.weather.density} min={0.2} max={2.2} onChange={(v) => weather({ density: v })} />
+                <Slider label="Precipitation" value={s.weather.precipitation} min={0} max={1} onChange={(v) => weather({ precipitation: v })} />
+                <Slider label="Wind U10" value={s.weather.windSpeed} min={0} max={32} step={0.1} digits={1} unit=" m/s" onChange={(v) => weather({ windSpeed: v })} />
+                <Slider label="Wind toward" value={s.weather.windDirDeg} min={0} max={360} step={1} digits={0} unit="°" onChange={(v) => weather({ windDirDeg: v })} />
+                <Toggle label="Sea follows the wind" value={s.weather.coupleSea} onChange={(v) => weather({ coupleSea: v })} />
+                <Slider label="Sea response (duration-limited)" value={s.weather.seaResponse} min={2} max={300} step={1} digits={0} unit=" s" onChange={(v) => weather({ seaResponse: v })} />
+                <Toggle label="Volumetric clouds" value={s.sky.clouds} onChange={(v) => sky({ clouds: v })} />
+              </Section>
+
               <Section title="Sky & light">
                 <Slider label="Sun azimuth" value={s.sky.sunAzimuthDeg} min={0} max={360} step={1} digits={0} unit="°" onChange={(v) => sky({ sunAzimuthDeg: v })} />
                 <Slider label="Sun elevation" value={s.sky.sunElevationDeg} min={-4} max={89} step={0.5} digits={1} unit="°" onChange={(v) => sky({ sunElevationDeg: v })} />
                 <Slider label="Haze (Mie)" value={s.sky.turbidity} min={0.2} max={6} onChange={(v) => sky({ turbidity: v })} />
-                <Slider label="Cloud cover" value={s.sky.cloudCover} min={0} max={1} onChange={(v) => sky({ cloudCover: v })} />
-                <Slider label="Cloud density" value={s.sky.cloudDensity} min={0} max={1.5} onChange={(v) => sky({ cloudDensity: v })} />
                 <Slider label="Exposure" value={s.post.exposure} min={0.2} max={3} onChange={(v) => post({ exposure: v })} />
                 <Slider label="Bloom" value={s.post.bloom} min={0} max={1.5} onChange={(v) => post({ bloom: v })} />
               </Section>

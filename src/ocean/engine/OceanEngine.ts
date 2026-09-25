@@ -13,6 +13,7 @@
 import { createGL, GpuTimers, type GL, type GLCaps } from '../gl/context';
 import { SpectralOcean } from '../ocean/SpectralOcean';
 import { Sky } from '../render/sky';
+import { seaMorphForWind, seaWindDirAt, relaxSeaMorph, weatherLabel } from '../atmos/weather';
 import { OceanSurface, type SurfaceFrame, type TileBinding, type ShoreBinding } from '../render/OceanSurface';
 import { Post } from '../render/post';
 import { Camera, FlyController, type CameraPose } from './camera';
@@ -33,6 +34,9 @@ export interface EngineTelemetry {
   tp: number;
   peakWavelength: number;
   seaLabel: string;
+  weatherLabel: string;
+  windSpeed: number;
+  seaCoupled: boolean;
   time: number;
   camera: CameraPose;
   tiles: number;
@@ -103,7 +107,7 @@ export class OceanEngine {
     const q = QUALITY[this.quality];
     this.timers = new GpuTimers(gl, caps.timer);
     this.ocean = new SpectralOcean(gl, caps, { n: q.fftN, sizes: q.cascadeSizes, seed: opts.seed ?? 20260925, mirrorSize: q.mirrorN });
-    this.sky = new Sky(gl, q.skyWidth);
+    this.sky = new Sky(gl, q.sky);
     this.surface = new OceanSurface(gl, q.cdlod);
     this.post = new Post(gl);
     this.camera.setPose({ position: [0, 7, 0], yawDeg: 40, pitchDeg: -7, fovDeg: 55 });
@@ -113,7 +117,7 @@ export class OceanEngine {
 
   private emptyTelemetry(): EngineTelemetry {
     return {
-      fps: 0, frameMs: 0, cpuMs: 0, triangles: 0, nodes: 0, gpu: {}, hs: 0, tp: 0, peakWavelength: 0, seaLabel: '',
+      fps: 0, frameMs: 0, cpuMs: 0, triangles: 0, nodes: 0, gpu: {}, hs: 0, tp: 0, peakWavelength: 0, seaLabel: '', weatherLabel: '', windSpeed: 0, seaCoupled: false,
       time: 0, camera: this.camera.pose(), tiles: 0, sprayLive: 0, shoreActive: false, receipts: 0,
     };
   }
@@ -179,6 +183,28 @@ export class OceanEngine {
       near: this.camera.near,
       far: this.camera.far,
     };
+  }
+
+  private coupledMorph = -1;
+  private coupledDir = 0;
+  /**
+   * The sea listens to the weather: the wind-sea relaxes toward the state the
+   * current U10 sustains (duration-limited growth) and turns with the wind.
+   * The spectrum is re-synthesised only when the state has moved perceptibly.
+   */
+  private coupleWeather(dt: number) {
+    const w = this.settings.weather;
+    if (!w.coupleSea || dt <= 0) { this.coupledMorph = -1; return; }
+    const sea = this.settings.sea;
+    const next = relaxSeaMorph(sea.morph, seaMorphForWind(w.windSpeed), dt, w.seaResponse);
+    const dir = ((w.windDirDeg - seaWindDirAt(next)) % 360 + 540) % 360 - 180;
+    sea.morph = next;
+    if (this.coupledMorph < 0 || Math.abs(next - this.coupledMorph) > 0.02 || Math.abs(dir - this.coupledDir) > 2) {
+      this.coupledMorph = next;
+      this.coupledDir = dir;
+      sea.directionOffsetDeg = dir;
+      this.markSeaDirty();
+    }
   }
 
   /** Ray from NDC through the mean sea plane (y=0) → world point. */
@@ -252,9 +278,11 @@ export class OceanEngine {
 
     this.timers.poll();
     this.timers.begin('sky');
-    const baked = this.sky.update(s.sky, this.time, this.ocean.wind.directionDeg, dt);
+    this.coupleWeather(dt);
+    const baked = this.sky.update(s.sky, s.weather, this.time, dt, this.camera.position);
     this.timers.end();
     if (baked) this.skyE = this.sky.irradiance();
+    this.cloudShadow = this.sky.shadow;
 
     this.timers.begin('spectral');
     this.ocean.update(this.time, dt);
@@ -265,6 +293,12 @@ export class OceanEngine {
 
     // ── render ──
     const post = this.post;
+    this.timers.begin('clouds');
+    this.sky.renderView({
+      invViewProj: this.camera.invViewProj, viewProj: this.camera.viewProj, width: post.width, height: post.height,
+      camPos: this.camera.position, frameIndex: this.frameIndex,
+    });
+    this.timers.end();
     post.hdr.bind();
     gl.clearColor(0, 0, 0, 1);
     gl.clearDepth(1);
@@ -305,12 +339,17 @@ export class OceanEngine {
       terrain: this.terrainBinding,
       scene: this.sceneBinding,
       geoLodBias: s.geoLodBias,
+      cloud: this.cloudShadow,
+      rain: s.weather.precipitation,
     };
     post.hdr.bind();
     this.timers.begin('surface');
     this.surface.draw(this.ocean, frame);
     this.timers.end();
     for (const m of this.modules) m.drawTransparent?.(this);
+    // Clouds between the camera and the surfaces (camera in/above the deck, peaks in cloud).
+    post.hdr.bind();
+    this.sky.drawOverlay(this.camera.invViewProj, this.sceneBinding?.depth ?? null);
 
     this.timers.begin('post');
     post.present(s.post, this.time);
@@ -339,6 +378,9 @@ export class OceanEngine {
         tp: st?.tp ?? 0,
         peakWavelength: st?.peakWavelength ?? 0,
         seaLabel: this.ocean.label(s.sea.morph),
+        weatherLabel: weatherLabel(s.weather.morph),
+        windSpeed: s.weather.windSpeed,
+        seaCoupled: s.weather.coupleSea,
         time: this.time,
         camera: this.camera.pose(),
       };
