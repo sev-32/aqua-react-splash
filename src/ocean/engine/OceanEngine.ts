@@ -302,6 +302,7 @@ export class OceanEngine {
       tileArray,
       shore,
       tierMap: this.tierMap,
+      terrain: this.terrainBinding,
       scene: this.sceneBinding,
       geoLodBias: s.geoLodBias,
     };
@@ -350,6 +351,9 @@ export class OceanEngine {
   /** Optional overlays other modules provide. */
   tierMap: SurfaceFrame['tierMap'] = null;
   sceneBinding: SurfaceFrame['scene'] = null;
+  terrainBinding: SurfaceFrame['terrain'] = null;
+  /** Cloud-shadow map provided by the weather module (lighting authority). */
+  cloudShadow: { texture: WebGLTexture; rect: [number, number, number]; strength: number } | null = null;
 
   static get seaStates() {
     return SEA_STATES;

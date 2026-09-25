@@ -18,7 +18,7 @@ export const oceanActions = {
   spawnBuoys: (e: OceanEngine, at?: Vec3) => run('spawnBuoys', e, at),
   ripple: (e: OceanEngine, at?: Vec3) => run('ripple', e, at),
   clearBodies: (e: OceanEngine) => run('clearBodies', e),
-  goToShore: (e: OceanEngine) => run('goToShore', e),
+  goToShore: (e: OceanEngine, view?: 'surf' | 'beach' | 'aerial') => run('goToShore', e, view),
   frameBody: (e: OceanEngine, arg?: unknown) => run('frameBody', e, arg),
   /** Dispatch a click on the sea according to the current click mode. */
   click(e: OceanEngine, at: Vec3) {

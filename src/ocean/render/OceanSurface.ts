@@ -25,6 +25,13 @@ export interface ShoreBinding {
   surf: WebGLTexture;
   aux: WebGLTexture;
   bed: WebGLTexture;
+  extra: WebGLTexture;
+  fade: number;
+}
+
+export interface HeightBinding {
+  fine: WebGLTexture; fineRect: [number, number, number];
+  coarse: WebGLTexture; coarseRect: [number, number, number];
 }
 
 export interface WaterOptics {
@@ -57,6 +64,7 @@ export interface SurfaceFrame {
   tileArray: WebGLTexture | null;
   shore: ShoreBinding | null;
   tierMap: { texture: WebGLTexture; rect: [number, number, number] } | null;
+  terrain: HeightBinding | null;
   scene: { color: WebGLTexture; depth: WebGLTexture; viewport: [number, number]; near: number; far: number } | null;
   geoLodBias: number;
 }
@@ -154,7 +162,8 @@ export class OceanSurface {
     morph.set(sel.morph.subarray(0, Math.min(sel.morph.length, MAX_LEVELS * 2)));
     p.set('uViewProj', f.viewProj).set('uCamHeight', f.cam[1]).set('uMorph', morph)
       .set('uEarthRadius', f.earthRadius).set('uGeoLodBias', f.geoLodBias)
-      .set('uCascadeCount', C).set('uSizes', sizes).set('uCamOffset', offsets).set('uTexN', ocean.n);
+      .set('uCascadeCount', C).set('uSizes', sizes).set('uCamOffset', offsets).set('uTexN', ocean.n)
+      .set('uSigHeightV', hs);
     p.tex('uDispArr', ocean.dispArray).tex('uDerivArr', ocean.derivArray).tex('uFoamArr', ocean.foamArray);
     // Interaction tiles (camera-relative rects; .w = array layer).
     const rects = new Float32Array(MAX_TILES * 4);
@@ -165,11 +174,17 @@ export class OceanSurface {
     }
     p.set('uTileCount', nTiles).set('uTileRect', rects).tex('uTileArr', f.tileArray ?? this.dummyArray);
     if (f.shore) {
-      p.set('uShoreRect', [f.shore.rect[0] - f.cam[0], f.shore.rect[1] - f.cam[2], f.shore.rect[2], 1])
-        .tex('uShoreSurf', f.shore.surf).tex('uShoreAux', f.shore.aux);
+      p.set('uShoreRect', [f.shore.rect[0] - f.cam[0], f.shore.rect[1] - f.cam[2], f.shore.rect[2], f.shore.fade])
+        .tex('uShoreSurf', f.shore.surf).tex('uShoreAux', f.shore.aux).tex('uShoreExtra', f.shore.extra);
     } else {
-      p.set('uShoreRect', [0, 0, 1, 0]).tex('uShoreSurf', this.dummy).tex('uShoreAux', this.dummy);
+      p.set('uShoreRect', [0, 0, 1, 0]).tex('uShoreSurf', this.dummy).tex('uShoreAux', this.dummy).tex('uShoreExtra', this.dummy);
     }
+    if (f.terrain) {
+      const t = f.terrain;
+      p.set('uTerrainOn', 1).tex('uTFine', t.fine).tex('uTCoarse', t.coarse)
+        .set('uTFineRect', [t.fineRect[0] - f.cam[0], t.fineRect[1] - f.cam[2], t.fineRect[2]])
+        .set('uTCoarseRect', [t.coarseRect[0] - f.cam[0], t.coarseRect[1] - f.cam[2], t.coarseRect[2]]);
+    } else p.set('uTerrainOn', 0).tex('uTFine', this.dummy).tex('uTCoarse', this.dummy);
     const o = f.optics;
     p.tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE)
       .tex('uSlopeLut', ocean.slopeLutTex).set('uLogKMin', stats?.logKMin ?? 0).set('uLogKMax', stats?.logKMax ?? 1)

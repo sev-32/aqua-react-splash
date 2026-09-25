@@ -87,11 +87,17 @@ export class CdlodSelector {
    */
   /** Earth radius for the curvature drop in bounding boxes (0 = flat). */
   earthRadius = 0;
+  /** Optional world-space XZ bounds (terrain): nodes outside are skipped. */
+  bounds: { min: [number, number]; max: [number, number] } | null = null;
+  /** Optional absolute world Y range for boxes (terrain); default is mean sea level ± vertical. */
+  yRange: [number, number] | null = null;
+  private cam: Vec3 = [0, 0, 0];
 
   select(cam: Vec3, planes: Float64Array | null, vertical: number, horizontal: number): CdlodSelection {
     this.fullCount = 0;
     this.halfCount = 0;
     this.maxLevelUsed = 0;
+    this.cam = cam;
     const { levels, leafSize, coverage } = this.cfg;
     const top = levels - 1;
     const topSize = leafSize * Math.pow(2, top);
@@ -118,10 +124,23 @@ export class CdlodSelector {
       const fz = Math.max(Math.abs(z - hor), Math.abs(z + size + hor));
       drop = (fx * fx + fz * fz) / (2 * this.earthRadius);
     }
+    if (this.yRange) {
+      return [
+        [x - hor, this.yRange[0] - this.cam[1] - drop, z - hor],
+        [x + size + hor, this.yRange[1] - this.cam[1], z + size + hor],
+      ];
+    }
     return [
       [x - hor, y0 - vert - drop, z - hor],
       [x + size + hor, y0 + vert, z + size + hor],
     ];
+  }
+
+  private outOfBounds(x: number, z: number, size: number) {
+    const b = this.bounds;
+    if (!b) return false;
+    const wx = x + this.cam[0], wz = z + this.cam[2];
+    return wx > b.max[0] || wz > b.max[1] || wx + size < b.min[0] || wz + size < b.min[1];
   }
 
   private push(arr: 'full' | 'half', x: number, z: number, size: number, level: number) {
@@ -138,6 +157,7 @@ export class CdlodSelector {
   }
 
   private node(x: number, z: number, size: number, level: number, y0: number, planes: Float64Array | null, vert: number, hor: number) {
+    if (this.outOfBounds(x, z, size)) return;
     const [mn, mx] = this.box(x, z, size, y0, vert, hor);
     if (planes && !aabbInFrustum(planes, mn, mx)) return;
     if (level === 0 || !sphereBox(this.ranges[level - 1], mn, mx)) {

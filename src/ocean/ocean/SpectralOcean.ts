@@ -62,6 +62,8 @@ export class SpectralOcean {
   private resolveTargets: LayerTarget[] = [];
   private foamTargets: [LayerTarget, LayerTarget][] = [];
   private foamPing = 0;
+  private probeArray: WebGLTexture | null = null;
+  private probeTargets: LayerTarget[] = [];
   slopeLutTex: WebGLTexture;
 
   // State
@@ -72,6 +74,8 @@ export class SpectralOcean {
   loopPeriod = 0;
   wind = { speed: 9, directionDeg: 38 };
   whitecaps = 0.5;
+  /** Energy-weighted mean propagation direction of the sea (drives the shore wave-maker). */
+  meanWaveDirDeg = 20;
   foam: FoamParams = { foldStart: 0.5, foldFull: 1.0, birth: 3, life: 7, airLife: 1.4, spread: 0.6, coverage: 1, calibrate: true };
   generation = 0;
   /** Per-cascade fold-threshold offsets driven by the Monahan controller. */
@@ -193,6 +197,15 @@ export class SpectralOcean {
     this.wind.speed *= Math.sqrt(Math.max(controls.energy * controls.windSea, 0.01));
     this.whitecaps = (a.whitecaps + (b.whitecaps - a.whitecaps) * t) * Math.max(controls.windSea, 0);
     this.model = makeSpectrumModel(sysA, sysB, t, this.depth);
+    // Circular mean of system directions weighted by each system's variance m0 ≈ αg²/(5ωp⁴).
+    let sx = 0, sz = 0;
+    const acc = (list: typeof this.model.a, w: number) => list.forEach((e) => {
+      const m0 = (e.alphaG2 / (5 * Math.pow(e.wp, 4))) * w;
+      sx += Math.cos(e.dirRad) * m0; sz += Math.sin(e.dirRad) * m0;
+    });
+    acc(this.model.a, 1 - t);
+    acc(this.model.b, t);
+    this.meanWaveDirDeg = (Math.atan2(sz, sx) * 180) / Math.PI;
     this.generateH0(sysA, sysB, t);
     if (opts.rebuildStats !== false) this.rebuildCpuProducts();
     this.generation++;
@@ -242,8 +255,8 @@ export class SpectralOcean {
     p.set('uN', this.layout.n).set('uSizes', sizes).set('uKLo', lo).set('uKHi', hi);
   }
 
-  /** Advance to absolute time t (seconds). */
-  update(time: number, dt: number) {
+  /** Evolve + inverse-FFT all cascades at absolute time t into the work atlas; returns the index holding the result. */
+  private synthesize(time: number): number {
     const gl = this.gl;
     const n = this.layout.n;
     gl.disable(gl.BLEND);
@@ -271,6 +284,39 @@ export class SpectralOcean {
         src = dst;
       }
     }
+    return src;
+  }
+
+  /**
+   * Displacement at an arbitrary time into a scratch array (no derivatives,
+   * foam or mips). JIT tiles spinning up on their own lagging clock read this,
+   * so their wave-maker sees a moving sea instead of one frozen frame.
+   */
+  evaluateAt(time: number): WebGLTexture {
+    const gl = this.gl;
+    const n = this.layout.n;
+    if (!this.probeArray) {
+      this.probeArray = createTextureArray(gl, n, n, this.cascades, { ...FMT.rgba32f(gl), filter: this.caps.floatLinear ? gl.LINEAR : gl.NEAREST, wrap: gl.REPEAT });
+      for (let c = 0; c < this.cascades; c++) this.probeTargets.push(new LayerTarget(gl, n, n, [{ tex: this.probeArray, layer: c }]));
+    }
+    const src = this.synthesize(time);
+    const pr = this.progResolve.use();
+    pr.set('uN', n).set('uChop', this.choppiness)
+      .tex('uSrcA', this.work[src].textures[0]).tex('uSrcB', this.work[src].textures[1]);
+    for (let c = 0; c < this.cascades; c++) {
+      pr.set('uCascade', c);
+      this.probeTargets[c].bind();
+      this.quad.draw();
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return this.probeArray;
+  }
+
+  /** Advance to absolute time t (seconds). */
+  update(time: number, dt: number) {
+    const gl = this.gl;
+    const n = this.layout.n;
+    const src = this.synthesize(time);
 
     // 3. Resolve each cascade + mips.
     const pr = this.progResolve.use();
@@ -337,6 +383,8 @@ export class SpectralOcean {
     this.h0.dispose();
     this.work.forEach((w) => w.dispose());
     this.resolveTargets.forEach((t) => t.dispose());
+    this.probeTargets.forEach((t) => t.dispose());
+    if (this.probeArray) gl.deleteTexture(this.probeArray);
     this.foamTargets.forEach((p) => p.forEach((t) => t.dispose()));
     [this.dispArray, this.derivArray, ...this.foamArrays].forEach((t) => gl.deleteTexture(t));
     gl.deleteTexture(this.noiseTex);

@@ -7,12 +7,14 @@
  */
 
 export type GL = WebGL2RenderingContext;
+/** The two enums of EXT_disjoint_timer_query_webgl2 the timers use. */
+export interface TimerExt { TIME_ELAPSED_EXT: GLenum; GPU_DISJOINT_EXT: GLenum }
 
 export interface GLCaps {
   floatLinear: boolean;
   anisotropic: EXT_texture_filter_anisotropic | null;
   maxAniso: number;
-  timer: any | null; // EXT_disjoint_timer_query_webgl2
+  timer: TimerExt | null; // EXT_disjoint_timer_query_webgl2
   maxDrawBuffers: number;
   maxSamples: number;
 }
@@ -87,7 +89,8 @@ export class Program {
     if (unit > 16) {
       const msg = `[${name}] binds ${unit} sampler units (> 16 portable limit)`;
       console.warn(msg);
-      ((globalThis as any).__THALASSA_SAMPLER_WARNINGS__ ??= []).push(msg);
+      const g = globalThis as unknown as { __THALASSA_SAMPLER_WARNINGS__?: string[] };
+      (g.__THALASSA_SAMPLER_WARNINGS__ ??= []).push(msg);
     }
     this.samplerUnits = unit;
     gl.useProgram(this.handle);
@@ -135,7 +138,7 @@ export class Program {
   set(name: string, value: number | boolean | ArrayLike<number>): this {
     const u = this.uniforms.get(name);
     if (!u) {
-      if (!this.warned.has(name) && (globalThis as any).__THALASSA_DEBUG_UNIFORMS__) {
+      if (!this.warned.has(name) && (globalThis as unknown as { __THALASSA_DEBUG_UNIFORMS__?: boolean }).__THALASSA_DEBUG_UNIFORMS__) {
         this.warned.add(name);
         console.warn(`[${this.name}] inactive uniform ${name}`);
       }
@@ -354,7 +357,7 @@ export class GpuTimers {
   private pending: { label: string; q: WebGLQuery }[] = [];
   private active: string | null = null;
   readonly ms = new Map<string, number>();
-  constructor(private gl: GL, private ext: any | null) {}
+  constructor(private gl: GL, private ext: TimerExt | null) {}
 
   get enabled() {
     return !!this.ext;

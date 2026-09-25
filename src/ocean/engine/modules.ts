@@ -1,9 +1,14 @@
 import type { OceanEngine } from './OceanEngine';
 import { BodiesModule } from '../modules/bodiesModule';
 import { InteractionModule } from '../modules/interactionModule';
+import { WorldModule } from '../modules/worldModule';
+import { ShoreModule } from '../modules/shoreModule';
+import { beachPose } from '../world/terrain';
 import { registerAction, oceanActions } from './actions';
 
 export interface StandardModules {
+  world: WorldModule;
+  shore: ShoreModule;
   bodies: BodiesModule;
   interaction: InteractionModule;
 }
@@ -13,8 +18,10 @@ export interface StandardModules {
  * installed, bodies request their own interaction tiles (direct JIT policy).
  */
 export function installStandardModules(engine: OceanEngine): StandardModules {
+  const world = engine.addModule(new WorldModule(engine)) as WorldModule;
   const bodies = engine.addModule(new BodiesModule(engine)) as BodiesModule;
   const interaction = engine.addModule(new InteractionModule(engine, bodies)) as InteractionModule;
+  const shore = engine.addModule(new ShoreModule(engine, world)) as ShoreModule;
 
   const directTiles = {
     name: 'tile-policy',
@@ -58,7 +65,20 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
       pitchDeg: (-Math.atan2(h, Math.hypot(dx, dz)) * 180) / Math.PI,
     });
   });
-  engine.onPick = (world) => { if (world) oceanActions.click(engine, world); };
-  (window as unknown as { __THALASSA_MODULES__: StandardModules }).__THALASSA_MODULES__ = { bodies, interaction };
-  return { bodies, interaction };
+  registerAction('goToShore', (e, arg) => {
+    if (e.settings.shore.enabled) shore.promote();
+    const { shore: s } = beachPose(world.world.params);
+    const view = (arg as string) ?? 'surf';
+    if (view === 'beach') {
+      e.camera.setPose({ position: [s[0] + 18, 3.2, s[1] - 10], yawDeg: 172, pitchDeg: -6, fovDeg: 60 });
+    } else if (view === 'aerial') {
+      e.camera.setPose({ position: [s[0] - 60, 70, s[1] - 170], yawDeg: 62, pitchDeg: -26, fovDeg: 55 });
+    } else {
+      e.camera.setPose({ position: [s[0] - 150, 7, s[1] - 55], yawDeg: 12, pitchDeg: -6, fovDeg: 58 });
+    }
+  });
+  engine.onPick = (w) => { if (w) oceanActions.click(engine, w); };
+  const mods = { world, shore, bodies, interaction };
+  (window as unknown as { __THALASSA_MODULES__: StandardModules }).__THALASSA_MODULES__ = mods;
+  return mods;
 }

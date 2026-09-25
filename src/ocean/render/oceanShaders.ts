@@ -16,8 +16,8 @@ import { SKY_COMMON_GLSL } from './sky';
 
 export const MAX_TILES = 4;
 export const MAX_LEVELS = 16;
-// Sampler budget: the fragment stage binds 11 units (cascade arrays ×3, tile array,
-// shore ×2, env, slope LUT, tier map, scene colour/depth) — inside the 16-unit floor.
+// Sampler budget: the fragment stage binds 13 units (cascade arrays ×3, tile array,
+// shore ×2, terrain ×2, env, slope LUT, tier map, scene colour/depth) — inside the 16-unit floor.
 
 export const OCEAN_COMMON_GLSL = /* glsl */ `
 #define PI 3.14159265358979
@@ -35,10 +35,23 @@ uniform int uTileCount;
 uniform vec4 uTileRect[${MAX_TILES}];
 uniform sampler2DArray uTileArr;  // (η, ∂η/∂x, ∂η/∂z, foam) — fade pre-applied
 
-// ── T2 shore field (shallow water): rect = (relMinX, relMinZ, size, enabled)
+// ── T2 shore field (shallow water): rect = (relMinX, relMinZ, size, fade)
 uniform vec4 uShoreRect;
-uniform sampler2D uShoreSurf;    // (η_total, slopeX, slopeZ, water depth h)
-uniform sampler2D uShoreAux;     // (foam, breaking, lipOffset, lipLift)
+uniform sampler2D uShoreSurf;    // (η + lip lift, slopeX, slopeZ, water depth h)
+uniform sampler2D uShoreAux;     // (foam cover, breaking E, lip+chop dx, dz)
+
+// ── T1 depth-limited shoaling outside the solver tile (terrain heights)
+uniform int uTerrainOn;
+uniform sampler2D uTFine;  uniform vec3 uTFineRect;    // camera-relative min, size
+uniform sampler2D uTCoarse; uniform vec3 uTCoarseRect;
+float bedAt(vec2 rel){
+  if (uTerrainOn == 0) return -1e4;
+  vec2 uf = (rel - uTFineRect.xy)/uTFineRect.z;
+  if (all(greaterThan(uf, vec2(0.0))) && all(lessThan(uf, vec2(1.0)))) return textureLod(uTFine, uf, 0.0).r;
+  vec2 uc = (rel - uTCoarseRect.xy)/uTCoarseRect.z;
+  if (all(greaterThan(uc, vec2(0.0))) && all(lessThan(uc, vec2(1.0)))) return textureLod(uTCoarse, uc, 0.0).r;
+  return -1e4;
+}
 
 vec2 cascadeUv(vec2 rel, int c){ return (rel + uCamOffset[c])/uSizes[c]; }
 
@@ -52,10 +65,10 @@ float tileWeight(vec2 rel, vec4 r, out vec2 uv){
 /** How much of the open-ocean spectrum survives at this point of the shore field (0 on the beach). */
 float shoreOpenOcean(vec2 rel, out vec2 suv, out float inside){
   inside = 0.0; suv = vec2(0.0);
-  if (uShoreRect.w < 0.5) return 1.0;
+  if (uShoreRect.w <= 0.0) return 1.0;
   suv = (rel - uShoreRect.xy)/uShoreRect.z;
   vec2 e = min(suv, 1.0 - suv);
-  inside = smoothstep(0.0, 0.08, min(e.x, e.y))*step(0.0, min(e.x, e.y));
+  inside = smoothstep(0.0, 0.08, min(e.x, e.y))*step(0.0, min(e.x, e.y))*uShoreRect.w;
   return 1.0 - inside;
 }
 `;
@@ -72,6 +85,7 @@ uniform float uP;
 uniform vec2 uMorph[${MAX_LEVELS}];
 uniform float uEarthRadius;
 uniform float uGeoLodBias;
+uniform float uSigHeightV;
 out vec3 vRel;       // camera-relative displaced position
 out vec2 vParam;     // camera-relative undisplaced (parameter) position
 out float vSpacing;
@@ -79,6 +93,7 @@ out float vLevel;
 out float vMorph;
 out float vHeight;   // η (m) for crest effects
 out vec4 vShore;     // x: shore weight, y: water depth, z: foam, w: breaking
+out float vOpen;     // open-ocean spectrum weight after shore blending and T1 shoaling
 void main(){
   int level = int(aNode.w);
   float spacing = aNode.z/uP;
@@ -92,13 +107,21 @@ void main(){
 
   vec2 suv; float inside;
   float open = shoreOpenOcean(rel, suv, inside);
+  // T1: outside the solver tile, depth-limited breaking caps the open-ocean spectrum
+  // (H ≤ γ·d). A shader-level approximation by design; wet/dry truth lives in T2.
+  float bedV = bedAt(rel);
+  float depthV = max(-bedV, 0.0);
+  float shoal = clamp(depthV/(1.3*uSigHeightV + 0.4), 0.0, 1.0);
+  shoal = mix(0.12, 1.0, shoal*shoal*(3.0 - 2.0*shoal));
+  open *= mix(1.0, shoal, 1.0 - inside);
+  vOpen = open;
   vec3 d = vec3(0.0);
   // Inside the shore field, only the chop the shallow solver cannot carry survives.
   for (int c = 0; c < 4; c++){
     if (c >= uCascadeCount) break;
     float lod = max(log2(effSpacing/(uSizes[c]/uTexN)) + uGeoLodBias, 0.0);
     vec4 s = textureLod(uDispArr, vec3(cascadeUv(rel, c), float(c)), lod);
-    float keep = c == uCascadeCount - 1 ? mix(1.0, 0.35, inside) : open;
+    float keep = c == uCascadeCount - 1 ? mix(1.0, 0.35, inside)*mix(1.0, shoal, 0.6) : open;
     d += s.xyz*keep;
   }
   // T3 interaction tiles (linear superposition of dispersive local fields).
@@ -112,11 +135,9 @@ void main(){
     vec4 s = textureLod(uShoreSurf, suv, 0.0);
     vec4 a = textureLod(uShoreAux, suv, 0.0);
     // Shallow-water surface replaces the open-ocean mean surface; the overturning lip
-    // (WaveLab ballistic sheet) is applied as a forward/up offset along the break direction.
+    // (WaveLab ballistic sheet) arrives pre-computed as a horizontal offset + lift in η.
     d.y += s.x*inside;
-    vec2 dir = normalize(vec2(s.y, s.z) + vec2(1e-5, 0.0));
-    d.xz += -dir*a.z*inside;
-    d.y += a.w*inside;
+    d.xz += a.zw*inside;                 // overturning lip + crest sharpening
     vShore = vec4(inside, s.w, a.x, a.y);
   }
   vec3 p = vec3(rel.x + d.x, d.y - uCamHeight, rel.y + d.z);
@@ -142,6 +163,7 @@ in float vLevel;
 in float vMorph;
 in float vHeight;
 in vec4 vShore;
+in float vOpen;
 out vec4 outColor;
 
 uniform float uCamHeight;
@@ -166,6 +188,7 @@ uniform int uDebug;
 uniform float uFoamGain;
 uniform float uFoamLife;
 uniform sampler2DArray uFoamArr;  // layer = cascade: (mass, mass·age, air, coverage)
+uniform sampler2D uShoreExtra;  // (wetness, bubbles, foam-on-sand, age)
 uniform sampler2D uTierMap;     // scheduler tier overlay (debug)
 uniform vec4 uTierRect;         // rel minX, minZ, size, 1
 // Screen-space refraction (scene behind the water: terrain, hulls)
@@ -277,6 +300,9 @@ vec3 tierColor(float t){
 }
 
 void main(){
+  // Wet/dry is decided by the solver (W4): dry cells of the shore field are not water.
+  // Per-fragment from the filtered depth (the mesh is far coarser than the solver grid).
+  if (vShore.x > 0.5 && texture(uShoreSurf, (vParam - uShoreRect.xy)/uShoreRect.z).w < 0.003) discard;
   vec3 rel = vRel;
   float dist = length(rel);
   vec3 V = -rel/dist;
@@ -285,7 +311,7 @@ void main(){
   // ── normal from summed cascades (exact choppy-surface cross product) ──
   float Sx = 0.0, Sz = 0.0, Dxx = 0.0, Dzz = 0.0, Dxz = 0.0;
   float foamMass = 0.0, foamAge = 0.0, foamAir = 0.0;
-  float open = 1.0 - vShore.x;
+  float open = vOpen;
   for (int c = 0; c < 4; c++){
     if (c >= uCascadeCount) break;
     vec3 uv = vec3(cascadeUv(vParam, c), float(c));
@@ -302,11 +328,14 @@ void main(){
     vec2 tuv; float w = tileWeight(vParam, uTileRect[t], tuv);
     if (w > 0.0){ vec4 s = texture(uTileArr, vec3(tuv, uTileRect[t].w)); Sx += w*s.y; Sz += w*s.z; localFoam = max(localFoam, w*s.w); }
   }
+  float shoreMass = 0.0, shoreAge01 = 0.0;
   if (vShore.x > 0.0){
     vec2 suv = (vParam - uShoreRect.xy)/uShoreRect.z;
     vec4 s = texture(uShoreSurf, suv);
     Sx += s.y*vShore.x; Sz += s.z*vShore.x;
-    localFoam = max(localFoam, vShore.z*vShore.x);
+    // Surf foam is extensive (mass, age) like whitecap foam, so it ages into lace the same way.
+    shoreMass = vShore.z*vShore.x*0.55;
+    shoreAge01 = sat(texture(uShoreExtra, suv).w/9.0);
   }
   float J = (1.0 + Dxx)*(1.0 + Dzz) - Dxz*Dxz;
   vec3 n = vec3(Sz*Dxz - (1.0 + Dzz)*Sx, max(J, 0.08), Dxz*Sx - Sz*(1.0 + Dxx));
@@ -357,18 +386,37 @@ void main(){
       }
     }
     // Aeration glow under fresh foam (Foam Foundry): bubbles scatter strongly, milky turquoise.
-    float air = sat(foamAir*0.45 + localFoam*0.3);
+    float shoreBubbles = 0.0;
+    if (vShore.x > 0.0) shoreBubbles = texture(uShoreExtra, (vParam - uShoreRect.xy)/uShoreRect.z).y*vShore.x;
+    float air = sat(foamAir*0.45 + localFoam*0.3 + shoreBubbles*0.8);
     transmitted += air*(uSkyE + uSunE*max(uSunDir.y, 0.0))*vec3(0.035, 0.085, 0.085);
 
     col = mix(transmitted, refl, Fv) + sunGlitter(n, V, mom)*(1.0 - sat(foamMass));
 
     // ── whitecap + interaction foam ──
-    float mass = foamMass*uFoamGain + localFoam;
+    // T1 parametric surf outside the solver tile: depth-limited breaking statistics
+    // (Battjes–Janssen: the share of waves higher than γ·d breaks). Whitewater rides the
+    // resolved crests; a residual band of old lace stays behind; run-up stays foamy.
+    // Matches the T2 surf-zone statistics at the tile edge, so the seam carries no step.
+    float t1Mass = 0.0, t1Age = 0.0;
+    if (uTerrainOn == 1 && vShore.x < 0.999){
+      float dB = -bedAt(vParam);
+      if (dB > -0.6 && dB < 4.0*uSigHeight + 2.0){
+        float Hmax = 0.73*max(dB, 0.0) + 0.08;
+        float Qb = smoothstep(0.3, 1.25, 0.707*uSigHeight/Hmax);
+        float crestT1 = smoothstep(0.15, 0.5, vHeight/Hmax);
+        float runup = smoothstep(0.6, 0.0, dB);
+        t1Mass = (Qb*(0.16 + 0.85*crestT1) + runup*0.3)*(1.0 - vShore.x)*0.8;
+        t1Age = mix(0.62, 0.06, crestT1);
+      }
+    }
+    float mW = foamMass*uFoamGain;
+    float mass = mW + localFoam + shoreMass + t1Mass;
     if (mass > 0.004){
       float ageW = sat((foamAge/max(foamMass, 1e-3))/max(uFoamLife, 0.1));
       // Interaction foam carries no age channel: thinning mass reads as ageing lace.
       float ageL = 1.0 - smoothstep(0.08, 0.7, localFoam);
-      float age01 = mix(ageW, ageL, localFoam/max(mass, 1e-3));
+      float age01 = (ageW*mW + ageL*localFoam + shoreAge01*shoreMass + t1Age*t1Mass)/max(mass, 1e-4);
       vec2 q = (vParam + uCamOffset[0])*1.1;
       float cover = foamTopology(q, mass, age01, footprint);
       float ndl = max(dot(n, uSunDir), 0.0);

@@ -32,7 +32,7 @@ const Ocean = () => {
     } catch (e) {
       console.error(e);
       setError(String((e as Error)?.message ?? e));
-      (window as any).__THALASSA__ = { ready: true, error: String((e as Error)?.message ?? e) };
+      (window as unknown as { __THALASSA__: unknown }).__THALASSA__ = { ready: true, error: String((e as Error)?.message ?? e) };
     }
     const off = eng?.onTelemetry(setTelemetry);
     return () => {

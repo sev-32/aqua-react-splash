@@ -71,7 +71,7 @@ export class FlyController {
   private disposers: (() => void)[] = [];
 
   constructor(private el: HTMLElement, private cam: Camera, private onPick?: (ndcX: number, ndcY: number, e: MouseEvent) => void) {
-    const on = <K extends keyof HTMLElementEventMap>(t: EventTarget, type: K | string, fn: (e: any) => void, opts?: AddEventListenerOptions) => {
+    const on = <K extends keyof HTMLElementEventMap>(t: EventTarget, type: K | string, fn: (e: never) => void, opts?: AddEventListenerOptions) => {
       t.addEventListener(type, fn, opts);
       this.disposers.push(() => t.removeEventListener(type, fn, opts));
     };

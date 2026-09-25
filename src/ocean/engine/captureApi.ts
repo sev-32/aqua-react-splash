@@ -23,14 +23,15 @@ export interface ThalassaApi {
   action(name: string, arg?: unknown): void;
 }
 
-function setPath(obj: any, path: string, value: unknown) {
+type Bag = Record<string, unknown>;
+function setPath(obj: unknown, path: string, value: unknown) {
   const keys = path.split('.');
-  let o = obj;
-  for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]];
+  let o = obj as Bag;
+  for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]] as Bag;
   o[keys[keys.length - 1]] = value;
 }
-function getPath(obj: any, path: string) {
-  return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
+function getPath(obj: unknown, path: string) {
+  return path.split('.').reduce<unknown>((o, k) => (o == null ? o : (o as Bag)[k]), obj);
 }
 
 export function installCaptureApi(engine: OceanEngine) {
@@ -67,8 +68,10 @@ export function installCaptureApi(engine: OceanEngine) {
       if (typeof fn === 'function') fn.call(oceanActions, engine, arg);
     },
   };
-  (window as any).__THALASSA__ = api;
-  (window as any).__THALASSA_PRESETS__ = CAMERA_PRESETS.map((p) => p.id);
+  const w = window as unknown as Bag;
+  w.__THALASSA__ = api;
+  w.__THALASSA_ENGINE__ = engine;   // diagnostics / probes
+  w.__THALASSA_PRESETS__ = CAMERA_PRESETS.map((p) => p.id);
   api.ready = true;
   return api;
 }
