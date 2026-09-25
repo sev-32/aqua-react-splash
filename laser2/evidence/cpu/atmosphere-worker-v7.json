@@ -1,0 +1,28 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7",
+  "test": "pure CPU worker-job atmosphere LUT",
+  "firstOrder": {
+    "computeMs": 20.354081,
+    "finalEnergy": 327.4916057768278
+  },
+  "fourthOrder": {
+    "computeMs": 11.616177000000008,
+    "firstOrderEnergy": 327.4916057768278,
+    "finalEnergy": 336.68185677053407
+  },
+  "energyRatio": 1.0280625543726731,
+  "changedChannels": 3456,
+  "maxDifference": 0.015680313110351562,
+  "minValue": 0.0067696222104132175,
+  "maxValue": 0.9836508631706238,
+  "checks": {
+    "dimensions": true,
+    "finite": true,
+    "positive": true,
+    "higherOrdersIncreaseEnergy": true,
+    "higherOrdersChangeAngularField": true,
+    "bounded": true
+  },
+  "allChecksPassed": true,
+  "truthBoundary": "Orders 2–4 are a bounded angular redistribution approximation, not a full spectral multiple-scattering precomputation."
+}

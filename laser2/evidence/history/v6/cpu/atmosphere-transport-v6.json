@@ -1,0 +1,315 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V6_ATMOSPHERE_TRANSPORT_PROBES",
+  "lane": "pure Node CPU; no WebGL or GPU",
+  "spectral": {
+    "noonSolar": {
+      "rgb": {
+        "r": 7.328262588742613e+29,
+        "g": 6.081610641820749e+29,
+        "b": 4.845551179703287e+29
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.8298843782103386,
+        "b": 0.6612141856306885
+      },
+      "photopicTransmission": 0.8259371976522365,
+      "colorTemperatureApproxK": 5345.383309795807,
+      "samples": 15
+    },
+    "sunsetSolar": {
+      "rgb": {
+        "r": 6.906162526008039e+28,
+        "g": 2.57892416127912e+28,
+        "b": 1.8311366073915804e+27
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.37342361283377046,
+        "b": 0.026514531051009455
+      },
+      "photopicTransmission": 0.04389981535627696,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "sunsetWithoutOzone": {
+      "rgb": {
+        "r": 2.339827831459724e+29,
+        "g": 7.440091425448469e+28,
+        "b": 0
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.3179760205180095,
+        "b": 0
+      },
+      "photopicTransmission": 0.13575616662799816,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "sunsetWithDenseOzone": {
+      "rgb": {
+        "r": 2.5897281378618016e+28,
+        "g": 1.1230087245060578e+28,
+        "b": 2.3424536955688587e+27
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.43363961957538344,
+        "b": 0.09045172199051349
+      },
+      "photopicTransmission": 0.018091838008903002,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "ozoneDifference": 0.20611532104788743
+  },
+  "scattering": {
+    "singleScatter": {
+      "r": 0.4880999875378739,
+      "g": 0.2308745250230101,
+      "b": 0.028381393720108408
+    },
+    "higherOrder": {
+      "r": 0.6058968074024309,
+      "g": 0.36164473528339247,
+      "b": 0.1790572770832365
+    },
+    "singleLuminance": 0.27094065427360065,
+    "higherOrderLuminance": 0.40038991133384877
+  },
+  "sphericalHarmonics": {
+    "coefficients": [
+      {
+        "r": 0.28368562005004855,
+        "g": 0.301178327291723,
+        "b": 0.3078426367261701
+      },
+      {
+        "r": 0.138065174420438,
+        "g": 0.1773284077971413,
+        "b": 0.22711803113264128
+      },
+      {
+        "r": -0.012342570021572337,
+        "g": -0.003659138175620792,
+        "b": -0.006822222581857487
+      },
+      {
+        "r": -0.02160622448026589,
+        "g": -0.020725193291965784,
+        "b": -0.015614033397108951
+      },
+      {
+        "r": -0.007667038111648405,
+        "g": -0.009151397281897868,
+        "b": -0.01145426568161158
+      },
+      {
+        "r": 0.0014425860970609617,
+        "g": 0.001016399961807534,
+        "b": 0.000407524815380851
+      },
+      {
+        "r": 0.04126404303547327,
+        "g": 0.019602600920732037,
+        "b": -0.0009938067271592925
+      },
+      {
+        "r": -0.05921768760187528,
+        "g": -0.03480034014810987,
+        "b": -0.009364733158136827
+      },
+      {
+        "r": 0.1715603679698483,
+        "g": 0.15706075778812037,
+        "b": 0.09798841114707693
+      }
+    ],
+    "samples": 48,
+    "elapsedMs": 4.704558999999996
+  },
+  "whiteBalance": {
+    "wbWarm": {
+      "r": 0.8261546218283479,
+      "g": 1,
+      "b": 1.2036803035855772
+    },
+    "wbNeutral": {
+      "r": 0.9965101328455601,
+      "g": 1,
+      "b": 1.0162699747407977
+    },
+    "wbCool": {
+      "r": 1.0633455003970904,
+      "g": 1,
+      "b": 0.8739607064832815
+    },
+    "warmBudget": {
+      "r": 0.8261546218283479,
+      "g": 1,
+      "b": 1.2036803035855772
+    },
+    "coolBudget": {
+      "r": 1.0633455003970904,
+      "g": 1,
+      "b": 0.8739607064832815
+    }
+  },
+  "radiometric": {
+    "noon": {
+      "revision": 1,
+      "sunDirection": {
+        "x": 0.28678821817552325,
+        "y": 0.8660254037844386,
+        "z": -0.4095760221444959
+      },
+      "sunTransmittance": {
+        "r": 0.9672834545900837,
+        "g": 0.8027334282656399,
+        "b": 0.6395815417008212
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.8259371976522365,
+      "spectralColorTemperatureApproxK": 5345.383309795807,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 96390.77638328765,
+        "g": 80273.34282656398,
+        "b": 64998.751722897396
+      },
+      "directNormalLux": 82597.08372303871,
+      "directHorizontalRgbLux": {
+        "r": 83476.86103843221,
+        "g": 69518.75413450174,
+        "b": 56290.57020630669
+      },
+      "directHorizontalLux": 71531.17278266167,
+      "skyIrradianceRgbLux": {
+        "r": 8079.244528292507,
+        "g": 14623.117860973876,
+        "b": 27344.56278267408
+      },
+      "skyIrradianceLux": 14150.37871379257,
+      "groundBounceRgbLux": {
+        "r": 2636.8158403216717,
+        "g": 2423.2859134696973,
+        "b": 2408.691830082646
+      },
+      "groundBounceLux": 2467.628683097882,
+      "totalHorizontalLux": 85681.55149645424,
+      "rendererExposure": 1,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.8327907071457292,
+        "b": 0.6743254298983626
+      },
+      "sunRendererIntensity": 3.0845048442652048,
+      "hemisphereSkyColor": {
+        "r": 0.2954607317185425,
+        "g": 0.5347724144355053,
+        "b": 0.9999999999999999
+      },
+      "hemisphereGroundColor": {
+        "r": 0.0964292558370104,
+        "g": 0.0886203934847745,
+        "b": 0.08808668287096653
+      },
+      "hemisphereIntensity": 1.5191423768152266,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 1.244453
+    },
+    "sunset": {
+      "revision": 1,
+      "sunDirection": {
+        "x": 0.573227029083538,
+        "y": 0.03489949670250097,
+        "z": -0.8186530389963582
+      },
+      "sunTransmittance": {
+        "r": 0.09115657797775353,
+        "g": 0.034040018682016046,
+        "b": 0.002416973917294911
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.04389981535627696,
+      "spectralColorTemperatureApproxK": 1700,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 9083.845363035784,
+        "g": 3404.0018682016043,
+        "b": 245.6298021878466
+      },
+      "directNormalLux": 4383.502132037157,
+      "directHorizontalRgbLux": {
+        "r": 317.021631293296,
+        "g": 118.79795197460903,
+        "b": 8.572356471490718
+      },
+      "directHorizontalLux": 152.98201820243676,
+      "skyIrradianceRgbLux": {
+        "r": 5494.2888044989095,
+        "g": 6128.478364147255,
+        "b": 8842.266065181127
+      },
+      "skyIrradianceLux": 6189.585135780662,
+      "groundBounceRgbLux": {
+        "r": 167.36574055081553,
+        "g": 179.92155790430968,
+        "b": 254.90414654359537
+      },
+      "groundBounceLux": 182.66593403471325,
+      "totalHorizontalLux": 6342.567153983099,
+      "rendererExposure": 1,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.3747313755530511,
+        "b": 0.02704028881726341
+      },
+      "sunRendererIntensity": 0.2906830516171451,
+      "hemisphereSkyColor": {
+        "r": 0.6213666003711644,
+        "g": 0.693089115275533,
+        "b": 1
+      },
+      "hemisphereGroundColor": {
+        "r": 0.018927924054430403,
+        "g": 0.020347901383877227,
+        "b": 0.028827920881882428
+      },
+      "hemisphereIntensity": 0.49123700362117373,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 1.2821950000000015
+    }
+  },
+  "checks": {
+    "spectral_sample_count_15": true,
+    "spectral_values_finite": true,
+    "low_sun_warmer_than_noon": true,
+    "low_sun_less_photopic_energy": true,
+    "ozone_changes_solar_spectrum": true,
+    "higher_order_restores_horizon_energy": true,
+    "higher_order_remains_finite": true,
+    "sh_has_nine_finite_coefficients": true,
+    "sh_sample_count_exact": true,
+    "white_balance_monotonic": true,
+    "white_balance_changes_budget": true,
+    "noon_energy_exceeds_sunset": true,
+    "radiometric_budget_reports_spectrum": true
+  },
+  "allChecksPassed": true
+}

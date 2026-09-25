@@ -1,0 +1,53 @@
+{
+  "schema": "laser2-semantic-scene-v2",
+  "version": "2026-07-15",
+  "coordinateSystem": "Three.js RH, +Y up; legacy design transforms preserved",
+  "source": "LASER2_RIGGING_LAB_V17_SAIL_OPTICS_STANDALONE",
+  "bindings": {
+    "boatChildren": [
+      [0, "hull.shell", "Hull shell"],
+      [1, "hull.deck", "Deck and cockpit moulding"],
+      [2, "hull.transom", "Transom panel"],
+      [3, "hull.stem", "Bow stem cap"],
+      [4, "hull.cockpit.sole", "Cockpit sole"],
+      [5, "hull.cockpit.side.port", "Port cockpit sidewall"],
+      [6, "hull.gunwale.port", "Port inner gunwale"],
+      [7, "hull.bench.port", "Port side deck"],
+      [8, "hull.cockpit.side.starboard", "Starboard cockpit sidewall"],
+      [9, "hull.gunwale.starboard", "Starboard inner gunwale"],
+      [10, "hull.bench.starboard", "Starboard side deck"],
+      [11, "hull.forward-bulkhead", "Forward cockpit bulkhead"],
+      [12, "hull.rubrail", "Gunwale rub rail"],
+      [13, "hull.mast-collar", "Mast step collar"],
+      [14, "hull.bow-fitting", "Bow fitting"],
+      [15, "hull.chainplate.port", "Port shroud chainplate"],
+      [16, "hull.chainplate.starboard", "Starboard shroud chainplate"],
+      [17, "hull.transom-eye.port", "Port transom eye"],
+      [18, "hull.transom-eye.starboard", "Starboard transom eye"],
+      [19, "hull.mainsheet-swivel", "Mainsheet swivel base"],
+      [20, "hull.hiking-strap.port", "Port hiking strap"],
+      [21, "hull.hiking-strap.starboard", "Starboard hiking strap"],
+      [22, "hull.jib-control.port", "Port jib control fitting"],
+      [23, "hull.jib-control.starboard", "Starboard jib control fitting"],
+      [24, "steering.centerboard", "Centerboard blade"],
+      [25, "hull.centerboard-case", "Centerboard case"],
+      [26, "steering.rudder-stock", "Rudder stock and pivot"],
+      [27, "steering.tiller-extension", "Tiller extension"],
+      [28, "hull.equipment-marker", "Forward equipment marker"],
+      [29, "hull.bow-eye", "Bow eye and handle"],
+      [30, "crew.helm", "Helm"],
+      [31, "crew.forward", "Forward crew"]
+    ],
+    "rigChildren": [
+      [0, "rig.mast", "Mast"],
+      [1, "rig.boom", "Boom"],
+      [2, "rig.spreader.port", "Port spreader"],
+      [3, "rig.spreader.starboard", "Starboard spreader"],
+      [4, "rig.shroud.upper.port", "Port upper shroud"],
+      [5, "rig.shroud.upper.starboard", "Starboard upper shroud"],
+      [6, "rig.shroud.lower.port", "Port lower shroud"],
+      [7, "rig.shroud.lower.starboard", "Starboard lower shroud"],
+      [8, "rig.forestay", "Forestay"]
+    ]
+  }
+}

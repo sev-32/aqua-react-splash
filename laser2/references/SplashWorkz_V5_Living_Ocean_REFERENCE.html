@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SplashWorkz V5 — Living Ocean</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#e0e0e0}
+#c{display:block;width:100vw;height:100vh}
+#ui{position:fixed;top:0;right:0;width:270px;height:100vh;background:rgba(8,12,20,0.82);backdrop-filter:blur(18px) saturate(1.4);border-left:1px solid rgba(80,140,255,0.1);overflow-y:auto;z-index:10;transition:transform .35s cubic-bezier(.4,0,.2,1);scrollbar-width:thin;scrollbar-color:rgba(80,140,255,0.25) transparent}
+#ui::-webkit-scrollbar{width:5px}#ui::-webkit-scrollbar-thumb{background:rgba(80,140,255,0.25);border-radius:3px}
+#ui.hidden{transform:translateX(270px)}
+.utitle{padding:14px 16px 6px;font-size:13px;font-weight:700;color:#b0c8ff;letter-spacing:.8px;border-bottom:1px solid rgba(80,140,255,0.08)}
+.usub{padding:2px 16px 10px;font-size:9px;color:#3a5580;letter-spacing:.5px}
+.panel{border-bottom:1px solid rgba(80,140,255,0.06)}
+.ph{padding:9px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:#6880aa;transition:color .2s}
+.ph:hover{color:#90b0ff}
+.ph .ar{transition:transform .2s;font-size:8px}
+.ph.cc .ar{transform:rotate(-90deg)}
+.pb{padding:2px 16px 10px}
+.pb.cc{display:none}
+.ctrl{margin:5px 0;display:flex;align-items:center;gap:6px}
+.ctrl label{font-size:9.5px;color:#5a7090;min-width:68px;flex-shrink:0}
+.ctrl input[type=range]{flex:1;height:3px;-webkit-appearance:none;background:rgba(80,140,255,0.12);border-radius:2px;outline:none}
+.ctrl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#3a7ad4;cursor:pointer;border:2px solid #1a3050;box-shadow:0 0 6px rgba(58,122,212,0.4)}
+.ctrl .vl{font-size:9px;color:#4a6a8a;min-width:32px;text-align:right;font-family:'Courier New',monospace}
+.presets{display:flex;flex-wrap:wrap;gap:3px;padding:6px 16px}
+.pbtn{padding:3px 7px;font-size:8.5px;background:rgba(40,60,100,0.35);border:1px solid rgba(60,100,160,0.25);color:#7090bb;border-radius:3px;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.4px}
+.pbtn:hover{background:rgba(60,100,160,0.45);color:#fff;border-color:rgba(100,160,220,0.5)}
+.pbtn.active{background:rgba(50,100,180,0.45);color:#fff;border-color:rgba(80,160,255,0.6)}
+#dbg{position:fixed;top:10px;left:10px;background:rgba(8,12,20,0.75);backdrop-filter:blur(8px);border:1px solid rgba(80,140,255,0.08);border-radius:8px;padding:10px 14px;font-size:10px;font-family:'Courier New',monospace;color:#4a7090;z-index:10;min-width:170px;pointer-events:none}
+#dbg div{margin:1px 0}
+#dbg .lb{color:#3a5570}
+#dbg .vv{color:#6a9abb;float:right}
+#tog{position:fixed;top:10px;right:10px;z-index:20;background:rgba(15,20,30,0.75);border:1px solid rgba(80,140,255,0.12);color:#7090aa;padding:5px 9px;border-radius:5px;cursor:pointer;font-size:11px;backdrop-filter:blur(6px)}
+#tog:hover{color:#fff;border-color:rgba(80,140,255,0.35)}
+#hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(8,15,25,0.65);backdrop-filter:blur(6px);border:1px solid rgba(80,140,255,0.08);border-radius:5px;padding:5px 12px;font-size:9.5px;color:#4a6a88;z-index:10;pointer-events:none;transition:opacity 1.5s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="tog">☰</button>
+
+<div id="ui">
+<div class="utitle">🌊 SplashWorkz V5</div>
+<div class="usub">Living Ocean · Click to Splash · Keys 1-7 Presets · M Magic Carpet</div>
+
+<div class="presets" id="presets">
+<button class="pbtn active" data-p="golden">Golden Hour</button>
+<button class="pbtn" data-p="storm">Storm</button>
+<button class="pbtn" data-p="tropical">Tropical</button>
+<button class="pbtn" data-p="glass">Glass</button>
+<button class="pbtn" data-p="sunset">Sunset</button>
+<button class="pbtn" data-p="choppy">Choppy</button>
+<button class="pbtn" data-p="night">Night</button>
+</div>
+
+<div class="panel"><div class="ph" data-pn="waves">Waves & Wind <span class="ar">▼</span></div>
+<div class="pb" id="p-waves">
+<div class="ctrl"><label>Wave Height</label><input type="range" id="waveHeight" min="0" max="6" step="0.05" value="1.4"><span class="vl">1.40</span></div>
+<div class="ctrl"><label>Wind Speed</label><input type="range" id="windSpeed" min="0" max="22" step="0.5" value="7"><span class="vl">7.0</span></div>
+<div class="ctrl"><label>Wind Dir</label><input type="range" id="windDir" min="0" max="360" step="1" value="45"><span class="vl">45°</span></div>
+<div class="ctrl"><label>Choppiness</label><input type="range" id="chop" min="0" max="2" step="0.05" value="0.75"><span class="vl">0.75</span></div>
+<div class="ctrl"><label>Time Scale</label><input type="range" id="timeScale" min="0" max="3" step="0.05" value="1"><span class="vl">1.00</span></div>
+</div></div>
+
+<div class="panel"><div class="ph" data-pn="water">Water & Light <span class="ar">▼</span></div>
+<div class="pb" id="p-water">
+<div class="ctrl"><label>Deep R</label><input type="range" id="deepR" min="0" max="0.15" step="0.002" value="0.008"><span class="vl">0.008</span></div>
+<div class="ctrl"><label>Deep G</label><input type="range" id="deepG" min="0" max="0.2" step="0.002" value="0.045"><span class="vl">0.045</span></div>
+<div class="ctrl"><label>Deep B</label><input type="range" id="deepB" min="0" max="0.3" step="0.002" value="0.09"><span class="vl">0.090</span></div>
+<div class="ctrl"><label>Scatter</label><input type="range" id="scatter" min="0" max="1.5" step="0.05" value="0.4"><span class="vl">0.40</span></div>
+<div class="ctrl"><label>Roughness</label><input type="range" id="roughness" min="0.01" max="0.5" step="0.01" value="0.06"><span class="vl">0.06</span></div>
+</div></div>
+
+<div class="panel"><div class="ph" data-pn="foam">Foam & Spray <span class="ar">▼</span></div>
+<div class="pb" id="p-foam">
+<div class="ctrl"><label>Foam Amount</label><input type="range" id="foamAmt" min="0" max="3" step="0.05" value="1.2"><span class="vl">1.20</span></div>
+<div class="ctrl"><label>Foam Thresh</label><input type="range" id="foamThr" min="-0.5" max="1" step="0.02" value="0.28"><span class="vl">0.28</span></div>
+<div class="ctrl"><label>Splash Force</label><input type="range" id="splashF" min="0.5" max="15" step="0.25" value="5"><span class="vl">5.0</span></div>
+</div></div>
+
+<div class="panel"><div class="ph" data-pn="atm">Sun & Atmosphere <span class="ar">▼</span></div>
+<div class="pb" id="p-atm">
+<div class="ctrl"><label>Sun Elev</label><input type="range" id="sunElev" min="-8" max="90" step="0.5" value="22"><span class="vl">22°</span></div>
+<div class="ctrl"><label>Sun Azimuth</label><input type="range" id="sunAz" min="0" max="360" step="1" value="210"><span class="vl">210°</span></div>
+<div class="ctrl"><label>Sun Intensity</label><input type="range" id="sunInt" min="1" max="50" step="0.5" value="22"><span class="vl">22</span></div>
+<div class="ctrl"><label>Exposure</label><input type="range" id="exposure" min="0.2" max="3" step="0.05" value="1"><span class="vl">1.00</span></div>
+<div class="ctrl"><label>Fog</label><input type="range" id="fogD" min="0" max="0.008" step="0.0001" value="0.0008"><span class="vl">8e-4</span></div>
+</div></div>
+
+<div class="panel"><div class="ph cc" data-pn="cam">Camera <span class="ar">▼</span></div>
+<div class="pb cc" id="p-cam">
+<div class="ctrl"><label>Magic Carpet</label><input type="checkbox" id="carpet"><span class="vl">Off</span></div>
+<div class="ctrl"><label>Carpet Speed</label><input type="range" id="carpSpd" min="0" max="20" step="0.5" value="5"><span class="vl">5.0</span></div>
+<div class="ctrl"><label>Carpet Height</label><input type="range" id="carpH" min="0.5" max="15" step="0.25" value="3"><span class="vl">3.0</span></div>
+</div></div>
+</div>
+
+<div id="dbg">
+<div><span class="lb">FPS</span><span class="vv" id="dFps">0</span></div>
+<div><span class="lb">Particles</span><span class="vv" id="dPart">0</span></div>
+<div><span class="lb">Ring Waves</span><span class="vv" id="dRing">0</span></div>
+<div><span class="lb">Cam Alt</span><span class="vv" id="dAlt">0</span></div>
+<div><span class="lb">Preset</span><span class="vv" id="dPre">golden</span></div>
+</div>
+<div id="hint">🖱 Drag: orbit · Click: splash · Scroll: zoom · M: magic carpet · 1-7: presets · H: UI</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const PI=Math.PI,TAU=PI*2,DEG=PI/180;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smoothstep=(e0,e1,x)=>{const t=clamp((x-e0)/(e1-e0),0,1);return t*t*(3-2*t)};
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+const S={waveHeight:1.4,windSpeed:7,windDir:45,chop:0.75,timeScale:1,
+deepR:.008,deepG:.045,deepB:.09,scatter:.4,roughness:.06,
+foamAmt:1.2,foamThr:.28,splashF:5,
+sunElev:22,sunAz:210,sunInt:22,exposure:1,fogD:.0008,
+carpet:false,carpSpd:5,carpH:3};
+let time=0,clock=new THREE.Clock(),fps=0,fc=0,ft=0;
+let curPreset='golden';
+
+// ══════════════════════════════════════════════
+// WAVE SPECTRUM
+// ══════════════════════════════════════════════
+const MAX_W=12;
+let waves=[];
+function genSpectrum(){
+  const g=9.81,U=Math.max(S.windSpeed,.5),dr=S.windDir*DEG,pw=.88*g/U;
+  waves=[];const N=Math.min(MAX_W,10);
+  for(let i=0;i<N;i++){
+    const t=(i+.5)/N,om=pw*Math.pow(2,(t-.4)*3.5),k=om*om/g;
+    const sig=om<=pw?.07:.09,gam=3.3;
+    const r=Math.exp(-Math.pow(om-pw,2)/(2*sig*sig*pw*pw));
+    const al=.0081;let Sw=al*g*g/Math.pow(om,5)*Math.exp(-1.25*Math.pow(pw/om,4))*Math.pow(gam,r);
+    const dO=pw*Math.pow(2,3.5/N)*.5;let A=Math.sqrt(2*Sw*dO)*S.waveHeight*.5;
+    const sp=(Math.random()-.5)*1.2*Math.pow(1-t,.5),d=dr+sp;
+    const Q=Math.min(S.chop*.8/Math.max(k*A*N*.5,.001),1);
+    waves.push({A,kx:Math.cos(d)*k,kz:Math.sin(d)*k,om,Q,ph:Math.random()*TAU,k});
+  }
+}
+genSpectrum();
+
+function cpuWaveH(x,z,t){
+  let y=0;
+  for(const w of waves)y+=w.A*Math.cos(w.kx*x+w.kz*z-w.om*t+w.ph);
+  for(const r of ringWaves){
+    const dx=x-r.x,dz=z-r.z,dist=Math.sqrt(dx*dx+dz*dz),age=t-r.t;
+    if(age<0||age>r.life)continue;
+    const front=r.c*age,edge=.35+1.5/Math.max(r.k,.001);
+    const fm=smoothstep(0,edge,front-dist);
+    const env=r.amp*Math.exp(-r.damp*age)*Math.exp(-r.spatial*dist)*fm;
+    y+=env*Math.sin(r.k*(dist-r.c*age));
+  }
+  return y;
+}
+
+// ══════════════════════════════════════════════
+// RING WAVES (BFT)
+// ══════════════════════════════════════════════
+let ringWaves=[];
+function emitRing(x,z,energy){
+  if(energy<.001)return;
+  const lam=lerp(.3,2,clamp(energy/12,0,1));
+  const k=TAU/lam,c=Math.sqrt(9.81/Math.max(k,.001));
+  const rw={x,z,t:time,energy,k,c,damp:1.1,spatial:.04,life:8,
+    amp:Math.min(.12*Math.sqrt(energy),1.2)};
+  ringWaves.push(rw);if(ringWaves.length>32)ringWaves.shift();
+}
+
+// ══════════════════════════════════════════════
+// PARTICLES
+// ══════════════════════════════════════════════
+const PMAX=30000;let pCount=0;
+const pP=new Float32Array(PMAX*3),pV=new Float32Array(PMAX*3);
+const pL=new Float32Array(PMAX),pS=new Float32Array(PMAX),pA=new Float32Array(PMAX);
+
+function spawnSplash(wx,wy,wz,count,force){
+  for(let i=0;i<count&&pCount<PMAX;i++){
+    const idx=pCount,a=Math.random()*TAU,up=.4+Math.random()*.8,sp=.3+Math.random()*.7;
+    pP[idx*3]=wx+(Math.random()-.5)*1.2;pP[idx*3+1]=wy+Math.random()*.2;pP[idx*3+2]=wz+(Math.random()-.5)*1.2;
+    pV[idx*3]=Math.cos(a)*sp*force;pV[idx*3+1]=up*force*(.8+Math.random()*.5);pV[idx*3+2]=Math.sin(a)*sp*force;
+    pL[idx]=1.5+Math.random()*2.5;pS[idx]=.06+Math.random()*.2;pA[idx]=.5+Math.random()*.5;pCount++;
+  }
+}
+function updateParticles(dt){
+  let alive=0;
+  for(let i=0;i<pCount;i++){
+    pL[i]-=dt;if(pL[i]<=0)continue;
+    pV[i*3+1]-=9.81*dt;
+    pP[i*3]+=pV[i*3]*dt;pP[i*3+1]+=pV[i*3+1]*dt;pP[i*3+2]+=pV[i*3+2]*dt;
+    const sy=cpuWaveH(pP[i*3],pP[i*3+2],time);
+    if(pP[i*3+1]<sy&&pV[i*3+1]<0){
+      const imp=-pV[i*3+1];
+      if(imp>.4)emitRing(pP[i*3],pP[i*3+2],imp*imp*pS[i]/.14*.25);
+      pP[i*3+1]=sy;
+      if(imp<2){pL[i]=0;continue;}
+      pV[i*3+1]*=-.12;pV[i*3]*=.3;pV[i*3+2]*=.3;pL[i]-=.7;
+    }
+    pA[i]=Math.min(pL[i]/.5,1)*.7;
+    if(alive!==i){
+      pP[alive*3]=pP[i*3];pP[alive*3+1]=pP[i*3+1];pP[alive*3+2]=pP[i*3+2];
+      pV[alive*3]=pV[i*3];pV[alive*3+1]=pV[i*3+1];pV[alive*3+2]=pV[i*3+2];
+      pL[alive]=pL[i];pS[alive]=pS[i];pA[alive]=pA[i];
+    }alive++;
+  }pCount=alive;
+}
+
+// ══════════════════════════════════════════════
+// NISHITA ATMOSPHERE GLSL
+// ══════════════════════════════════════════════
+const ATMOS=`
+const float ER=6371000.,AR=6471000.,HR=8500.,HM=1200.;
+const vec3 BR=vec3(5.802e-6,13.558e-6,33.1e-6);
+const float BM=21e-6;
+vec2 rSph(vec3 o,vec3 d,float r){float b=dot(o,d);float c=dot(o,o)-r*r;float disc=b*b-c;if(disc<0.)return vec2(1e20,-1e20);disc=sqrt(disc);return vec2(-b-disc,-b+disc);}
+vec3 atmosphere(vec3 rd,vec3 sd,float si,float ca){
+  vec3 ro=vec3(0.,ER+max(ca,2.),0.);
+  vec2 at=rSph(ro,rd,AR);if(at.x>at.y)return vec3(0.);
+  float tS=max(at.x,0.);float tE=at.y;
+  vec2 gH=rSph(ro,rd,ER);if(gH.x>0.&&gH.x<tE)tE=gH.x;
+  float ds=(tE-tS)/12.;vec3 sR=vec3(0.),sM=vec3(0.);float oR=0.,oM=0.;
+  for(int i=0;i<12;i++){
+    float t=tS+(float(i)+.5)*ds;vec3 p=ro+rd*t;float h=length(p)-ER;
+    float dR=exp(-h/HR)*ds,dM=exp(-h/HM)*ds;oR+=dR;oM+=dM;
+    vec2 sH=rSph(p,sd,AR);float lDs=sH.y/4.;float sOR=0.,sOM=0.;
+    for(int j=0;j<4;j++){vec3 lp=p+sd*(float(j)+.5)*lDs;float lh=length(lp)-ER;if(lh<0.){sOR=1e10;break;}sOR+=exp(-lh/HR)*lDs;sOM+=exp(-lh/HM)*lDs;}
+    vec3 att=exp(-(BR*(oR+sOR)+BM*1.1*(oM+sOM)));sR+=dR*att;sM+=dM*att;
+  }
+  float mu=dot(rd,sd),mu2=mu*mu;
+  float pR=.059683*(1.+mu2);
+  float g=.76,g2=g*g;float pM=.11937*(1.-g2)/pow(1.+g2-2.*g*mu,1.5);
+  vec3 col=si*(pR*BR*sR+pM*BM*sM);
+  float sunA=.00935;float se=smoothstep(sunA*1.1,sunA*.9,acos(clamp(mu,-1.,1.)));
+  vec3 sT=exp(-(BR*oR+BM*1.1*oM));col+=sT*se*si*.6;
+  return col;
+}`;
+
+// ══════════════════════════════════════════════
+// SKY SHADER
+// ══════════════════════════════════════════════
+const skyVS=`varying vec3 vDir;void main(){vDir=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position.z=gl_Position.w;}`;
+const skyFS=`precision highp float;
+uniform vec3 uSunDir;uniform float uSunInt,uExp,uCamAlt;
+varying vec3 vDir;
+${ATMOS}
+void main(){
+  vec3 rd=normalize(vDir);
+  vec3 col=atmosphere(rd,uSunDir,uSunInt,uCamAlt);
+  float night=smoothstep(-.02,-.22,uSunDir.y);
+  float hf=smoothstep(.02,.2,rd.y);
+  vec3 p=rd*700.;vec3 ip=floor(p);
+  float n1=fract(sin(dot(ip,vec3(12.9898,78.233,37.719)))*43758.5453);
+  float n2=fract(sin(dot(ip+17.,vec3(12.9898,78.233,37.719)))*43758.5453);
+  col+=vec3(.5,.6,1.)*pow(n1,55.)*night*hf+vec3(.8,.9,1.)*pow(n2,120.)*4.*night*hf;
+  col=1.-exp(-col*uExp);col=pow(col,vec3(1./2.2));
+  gl_FragColor=vec4(col,1.);
+}`;
+
+// ══════════════════════════════════════════════
+// OCEAN SHADER
+// ══════════════════════════════════════════════
+const oceanVS=`precision highp float;
+uniform float uTime;
+uniform vec4 uW[${MAX_W}];uniform vec4 uW2[${MAX_W}];uniform int uWC;
+uniform vec4 uR[32];uniform vec4 uR2[32];uniform int uRC;
+varying vec3 vWP;varying vec3 vN;varying float vFoam,vH,vDist;
+void main(){
+  vec3 bp=position;vec3 pos=bp;
+  vec3 T=vec3(1,0,0),B=vec3(0,0,1);float J=1.;
+  for(int i=0;i<${MAX_W};i++){if(i>=uWC)break;
+    float A=uW[i].x,kx=uW[i].y,kz=uW[i].z,om=uW[i].w;
+    float Q=uW2[i].x,ph=uW2[i].y,k=uW2[i].z;
+    float f=kx*bp.x+kz*bp.z-om*uTime+ph;float S=sin(f),C=cos(f);
+    float dx=kx/max(k,.001),dz=kz/max(k,.001);
+    pos.x-=Q*A*dx*S;pos.z-=Q*A*dz*S;pos.y+=A*C;
+    float WA=k*A,WAS=WA*S,WAC=WA*C;
+    T.x-=Q*dx*dx*WAC;T.y+=dx*WAS;T.z-=Q*dx*dz*WAC;
+    B.x-=Q*dx*dz*WAC;B.y+=dz*WAS;B.z-=Q*dz*dz*WAC;
+    J-=Q*WAC;
+  }
+  for(int i=0;i<32;i++){if(i>=uRC)break;
+    float rx=uR[i].x,rz=uR[i].y,ramp=uR[i].z,rt=uR[i].w;
+    float age=uTime-rt;if(age<0.)continue;
+    float ddx=bp.x-rx,ddz=bp.z-rz,dist=sqrt(ddx*ddx+ddz*ddz);
+    float k=max(uR2[i].x,.001),c=uR2[i].y,dmp=uR2[i].z,sp=uR2[i].w;
+    float front=c*age,edge=.35+1.5/k;
+    float fm=smoothstep(0.,edge,front-dist);
+    float env=ramp*exp(-dmp*age)*exp(-sp*dist)*fm;
+    float wave=env*sin(k*(dist-c*age));
+    pos.y+=wave;
+    if(dist>.1){float dW=env*k*cos(k*(dist-c*age));
+      T.y+=dW*ddx/dist*.3;B.y+=dW*ddz/dist*.3;}
+  }
+  vN=normalize(cross(B,T));vWP=pos;vH=pos.y-bp.y;
+  vFoam=clamp(1.-J,0.,1.);
+  vDist=length(pos-cameraPosition);
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.);
+}`;
+
+const oceanFS=`precision highp float;
+uniform vec3 uSunDir,uCamPos,uDeep;
+uniform float uSunInt,uExp,uCamAlt,uScatter,uRough,uFoamAmt,uFoamThr,uFogD,uTime;
+varying vec3 vWP,vN;varying float vFoam,vH,vDist;
+${ATMOS}
+vec3 skyC(vec3 rd){return atmosphere(rd,uSunDir,uSunInt,uCamAlt);}
+void main(){
+  vec3 N=normalize(vN),V=normalize(uCamPos-vWP),L=uSunDir,H=normalize(V+L);
+  float NdV=max(dot(N,V),.001),NdL=max(dot(N,L),0.),NdH=max(dot(N,H),0.);
+  vec3 R=reflect(-V,N);R.y=abs(R.y);
+  vec3 refl=skyC(R);
+  float F0=.02;float F=F0+(1.-F0)*pow(1.-NdV,5.);F=clamp(F,0.,1.);
+  float al2=uRough*uRough;float dn=NdH*NdH*(al2-1.)+1.;
+  float D=al2/(3.14159*dn*dn+.0001);
+  vec3 sT=exp(-BR*1.5e5*max(1.-uSunDir.y,0.));
+  vec3 spec=sT*D*F*NdL*uSunInt*.8;
+  float dep=max(-vH*2.+1.,0.);
+  vec3 ab=exp(-vec3(.4,.08,.04)*dep*5.);
+  vec3 scC=vec3(0.,uScatter*.15,uScatter*.2);
+  vec3 uw=uDeep*ab+scC*(1.-ab.g);
+  float sss=pow(max(dot(V,-L),0.),4.)*.3;
+  vec3 sssC=vec3(0.,.15,.12)*sss*uSunInt*sT;
+  vec3 water=mix(uw+sssC,refl,F)+spec;
+  float foam=smoothstep(uFoamThr+.15,uFoamThr-.05,1.-vFoam)*uFoamAmt;
+  foam+=smoothstep(.5,2.,vH)*.15*uFoamAmt;foam=clamp(foam,0.,1.);
+  float fn=fract(sin(dot(vWP.xz*3.7,vec2(12.9898,78.233)))*43758.5453);
+  foam*=.7+fn*.3;
+  vec3 fC=vec3(.85,.9,.95)*(.5+NdL*.5)*sT*uSunInt*.06;
+  water=mix(water,fC,foam);
+  vec3 fogC=skyC(normalize(vWP-uCamPos));
+  float fogF=1.-exp(-vDist*uFogD);
+  water=mix(water,fogC,fogF);
+  water=1.-exp(-water*uExp);water=pow(water,vec3(1./2.2));
+  gl_FragColor=vec4(water,1.);
+}`;
+
+// ══════════════════════════════════════════════
+// PARTICLE SHADER
+// ══════════════════════════════════════════════
+const partVS=`attribute float aSize,aAlpha;varying float vAlpha,vDist;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vDist=-mv.z;
+gl_Position=projectionMatrix*mv;gl_PointSize=clamp(aSize*280./max(-mv.z,1.),1.,28.);vAlpha=aAlpha;}`;
+const partFS=`precision highp float;varying float vAlpha,vDist;uniform vec3 uSunDir;uniform float uSunInt;
+void main(){vec2 c=gl_PointCoord-.5;float r=length(c);if(r>.5)discard;
+float a=smoothstep(.5,.15,r)*vAlpha;float fog=exp(-vDist*.0015);
+vec3 col=vec3(.7,.82,.92)*(.5+max(uSunDir.y,0.)*.5)*min(uSunInt*.05,1.5)*fog;
+gl_FragColor=vec4(col,a*.65);}`;
+
+// ══════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.5,200000);
+camera.position.set(0,15,40);
+
+// Sun
+const sunDir=new THREE.Vector3();
+function updSun(){const e=S.sunElev*DEG,a=S.sunAz*DEG;
+sunDir.set(Math.cos(e)*Math.sin(a),Math.sin(e),Math.cos(e)*Math.cos(a)).normalize();}
+updSun();
+
+// Sky
+const skyMat=new THREE.ShaderMaterial({vertexShader:skyVS,fragmentShader:skyFS,side:THREE.BackSide,depthWrite:false,
+uniforms:{uSunDir:{value:sunDir},uSunInt:{value:S.sunInt},uExp:{value:S.exposure},uCamAlt:{value:15}}});
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(18000,32,16),skyMat);
+skyMesh.renderOrder=-10;scene.add(skyMesh);
+
+// Ocean
+const uW=[],uW2=[];for(let i=0;i<MAX_W;i++){uW.push(new THREE.Vector4());uW2.push(new THREE.Vector4());}
+const uR=[];for(let i=0;i<32;i++)uR.push(new THREE.Vector4(0,0,0,-100));
+const uR2=[];for(let i=0;i<32;i++)uR2.push(new THREE.Vector4());
+
+function syncW(){for(let i=0;i<MAX_W;i++){if(i<waves.length){const w=waves[i];uW[i].set(w.A,w.kx,w.kz,w.om);uW2[i].set(w.Q,w.ph,w.k,0);}else{uW[i].set(0,0,0,0);uW2[i].set(0,0,0,0);}}}
+syncW();
+function syncR(){for(let i=0;i<32;i++){if(i<ringWaves.length){const r=ringWaves[i];uR[i].set(r.x,r.z,r.amp,r.t);uR2[i].set(r.k,r.c,r.damp,r.spatial);}else{uR[i].set(0,0,0,-100);uR2[i].set(0,0,0,0);}}}
+
+const oceanU={uTime:{value:0},uW:{value:uW},uW2:{value:uW2},uWC:{value:waves.length},
+uR:{value:uR},uR2:{value:uR2},uRC:{value:0},
+uSunDir:{value:sunDir},uSunInt:{value:S.sunInt},uExp:{value:S.exposure},uCamAlt:{value:15},
+uCamPos:{value:new THREE.Vector3()},uDeep:{value:new THREE.Vector3(S.deepR,S.deepG,S.deepB)},
+uScatter:{value:S.scatter},uRough:{value:S.roughness},uFoamAmt:{value:S.foamAmt},
+uFoamThr:{value:S.foamThr},uFogD:{value:S.fogD},uTime2:{value:0}};
+
+const oceanMat=new THREE.ShaderMaterial({vertexShader:oceanVS,fragmentShader:oceanFS,uniforms:oceanU,side:THREE.DoubleSide});
+const oceanGeo=new THREE.PlaneGeometry(800,800,256,256);
+oceanGeo.rotateX(-PI/2);
+const oceanMesh=new THREE.Mesh(oceanGeo,oceanMat);
+oceanMesh.frustumCulled=false;scene.add(oceanMesh);
+
+// Particles
+const pGeo=new THREE.BufferGeometry();
+const pPA=new THREE.BufferAttribute(new Float32Array(PMAX*3),3);pPA.setUsage(THREE.DynamicDrawUsage);
+const pSA=new THREE.BufferAttribute(new Float32Array(PMAX),1);pSA.setUsage(THREE.DynamicDrawUsage);
+const pAA=new THREE.BufferAttribute(new Float32Array(PMAX),1);pAA.setUsage(THREE.DynamicDrawUsage);
+pGeo.setAttribute('position',pPA);pGeo.setAttribute('aSize',pSA);pGeo.setAttribute('aAlpha',pAA);
+const pMat=new THREE.ShaderMaterial({vertexShader:partVS,fragmentShader:partFS,
+uniforms:{uSunDir:{value:sunDir},uSunInt:{value:S.sunInt}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+const partMesh=new THREE.Points(pGeo,pMat);partMesh.renderOrder=2;scene.add(partMesh);
+
+// ══════════════════════════════════════════════
+// CAMERA
+// ══════════════════════════════════════════════
+let cTh=.3,cPh=1.2,cDist=55,cTgt=new THREE.Vector3(0,0,0);
+let drag=false,rDrag=false,lmx=0,lmy=0,dBtn=-1,dX=0,dY=0,didMv=false;
+let mouseOcean=new THREE.Vector3(),mouseOn=false;
+
+function updCam(){if(S.carpet)return;
+const x=cDist*Math.sin(cPh)*Math.sin(cTh),y=cDist*Math.cos(cPh),z=cDist*Math.sin(cPh)*Math.cos(cTh);
+camera.position.set(cTgt.x+x,cTgt.y+Math.max(y,1.5),cTgt.z+z);camera.lookAt(cTgt);}
+updCam();
+
+canvas.addEventListener('mousedown',e=>{dBtn=e.button;dX=e.clientX;dY=e.clientY;didMv=false;
+if(e.button===2)rDrag=true;else drag=true;lmx=e.clientX;lmy=e.clientY;});
+canvas.addEventListener('mousemove',e=>{
+const dx=e.clientX-lmx,dy=e.clientY-lmy;
+if(Math.abs(e.clientX-dX)+Math.abs(e.clientY-dY)>3)didMv=true;
+if(drag){cTh-=dx*.005;cPh=clamp(.15,PI*.48,cPh-dy*.005);updCam();}
+if(rDrag){const f=new THREE.Vector3().subVectors(cTgt,camera.position).normalize();
+const r=new THREE.Vector3().crossVectors(f,camera.up).normalize();
+cTgt.addScaledVector(r,-dx*cDist*.002);cTgt.y+=dy*cDist*.002;updCam();}
+lmx=e.clientX;lmy=e.clientY;});
+canvas.addEventListener('mouseup',e=>{
+if(e.button===0&&!didMv){castMouse(e.clientX,e.clientY);if(mouseOn){
+emitRing(mouseOcean.x,mouseOcean.z,8);
+spawnSplash(mouseOcean.x,mouseOcean.y,mouseOcean.z,Math.round(25+Math.random()*35),S.splashF);}}
+drag=false;rDrag=false;dBtn=-1;});
+canvas.addEventListener('wheel',e=>{e.preventDefault();cDist*=(1+e.deltaY*.001);cDist=clamp(5,150000,cDist);updCam();},{passive:false});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+const ray=new THREE.Raycaster(),m2d=new THREE.Vector2(),oPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+function castMouse(mx,my){m2d.set((mx/innerWidth)*2-1,-(my/innerHeight)*2+1);
+ray.setFromCamera(m2d,camera);const it=new THREE.Vector3();
+if(ray.ray.intersectPlane(oPlane,it)){mouseOcean.set(it.x,cpuWaveH(it.x,it.z,time),it.z);mouseOn=true;}else mouseOn=false;}
+
+// Touch
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];lmx=t.clientX;lmy=t.clientY;drag=true;
+castMouse(t.clientX,t.clientY);if(mouseOn){emitRing(mouseOcean.x,mouseOcean.z,8);
+spawnSplash(mouseOcean.x,mouseOcean.y,mouseOcean.z,25,S.splashF);}},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];
+if(e.touches.length>=2){cTh-=(t.clientX-lmx)*.005;cPh=clamp(.15,PI*.48,cPh-(t.clientY-lmy)*.005);updCam();}
+lmx=t.clientX;lmy=t.clientY;},{passive:false});
+canvas.addEventListener('touchend',()=>{drag=false;});
+
+// ══════════════════════════════════════════════
+// PRESETS
+// ══════════════════════════════════════════════
+const PRESETS={
+golden:{waveHeight:1.4,windSpeed:7,chop:.75,sunElev:22,sunAz:210,sunInt:22,deepR:.008,deepG:.045,deepB:.09,scatter:.4,roughness:.06,foamAmt:1.2,foamThr:.28,exposure:1,fogD:.0008},
+storm:{waveHeight:5,windSpeed:20,chop:1.6,sunElev:10,sunAz:190,sunInt:10,deepR:.005,deepG:.02,deepB:.04,scatter:.6,roughness:.2,foamAmt:2.8,foamThr:0,exposure:.85,fogD:.003},
+tropical:{waveHeight:.5,windSpeed:4,chop:.4,sunElev:62,sunAz:180,sunInt:26,deepR:0,deepG:.065,deepB:.13,scatter:.2,roughness:.03,foamAmt:.4,foamThr:.5,exposure:1.1,fogD:.0004},
+glass:{waveHeight:.12,windSpeed:1,chop:.15,sunElev:42,sunAz:150,sunInt:25,deepR:.005,deepG:.055,deepB:.11,scatter:.12,roughness:.01,foamAmt:0,foamThr:1,exposure:1.05,fogD:.0002},
+sunset:{waveHeight:1,windSpeed:5,chop:.6,sunElev:2,sunAz:270,sunInt:30,deepR:.02,deepG:.03,deepB:.05,scatter:.35,roughness:.04,foamAmt:.8,foamThr:.35,exposure:.8,fogD:.001},
+choppy:{waveHeight:2.8,windSpeed:14,chop:1.3,sunElev:38,sunAz:120,sunInt:22,deepR:.01,deepG:.035,deepB:.065,scatter:.45,roughness:.12,foamAmt:2.2,foamThr:.12,exposure:1,fogD:.0012},
+night:{waveHeight:.8,windSpeed:4,chop:.5,sunElev:-5,sunAz:180,sunInt:8,deepR:.002,deepG:.01,deepB:.025,scatter:.15,roughness:.04,foamAmt:.6,foamThr:.4,exposure:1.8,fogD:.0006}
+};
+function applyPreset(n){const p=PRESETS[n];if(!p)return;Object.assign(S,p);curPreset=n;
+document.querySelectorAll('#ui input[type=range]').forEach(i=>{if(S[i.id]!==undefined){i.value=S[i.id];
+const v=i.parentElement.querySelector('.vl');if(v)v.textContent=fmtV(i.id,S[i.id]);}});
+document.querySelectorAll('.pbtn').forEach(b=>b.classList.toggle('active',b.dataset.p===n));
+genSpectrum();syncW();updSun();syncUni();}
+function fmtV(id,v){if(['windDir','sunElev','sunAz'].includes(id))return v+'°';
+if(['fogD'].includes(id))return v.toExponential(0);
+if(['waveHeight','chop','scatter','roughness','foamAmt','foamThr','splashF','timeScale','exposure','carpSpd','carpH'].includes(id))return parseFloat(v).toFixed(2);
+return parseFloat(v).toFixed(v<1?3:1);}
+
+// ══════════════════════════════════════════════
+// UI WIRING
+// ══════════════════════════════════════════════
+document.querySelectorAll('.ph').forEach(h=>{h.addEventListener('click',()=>{h.classList.toggle('cc');h.nextElementSibling.classList.toggle('cc');});});
+document.querySelectorAll('#ui input[type=range]').forEach(i=>{
+i.addEventListener('input',()=>{const v=parseFloat(i.value);S[i.id]=v;
+const vl=i.parentElement.querySelector('.vl');if(vl)vl.textContent=fmtV(i.id,v);
+if(['waveHeight','windSpeed','windDir','chop'].includes(i.id)){genSpectrum();syncW();oceanU.uWC.value=waves.length;}
+if(['sunElev','sunAz'].includes(i.id))updSun();syncUni();});});
+document.querySelectorAll('.pbtn').forEach(b=>{b.addEventListener('click',()=>applyPreset(b.dataset.p));});
+document.getElementById('tog').addEventListener('click',()=>{document.getElementById('ui').classList.toggle('hidden');});
+document.getElementById('carpet').addEventListener('change',e=>{S.carpet=e.target.checked;
+e.target.parentElement.querySelector('.vl').textContent=S.carpet?'On':'Off';if(!S.carpet)updCam();});
+
+function syncUni(){
+  oceanU.uSunDir.value.copy(sunDir);oceanU.uSunInt.value=S.sunInt;oceanU.uExp.value=S.exposure;
+  oceanU.uDeep.value.set(S.deepR,S.deepG,S.deepB);oceanU.uScatter.value=S.scatter;
+  oceanU.uRough.value=S.roughness;oceanU.uFoamAmt.value=S.foamAmt;oceanU.uFoamThr.value=S.foamThr;
+  oceanU.uFogD.value=S.fogD;
+  skyMat.uniforms.uSunDir.value.copy(sunDir);skyMat.uniforms.uSunInt.value=S.sunInt;
+  skyMat.uniforms.uExp.value=S.exposure;
+  pMat.uniforms.uSunDir.value.copy(sunDir);pMat.uniforms.uSunInt.value=S.sunInt;
+}
+
+// ══════════════════════════════════════════════
+// MAGIC CARPET
+// ══════════════════════════════════════════════
+let carpPos=new THREE.Vector3(),carpLA=new THREE.Vector3();
+function updCarpet(dt){if(!S.carpet)return;
+const dr=S.windDir*DEG;carpPos.x+=Math.cos(dr)*S.carpSpd*dt;carpPos.z+=Math.sin(dr)*S.carpSpd*dt;
+carpPos.y=cpuWaveH(carpPos.x,carpPos.z,time)+S.carpH;
+const ax=carpPos.x+Math.cos(dr)*15,az=carpPos.z+Math.sin(dr)*15;
+carpLA.set(ax,cpuWaveH(ax,az,time)+S.carpH*.5,az);
+camera.position.lerp(carpPos,.06);camera.lookAt(carpLA);}
+
+// ══════════════════════════════════════════════
+// AUTO SPRAY FROM CRESTS
+// ══════════════════════════════════════════════
+let lastAuto=0;
+function autoSpray(){if(time-lastAuto<.35)return;lastAuto=time;
+const cx=(S.carpet?carpPos.x:cTgt.x)+(Math.random()-.5)*80;
+const cz=(S.carpet?carpPos.z:cTgt.z)+(Math.random()-.5)*80;
+const eps=.5,h0=cpuWaveH(cx,cz,time),hx=cpuWaveH(cx+eps,cz,time),hz=cpuWaveH(cx,cz+eps,time);
+const slope=Math.sqrt(Math.pow((hx-h0)/eps,2)+Math.pow((hz-h0)/eps,2));
+if(slope>.5+Math.random()*.5&&S.foamAmt>.3)spawnSplash(cx,h0,cz,Math.round(3+slope*6),slope*2);}
+
+// ══════════════════════════════════════════════
+// KEYBOARD
+// ══════════════════════════════════════════════
+const presetKeys=['golden','choppy','storm','glass','sunset','tropical','night'];
+document.addEventListener('keydown',e=>{
+if(e.key==='h'||e.key==='H')document.getElementById('ui').classList.toggle('hidden');
+if(e.key>='1'&&e.key<='7')applyPreset(presetKeys[e.key-1]);
+if(e.key==='m'||e.key==='M'){S.carpet=!S.carpet;document.getElementById('carpet').checked=S.carpet;
+document.getElementById('carpet').parentElement.querySelector('.vl').textContent=S.carpet?'On':'Off';
+if(!S.carpet)updCam();}});
+
+// ══════════════════════════════════════════════
+// RESIZE
+// ══════════════════════════════════════════════
+window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);
+camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+
+// Hide hint
+setTimeout(()=>{const h=document.getElementById('hint');if(h){h.style.opacity='0';setTimeout(()=>h.remove(),1500);}},7000);
+
+// ══════════════════════════════════════════════
+// ANIMATE
+// ══════════════════════════════════════════════
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+  time+=dt*S.timeScale;fc++;ft+=dt;
+  if(ft>=.5){fps=Math.round(fc/ft);fc=0;ft=0;}
+
+  ringWaves=ringWaves.filter(r=>(time-r.t)<r.life);
+  updCarpet(dt);
+  camera.updateMatrixWorld(true);
+  skyMesh.position.copy(camera.position);
+
+  oceanU.uTime.value=time;syncR();oceanU.uRC.value=ringWaves.length;
+  oceanU.uCamPos.value.copy(camera.position);
+  const alt=Math.max(camera.position.y,0);oceanU.uCamAlt.value=alt;
+  skyMat.uniforms.uCamAlt.value=alt;
+
+  autoSpray();updateParticles(dt);
+
+  const pa=pGeo.attributes.position.array,sa=pGeo.attributes.aSize.array,aa=pGeo.attributes.aAlpha.array;
+  for(let i=0;i<pCount;i++){pa[i*3]=pP[i*3];pa[i*3+1]=pP[i*3+1];pa[i*3+2]=pP[i*3+2];sa[i]=pS[i];aa[i]=pA[i];}
+  for(let i=pCount;i<Math.min(pCount+50,PMAX);i++)aa[i]=0;
+  pGeo.attributes.position.needsUpdate=true;pGeo.attributes.aSize.needsUpdate=true;
+  pGeo.attributes.aAlpha.needsUpdate=true;pGeo.setDrawRange(0,pCount);
+
+  renderer.render(scene,camera);
+
+  document.getElementById('dFps').textContent=fps;
+  document.getElementById('dPart').textContent=pCount;
+  document.getElementById('dRing').textContent=ringWaves.length;
+  document.getElementById('dAlt').textContent=alt.toFixed(1)+'m';
+  document.getElementById('dPre').textContent=curPreset;
+}
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
+  "lane": "Node CPU-only binary hull asset range/hash/topology validation",
+  "manifestPath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v3.manifest.json",
+  "binaryPath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v3.bin",
+  "sourcePath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v2.json",
+  "bytes": {
+    "sourceJson": 873828,
+    "manifest": 40377,
+    "binary": 233008,
+    "combined": 273385,
+    "reductionRatio": 0.31285905235355244
+  },
+  "topology": {
+    "meshes": 27,
+    "vertices": 5571,
+    "triangles": 9256
+  },
+  "checks": {
+    "schema": true,
+    "littleEndian": true,
+    "binaryLength": true,
+    "binaryHash": true,
+    "sourceHash": true,
+    "meshCount": true,
+    "descriptorsValid": true,
+    "exactTopology": true,
+    "expectedTotals": true,
+    "transferReduction": true
+  },
+  "allChecksPassed": true,
+  "meshes": [
+    {
+      "id": "hull.shell",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 850,
+      "triangleCount": 1584,
+      "sourceVertexCount": 850,
+      "sourceTriangleCount": 1584
+    },
+    {
+      "id": "hull.deck",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 1980,
+      "triangleCount": 3776,
+      "sourceVertexCount": 1980,
+      "sourceTriangleCount": 3776
+    },
+    {
+      "id": "hull.transom",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 50,
+      "triangleCount": 48,
+      "sourceVertexCount": 50,
+      "sourceTriangleCount": 48
+    },
+    {
+      "id": "hull.stem",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 50,
+      "triangleCount": 48,
+      "sourceVertexCount": 50,
+      "sourceTriangleCount": 48
+    },
+    {
+      "id": "hull.cockpit.sole",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.cockpit.side.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.gunwale.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.bench.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.cockpit.side.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.gunwale.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.bench.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.forward-bulkhead",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.rubrail",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 1449,
+      "triangleCount": 2560,
+      "sourceVertexCount": 1449,
+      "sourceTriangleCount": 2560
+    },
+    {
+      "id": "hull.mast-collar",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 100,
+      "triangleCount": 64,
+      "sourceVertexCount": 100,
+      "sourceTriangleCount": 64
+    },
+    {
+      "id": "hull.bow-fitting",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.chainplate.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.chainplate.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.transom-eye.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 135,
+      "triangleCount": 224,
+      "sourceVertexCount": 135,
+      "sourceTriangleCount": 224
+    },
+    {
+      "id": "hull.transom-eye.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 135,
+      "triangleCount": 224,
+      "sourceVertexCount": 135,
+      "sourceTriangleCount": 224
+    },
+    {
+      "id": "hull.mainsheet-swivel",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 88,
+      "triangleCount": 56,
+      "sourceVertexCount": 88,
+      "sourceTriangleCount": 56
+    },
+    {
+      "id": "hull.hiking-strap.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.hiking-strap.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.jib-control.port",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 64,
+      "triangleCount": 40,
+      "sourceVertexCount": 64,
+      "sourceTriangleCount": 40
+    },
+    {
+      "id": "hull.jib-control.starboard",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 64,
+      "triangleCount": 40,
+      "sourceVertexCount": 64,
+      "sourceTriangleCount": 40
+    },
+    {
+      "id": "hull.centerboard-case",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 24,
+      "triangleCount": 12,
+      "sourceVertexCount": 24,
+      "sourceTriangleCount": 12
+    },
+    {
+      "id": "hull.equipment-marker",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 117,
+      "triangleCount": 168,
+      "sourceVertexCount": 117,
+      "sourceTriangleCount": 168
+    },
+    {
+      "id": "hull.bow-eye",
+      "sourceFound": true,
+      "sourceIndexMatches": true,
+      "descriptorsValid": true,
+      "indexValid": true,
+      "vertexCount": 153,
+      "triangleCount": 256,
+      "sourceVertexCount": 153,
+      "sourceTriangleCount": 256
+    }
+  ]
+}

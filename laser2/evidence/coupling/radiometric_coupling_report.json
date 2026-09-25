@@ -1,0 +1,901 @@
+{
+  "presets": {
+    "noon": {
+      "sunElevationDeg": 60,
+      "sunAzimuthDeg": 165,
+      "sunIlluminanceLux": 100000,
+      "sunIntensity": 3.2,
+      "skyIntensity": 0.92,
+      "aerosolDensity": 0.16,
+      "turbidity": 2.4,
+      "exposureEv": -0.25,
+      "autoExposureEnabled": false,
+      "diffuseEnvironmentIntensity": 1.0,
+      "specularEnvironmentIntensity": 1.0
+    },
+    "golden": {
+      "sunElevationDeg": 12,
+      "sunAzimuthDeg": 235,
+      "sunIlluminanceLux": 100000,
+      "sunIntensity": 3.2,
+      "skyIntensity": 0.92,
+      "aerosolDensity": 0.25,
+      "turbidity": 3.2,
+      "exposureEv": -0.25,
+      "autoExposureEnabled": false,
+      "diffuseEnvironmentIntensity": 1.0,
+      "specularEnvironmentIntensity": 1.0
+    },
+    "sunset": {
+      "sunElevationDeg": 2,
+      "sunAzimuthDeg": 270,
+      "sunIlluminanceLux": 100000,
+      "sunIntensity": 3.2,
+      "skyIntensity": 0.92,
+      "aerosolDensity": 0.34,
+      "turbidity": 4.0,
+      "exposureEv": -0.25,
+      "autoExposureEnabled": false,
+      "diffuseEnvironmentIntensity": 1.0,
+      "specularEnvironmentIntensity": 1.0
+    }
+  },
+  "receipts": {
+    "noon": {
+      "coupling": {
+        "revision": 2,
+        "sunDirection": {
+          "x": 0.12940952255126054,
+          "y": 0.8660254037844386,
+          "z": -0.4829629131445342
+        },
+        "sunTransmittance": {
+          "r": 0.9737447401660668,
+          "g": 0.8092832401147618,
+          "b": 0.6464010877699541
+        },
+        "spectralSolarEnabled": true,
+        "spectralSamples": 15,
+        "spectralPhotopicTransmission": 0.832487663626374,
+        "spectralColorTemperatureApproxK": 5360.601248628813,
+        "whiteBalanceRgb": {
+          "r": 0.9965101328455601,
+          "g": 1,
+          "b": 1.0162699747407977
+        },
+        "directNormalRgbLux": {
+          "r": 97034.65003805526,
+          "g": 80928.32401147617,
+          "b": 65691.80171403954
+        },
+        "directNormalLux": 83252.45201485195,
+        "directHorizontalRgbLux": {
+          "r": 84034.4719802885,
+          "g": 70085.98447963654,
+          "b": 56890.769104728366
+        },
+        "directHorizontalLux": 72098.73837220676,
+        "skyIrradianceRgbLux": {
+          "r": 8071.029736977047,
+          "g": 14620.990912414441,
+          "b": 27345.994398656036
+        },
+        "skyIrradianceLux": 14147.214418223093,
+        "groundBounceRgbLux": {
+          "r": 2652.638449457247,
+          "g": 2439.5608912910684,
+          "b": 2426.0187888974706
+        },
+        "groundBounceLux": 2483.88344036438,
+        "totalHorizontalLux": 86245.95279042986,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "sunRendererColor": {
+          "r": 1,
+          "g": 0.8340146945419757,
+          "b": 0.6769932358005762
+        },
+        "sunRendererIntensity": 3.105108801217768,
+        "hemisphereSkyColor": {
+          "r": 0.2951448617781371,
+          "g": 0.5346666388965915,
+          "b": 0.9999999999999999
+        },
+        "hemisphereGroundColor": {
+          "r": 0.09700281550513355,
+          "g": 0.08921090437329149,
+          "b": 0.08871569099043994
+        },
+        "hemisphereIntensity": 1.5192219110364464,
+        "specularEnvironmentIntensity": 1,
+        "atmosphereSamples": 32,
+        "cpuMs": 0.7000000029802322,
+        "recomputes": 2,
+        "meanCpuMs": 1.3999999985098839,
+        "calibration": {
+          "skyRelativeToLux": 22000,
+          "referenceDirectLux": 100000,
+          "referenceSkyLux": 18000
+        },
+        "authority": "single shared atmosphere \u2192 spectral sun/sky/ground/exposure/PBR-environment energy budget",
+        "truthBoundary": "15-band solar spectrum with RGB atmospheric sky transport, ozone absorption and dual-scattering approximation; full line-by-line spectral atmosphere and measured camera response remain later authorities"
+      },
+      "atmosphere": {
+        "created": true,
+        "visible": true,
+        "sourceSkyDisabled": true,
+        "backend": "CPU-integrated Rayleigh/Mie/ozone atmosphere with dual-scattering approximation shared by visible sky and PBR environment",
+        "texturePrototype": "sails.main.cloth.map",
+        "hdrEnvironment": true,
+        "textureStorage": "RGBA32F DataTexture-compatible payload",
+        "physicalDomain": {
+          "planetRadiusM": 6371000,
+          "atmosphereRadiusM": 6471000,
+          "rayleighScaleHeightM": 8500,
+          "mieScaleHeightM": 1200,
+          "rayleighScatteringMInv": [
+            5.802e-06,
+            1.3558e-05,
+            3.31e-05
+          ],
+          "mieExtinctionMInv": 2.1e-05,
+          "ozonePeakAltitudeM": 25000,
+          "ozoneHalfWidthM": 15000,
+          "ozoneAbsorptionMInv": [
+            6.5e-07,
+            1.881e-06,
+            8.5e-08
+          ]
+        },
+        "quality": {
+          "id": "balanced",
+          "viewSamples": 12,
+          "sunSamples": 4,
+          "lutWidth": 128,
+          "lutHeight": 64
+        },
+        "shaderRebuilds": 1,
+        "lutUpdates": 2,
+        "lutPixels": 8192,
+        "lutCpuMs": {
+          "last": 65.5,
+          "mean": 53.5
+        },
+        "frameCpuMs": 65.5,
+        "cameraRecenters": 4,
+        "deferredDynamicUpdates": 0,
+        "updateAccumulatorSeconds": 0,
+        "updateCadenceHz": 1,
+        "truthBoundary": "Rayleigh/Mie/ozone transport with a bounded dual-scattering approximation; full multiple-scattering precomputation, clouds and line-by-line spectral sky remain future authorities"
+      },
+      "sun": {
+        "sunFound": true,
+        "legacyHemisphereDelegatedToEnvironment": true,
+        "legacyAmbientDisabled": null,
+        "sunDirection": {
+          "x": 0.12940952255126054,
+          "y": 0.8660254037844386,
+          "z": -0.4829629131445342
+        },
+        "sunTransmittance": {
+          "r": 0.9737447401660668,
+          "g": 0.8092832401147618,
+          "b": 0.6464010877699541
+        },
+        "directNormalLux": 83252.45201485195,
+        "directHorizontalLux": 72098.73837220676,
+        "rendererColor": {
+          "r": 1,
+          "g": 0.8340146945419757,
+          "b": 0.6769932358005762
+        },
+        "rendererIntensity": 3.105108801217768,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "applyCount": 3,
+        "lastApplyMs": 0,
+        "model": "directional sun magnitude and chromaticity are consumed from the shared radiometric budget"
+      },
+      "environment": {
+        "updates": 3,
+        "cpuMs": {
+          "last": 0,
+          "mean": 0.06666666766007742
+        },
+        "authoritativeHemisphereFound": false,
+        "disabledSecondaryHemisphereLights": 1,
+        "disabledAmbientLights": 0,
+        "pbrMaterials": 66,
+        "materialBindings": 198,
+        "environmentAssignments": 1,
+        "environmentTextureBound": true,
+        "environmentTextureVersion": 8,
+        "skyIrradianceRgbLux": {
+          "r": 8071.029736977047,
+          "g": 14620.990912414441,
+          "b": 27345.994398656036
+        },
+        "skyIrradianceLux": 14147.214418223093,
+        "groundBounceRgbLux": {
+          "r": 2652.638449457247,
+          "g": 2439.5608912910684,
+          "b": 2426.0187888974706
+        },
+        "groundBounceLux": 2483.88344036438,
+        "hemisphereIntensity": 1.5192219110364464,
+        "specularEnvironmentIntensity": 1,
+        "sceneEnvironmentIntensityAuthority": false,
+        "authority": "atmosphere LUT drives prefiltered PBR reflections; order-2 SH diffuse illumination is owned by lighting.sh-diffuse-probe",
+        "truthBoundary": "renderer PMREM/equirectangular reflection coupling is active; local specular probes and near-field interreflection remain future authorities"
+      },
+      "renderer": {
+        "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+        "renders": 4,
+        "benchmarkRenders": 0,
+        "captureRenders": 0,
+        "unauthorizedRenderCalls": 0,
+        "warmupRendersExcludedFromSteadyState": 2,
+        "renderCpuSubmissionMs": {
+          "last": 31,
+          "coldStart": 3424.6999999955297,
+          "all": {
+            "samples": 4,
+            "mean": 868.3499999996275,
+            "min": 7.799999997019768,
+            "max": 3424.6999999955297,
+            "p50": 9.900000005960464,
+            "p95": 31,
+            "p99": 31
+          },
+          "steadyState": {
+            "samples": 2,
+            "mean": 19.399999998509884,
+            "min": 7.799999997019768,
+            "max": 31,
+            "p50": 7.799999997019768,
+            "p95": 7.799999997019768,
+            "p99": 7.799999997019768
+          }
+        },
+        "completedBatchWallMs": {
+          "samples": 2,
+          "mean": 0.05000000074505806,
+          "min": 0,
+          "max": 0.10000000149011612,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "recentReasons": [
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "frame-graph"
+        ],
+        "calls": 648,
+        "triangles": 64040,
+        "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+      }
+    },
+    "golden": {
+      "coupling": {
+        "revision": 3,
+        "sunDirection": {
+          "x": -0.8012516067574692,
+          "y": 0.20791169081775931,
+          "z": -0.5610424150542225
+        },
+        "sunTransmittance": {
+          "r": 0.6147013896672023,
+          "g": 0.4405736020189803,
+          "b": 0.2408467854978889
+        },
+        "spectralSolarEnabled": true,
+        "spectralSamples": 15,
+        "spectralPhotopicTransmission": 0.46317289352016944,
+        "spectralColorTemperatureApproxK": 3667.3105782528924,
+        "whiteBalanceRgb": {
+          "r": 0.9965101328455601,
+          "g": 1,
+          "b": 1.0162699747407977
+        },
+        "directNormalRgbLux": {
+          "r": 61255.61634776142,
+          "g": 44057.36020189803,
+          "b": 24476.535661434187
+        },
+        "directNormalLux": 46299.9739266871,
+        "directHorizontalRgbLux": {
+          "r": 12735.758766947054,
+          "g": 9160.040252543677,
+          "b": 5088.957914729965
+        },
+        "directHorizontalLux": 9626.305863915684,
+        "skyIrradianceRgbLux": {
+          "r": 7007.28837698448,
+          "g": 11033.071984453996,
+          "b": 21569.689976676265
+        },
+        "skyIrradianceLux": 10937.934208544426,
+        "groundBounceRgbLux": {
+          "r": 568.5997577452281,
+          "g": 581.5616324255329,
+          "b": 767.7690592724995
+        },
+        "groundBounceLux": 592.2501140868511,
+        "totalHorizontalLux": 20564.24007246011,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "sunRendererColor": {
+          "r": 1,
+          "g": 0.7192378891720694,
+          "b": 0.3995802690560746
+        },
+        "sunRendererIntensity": 1.9601797231283653,
+        "hemisphereSkyColor": {
+          "r": 0.3248673664091417,
+          "g": 0.5115081392632104,
+          "b": 0.9999999999999999
+        },
+        "hemisphereGroundColor": {
+          "r": 0.026361053791689463,
+          "g": 0.026961983832608956,
+          "b": 0.0355948119839786
+        },
+        "hemisphereIntensity": 1.198316109815348,
+        "specularEnvironmentIntensity": 1,
+        "atmosphereSamples": 32,
+        "cpuMs": 0.20000000298023224,
+        "recomputes": 3,
+        "meanCpuMs": 1,
+        "calibration": {
+          "skyRelativeToLux": 22000,
+          "referenceDirectLux": 100000,
+          "referenceSkyLux": 18000
+        },
+        "authority": "single shared atmosphere \u2192 spectral sun/sky/ground/exposure/PBR-environment energy budget",
+        "truthBoundary": "15-band solar spectrum with RGB atmospheric sky transport, ozone absorption and dual-scattering approximation; full line-by-line spectral atmosphere and measured camera response remain later authorities"
+      },
+      "atmosphere": {
+        "created": true,
+        "visible": true,
+        "sourceSkyDisabled": true,
+        "backend": "CPU-integrated Rayleigh/Mie/ozone atmosphere with dual-scattering approximation shared by visible sky and PBR environment",
+        "texturePrototype": "sails.main.cloth.map",
+        "hdrEnvironment": true,
+        "textureStorage": "RGBA32F DataTexture-compatible payload",
+        "physicalDomain": {
+          "planetRadiusM": 6371000,
+          "atmosphereRadiusM": 6471000,
+          "rayleighScaleHeightM": 8500,
+          "mieScaleHeightM": 1200,
+          "rayleighScatteringMInv": [
+            5.802e-06,
+            1.3558e-05,
+            3.31e-05
+          ],
+          "mieExtinctionMInv": 2.1e-05,
+          "ozonePeakAltitudeM": 25000,
+          "ozoneHalfWidthM": 15000,
+          "ozoneAbsorptionMInv": [
+            6.5e-07,
+            1.881e-06,
+            8.5e-08
+          ]
+        },
+        "quality": {
+          "id": "balanced",
+          "viewSamples": 12,
+          "sunSamples": 4,
+          "lutWidth": 128,
+          "lutHeight": 64
+        },
+        "shaderRebuilds": 1,
+        "lutUpdates": 3,
+        "lutPixels": 8192,
+        "lutCpuMs": {
+          "last": 28.399999998509884,
+          "mean": 45.13333333283663
+        },
+        "frameCpuMs": 28.5,
+        "cameraRecenters": 6,
+        "deferredDynamicUpdates": 0,
+        "updateAccumulatorSeconds": 0,
+        "updateCadenceHz": 1,
+        "truthBoundary": "Rayleigh/Mie/ozone transport with a bounded dual-scattering approximation; full multiple-scattering precomputation, clouds and line-by-line spectral sky remain future authorities"
+      },
+      "sun": {
+        "sunFound": true,
+        "legacyHemisphereDelegatedToEnvironment": true,
+        "legacyAmbientDisabled": null,
+        "sunDirection": {
+          "x": -0.8012516067574692,
+          "y": 0.20791169081775931,
+          "z": -0.5610424150542225
+        },
+        "sunTransmittance": {
+          "r": 0.6147013896672023,
+          "g": 0.4405736020189803,
+          "b": 0.2408467854978889
+        },
+        "directNormalLux": 46299.9739266871,
+        "directHorizontalLux": 9626.305863915684,
+        "rendererColor": {
+          "r": 1,
+          "g": 0.7192378891720694,
+          "b": 0.3995802690560746
+        },
+        "rendererIntensity": 1.9601797231283653,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "applyCount": 5,
+        "lastApplyMs": 0,
+        "model": "directional sun magnitude and chromaticity are consumed from the shared radiometric budget"
+      },
+      "environment": {
+        "updates": 5,
+        "cpuMs": {
+          "last": 0,
+          "mean": 0.040000000596046456
+        },
+        "authoritativeHemisphereFound": false,
+        "disabledSecondaryHemisphereLights": 1,
+        "disabledAmbientLights": 0,
+        "pbrMaterials": 66,
+        "materialBindings": 330,
+        "environmentAssignments": 1,
+        "environmentTextureBound": true,
+        "environmentTextureVersion": 11,
+        "skyIrradianceRgbLux": {
+          "r": 7007.28837698448,
+          "g": 11033.071984453996,
+          "b": 21569.689976676265
+        },
+        "skyIrradianceLux": 10937.934208544426,
+        "groundBounceRgbLux": {
+          "r": 568.5997577452281,
+          "g": 581.5616324255329,
+          "b": 767.7690592724995
+        },
+        "groundBounceLux": 592.2501140868511,
+        "hemisphereIntensity": 1.198316109815348,
+        "specularEnvironmentIntensity": 1,
+        "sceneEnvironmentIntensityAuthority": false,
+        "authority": "atmosphere LUT drives prefiltered PBR reflections; order-2 SH diffuse illumination is owned by lighting.sh-diffuse-probe",
+        "truthBoundary": "renderer PMREM/equirectangular reflection coupling is active; local specular probes and near-field interreflection remain future authorities"
+      },
+      "renderer": {
+        "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+        "renders": 8,
+        "benchmarkRenders": 0,
+        "captureRenders": 0,
+        "unauthorizedRenderCalls": 0,
+        "warmupRendersExcludedFromSteadyState": 2,
+        "renderCpuSubmissionMs": {
+          "last": 9,
+          "coldStart": 3424.6999999955297,
+          "all": {
+            "samples": 8,
+            "mean": 438.4375000009313,
+            "min": 7,
+            "max": 3424.6999999955297,
+            "p50": 9,
+            "p95": 31,
+            "p99": 31
+          },
+          "steadyState": {
+            "samples": 6,
+            "mean": 12.15000000099341,
+            "min": 7,
+            "max": 31,
+            "p50": 8.700000002980232,
+            "p95": 9.400000005960464,
+            "p99": 9.400000005960464
+          }
+        },
+        "completedBatchWallMs": {
+          "samples": 5,
+          "mean": 0.04000000059604645,
+          "min": 0,
+          "max": 0.10000000149011612,
+          "p50": 0,
+          "p95": 0.10000000149011612,
+          "p99": 0.10000000149011612
+        },
+        "recentReasons": [
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "boat-only-probe",
+          "restore-after-boat-probe",
+          "frame-graph"
+        ],
+        "calls": 648,
+        "triangles": 64040,
+        "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+      }
+    },
+    "sunset": {
+      "coupling": {
+        "revision": 4,
+        "sunDirection": {
+          "x": -0.9993908270190958,
+          "y": 0.03489949670250097,
+          "z": -1.8358511661092426e-16
+        },
+        "sunTransmittance": {
+          "r": 0.0821931643362028,
+          "g": 0.03002908657483001,
+          "b": 0.0019225877933647338
+        },
+        "spectralSolarEnabled": true,
+        "spectralSamples": 15,
+        "spectralPhotopicTransmission": 0.03908988029487606,
+        "spectralColorTemperatureApproxK": 1700,
+        "whiteBalanceRgb": {
+          "r": 0.9965101328455601,
+          "g": 1,
+          "b": 1.0162699747407977
+        },
+        "directNormalRgbLux": {
+          "r": 8190.632111166639,
+          "g": 3002.9086574830008,
+          "b": 195.38682481997438
+        },
+        "directNormalLux": 3903.1155874178717,
+        "directHorizontalRgbLux": {
+          "r": 285.8489383550587,
+          "g": 104.8000007897396,
+          "b": 6.8189018485168305
+        },
+        "directHorizontalLux": 136.21676957257014,
+        "skyIrradianceRgbLux": {
+          "r": 5497.526348243352,
+          "g": 6131.945529450249,
+          "b": 8850.846020331343
+        },
+        "skyIrradianceLux": 6193.372626967277,
+        "groundBounceRgbLux": {
+          "r": 166.56120825403423,
+          "g": 179.61827127091166,
+          "b": 255.10074975877995
+        },
+        "groundBounceLux": 182.2921746203476,
+        "totalHorizontalLux": 6329.589396539847,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "sunRendererColor": {
+          "r": 1,
+          "g": 0.3666272171337066,
+          "b": 0.02385491402471797
+        },
+        "sunRendererIntensity": 0.2621002275573324,
+        "hemisphereSkyColor": {
+          "r": 0.6211300406328326,
+          "g": 0.6928089716355377,
+          "b": 1
+        },
+        "hemisphereGroundColor": {
+          "r": 0.01881867652780596,
+          "g": 0.020293909854301975,
+          "b": 0.028822188203566777
+        },
+        "hemisphereIntensity": 0.4917136677961857,
+        "specularEnvironmentIntensity": 1,
+        "atmosphereSamples": 32,
+        "cpuMs": 0.10000000149011612,
+        "recomputes": 4,
+        "meanCpuMs": 0.775000000372529,
+        "calibration": {
+          "skyRelativeToLux": 22000,
+          "referenceDirectLux": 100000,
+          "referenceSkyLux": 18000
+        },
+        "authority": "single shared atmosphere \u2192 spectral sun/sky/ground/exposure/PBR-environment energy budget",
+        "truthBoundary": "15-band solar spectrum with RGB atmospheric sky transport, ozone absorption and dual-scattering approximation; full line-by-line spectral atmosphere and measured camera response remain later authorities"
+      },
+      "atmosphere": {
+        "created": true,
+        "visible": true,
+        "sourceSkyDisabled": true,
+        "backend": "CPU-integrated Rayleigh/Mie/ozone atmosphere with dual-scattering approximation shared by visible sky and PBR environment",
+        "texturePrototype": "sails.main.cloth.map",
+        "hdrEnvironment": true,
+        "textureStorage": "RGBA32F DataTexture-compatible payload",
+        "physicalDomain": {
+          "planetRadiusM": 6371000,
+          "atmosphereRadiusM": 6471000,
+          "rayleighScaleHeightM": 8500,
+          "mieScaleHeightM": 1200,
+          "rayleighScatteringMInv": [
+            5.802e-06,
+            1.3558e-05,
+            3.31e-05
+          ],
+          "mieExtinctionMInv": 2.1e-05,
+          "ozonePeakAltitudeM": 25000,
+          "ozoneHalfWidthM": 15000,
+          "ozoneAbsorptionMInv": [
+            6.5e-07,
+            1.881e-06,
+            8.5e-08
+          ]
+        },
+        "quality": {
+          "id": "balanced",
+          "viewSamples": 12,
+          "sunSamples": 4,
+          "lutWidth": 128,
+          "lutHeight": 64
+        },
+        "shaderRebuilds": 1,
+        "lutUpdates": 4,
+        "lutPixels": 8192,
+        "lutCpuMs": {
+          "last": 28.69999999552965,
+          "mean": 41.024999998509884
+        },
+        "frameCpuMs": 28.799999997019768,
+        "cameraRecenters": 8,
+        "deferredDynamicUpdates": 0,
+        "updateAccumulatorSeconds": 0,
+        "updateCadenceHz": 1,
+        "truthBoundary": "Rayleigh/Mie/ozone transport with a bounded dual-scattering approximation; full multiple-scattering precomputation, clouds and line-by-line spectral sky remain future authorities"
+      },
+      "sun": {
+        "sunFound": true,
+        "legacyHemisphereDelegatedToEnvironment": true,
+        "legacyAmbientDisabled": null,
+        "sunDirection": {
+          "x": -0.9993908270190958,
+          "y": 0.03489949670250097,
+          "z": -1.8358511661092426e-16
+        },
+        "sunTransmittance": {
+          "r": 0.0821931643362028,
+          "g": 0.03002908657483001,
+          "b": 0.0019225877933647338
+        },
+        "directNormalLux": 3903.1155874178717,
+        "directHorizontalLux": 136.21676957257014,
+        "rendererColor": {
+          "r": 1,
+          "g": 0.3666272171337066,
+          "b": 0.02385491402471797
+        },
+        "rendererIntensity": 0.2621002275573324,
+        "rendererExposure": 0.8408964152537145,
+        "autoExposureEv": 0,
+        "applyCount": 7,
+        "lastApplyMs": 0,
+        "model": "directional sun magnitude and chromaticity are consumed from the shared radiometric budget"
+      },
+      "environment": {
+        "updates": 7,
+        "cpuMs": {
+          "last": 0,
+          "mean": 0.02857142899717604
+        },
+        "authoritativeHemisphereFound": false,
+        "disabledSecondaryHemisphereLights": 1,
+        "disabledAmbientLights": 0,
+        "pbrMaterials": 66,
+        "materialBindings": 462,
+        "environmentAssignments": 1,
+        "environmentTextureBound": true,
+        "environmentTextureVersion": 14,
+        "skyIrradianceRgbLux": {
+          "r": 5497.526348243352,
+          "g": 6131.945529450249,
+          "b": 8850.846020331343
+        },
+        "skyIrradianceLux": 6193.372626967277,
+        "groundBounceRgbLux": {
+          "r": 166.56120825403423,
+          "g": 179.61827127091166,
+          "b": 255.10074975877995
+        },
+        "groundBounceLux": 182.2921746203476,
+        "hemisphereIntensity": 0.4917136677961857,
+        "specularEnvironmentIntensity": 1,
+        "sceneEnvironmentIntensityAuthority": false,
+        "authority": "atmosphere LUT drives prefiltered PBR reflections; order-2 SH diffuse illumination is owned by lighting.sh-diffuse-probe",
+        "truthBoundary": "renderer PMREM/equirectangular reflection coupling is active; local specular probes and near-field interreflection remain future authorities"
+      },
+      "renderer": {
+        "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+        "renders": 12,
+        "benchmarkRenders": 0,
+        "captureRenders": 0,
+        "unauthorizedRenderCalls": 0,
+        "warmupRendersExcludedFromSteadyState": 2,
+        "renderCpuSubmissionMs": {
+          "last": 8.200000002980232,
+          "coldStart": 3424.6999999955297,
+          "all": {
+            "samples": 12,
+            "mean": 294.6166666671634,
+            "min": 6.199999995529652,
+            "max": 3424.6999999955297,
+            "p50": 8.200000002980232,
+            "p95": 31,
+            "p99": 31
+          },
+          "steadyState": {
+            "samples": 10,
+            "mean": 10.080000000447034,
+            "min": 6.199999995529652,
+            "max": 31,
+            "p50": 7.799999997019768,
+            "p95": 9.400000005960464,
+            "p99": 9.400000005960464
+          }
+        },
+        "completedBatchWallMs": {
+          "samples": 8,
+          "mean": 0.06250000093132257,
+          "min": 0,
+          "max": 0.10000000149011612,
+          "p50": 0.10000000149011612,
+          "p95": 0.10000000149011612,
+          "p99": 0.10000000149011612
+        },
+        "recentReasons": [
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "frame-graph",
+          "boat-only-probe",
+          "restore-after-boat-probe",
+          "frame-graph",
+          "frame-graph",
+          "boat-only-probe",
+          "restore-after-boat-probe",
+          "frame-graph"
+        ],
+        "calls": 648,
+        "triangles": 64040,
+        "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+      }
+    }
+  },
+  "boatOnlyImageStats": {
+    "noon": {
+      "pixels": 139598,
+      "mean": 183.63266870585537,
+      "median": 221.2086,
+      "p90": 221.92379999999997
+    },
+    "golden": {
+      "pixels": 139518,
+      "mean": 173.560332735561,
+      "median": 211.345,
+      "p90": 212.345
+    },
+    "sunset": {
+      "pixels": 137407,
+      "mean": 144.43500677985836,
+      "median": 182.0642,
+      "p90": 183.992
+    }
+  },
+  "console": [
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-raf-gate.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/three-legacy.bundle.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-core-legacy.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-evolution-v3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rigging-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rope-hardware-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-sail-material-v17.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-spreader-standing-rig-v17_2.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-standing-rig-collision-v17_3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/src/main.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-raf-gate.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/three-legacy.bundle.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-core-legacy.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-evolution-v3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rigging-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rope-hardware-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-sail-material-v17.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-spreader-standing-rig-v17_2.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-standing-rig-collision-v17_3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/src/main.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20"
+    },
+    {
+      "type": "warning",
+      "text": "sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_RIGGING_SAIL_AUTHORITY_V16_20260715 initialized {version: LASER2_RIGGING_SAIL_AUTHORITY_V16_20260715, enabled: true, finite: true, lastError: null, steps: 0} {baselineSha256: 0912ed37e7a2c58494d18f27dc82d0a0d95d87337114756bde8d7284739290df, mast: legacy global chord stiffness disabled; tapered di\u2026ctional discrete-rod curvature constraints active, loadPath: main/jib strip and spinnaker panel forces applied to physical cloth particles, jibLuff: generated and live luff-wire material rest fixed a\u2026m; pulley-cable take-up carries halyard authority, contact: main/jib/spinnaker to mast/boom, cross-sail point-\u2026eaction-coupled jib-clew/deck heightfield contact}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_OPAQUE_SHEET_VINYL_OPTICS_V17_R2_20260715 initialized {version: LASER2_OPAQUE_SHEET_VINYL_OPTICS_V17_R2_20260715, enabled: true, finite: true, lastError: null, clothMeshes: 3} {baselineSha256: d0f400350797661775d478bf74f35b7ec9c94fe12d64ccdf8f60b38a3444f4e9, cloth: alpha-blended semi-transparent sail replaced by opaque alpha-clipped matte sheet, transport: back-side illumination is diffuse sheet energy transfer; no background color/detail sampling, shadows: deformed mast and boom capsules softly attenuate transmitted illumination, mainWindow: registered to the baked 512x1024 seam rectangle pixel bounds}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_SPREADER_STANDING_RIG_V17_2_20260715 initialized {version: LASER2_SPREADER_STANDING_RIG_V17_2_20260715, enabled: true, finite: true, lastError: null, directShroudsDisabled: 2} {fault: V16 direct shrouds bypassed the spreader tips, lea\u2026llinear mast struts azimuthally under-constrained, repair: replace each direct shroud with a tension-only tot\u2026ts with one compliant 3-axis mast socket per side, mastFlex: hounds and spreader station are live interpolated \u2026 each side cable length and tension independently, truthBoundary: spreader bracket compliance and pretension remain \u2026are stiffness and tuned wire lengths are supplied}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_STANDING_RIG_COLLISION_V17_3_20260715 initialized {version: LASER2_STANDING_RIG_COLLISION_V17_3_20260715, enabled: true, finite: true, lastError: null, collisionObjects: 4} {cableObjects: the routed shroud is represented by four separate \u2026bjects, one per visible upper/lower cable segment, sailContact: main, jib and physical spinnaker particles collide\u2026tion into live chainplate/spreader/mast endpoints, ropeContact: every V16 running-rope route resolves node contact\u2026ame live capsules before tube geometry is written, shadowLink: the visible cable meshes are the visual partners o\u2026capsules and may cast ordinary shadow-map shadows, calibration: wire diameter and collision margins are exposed pa\u2026ers pending measured cable and fitting dimensions}"
+    },
+    {
+      "type": "warning",
+      "text": "Unable to load notes SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at FrameGraph.init (https://foundry.local/src/core/FrameGraph.js:21:34)\n    at async AppKernel.init (https://foundry.local/src/core/AppKernel.js:67:9)\n    at async start (https://foundry.local/src/main.js:105:5)"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_LIGHTING_FOUNDRY_V6 initialized {version: LASER2_LIGHTING_FOUNDRY_V5, depth: cached, state: Object, quality: Object, scheduler: Object}"
+    }
+  ],
+  "pageErrors": [],
+  "shaderErrors": []
+}

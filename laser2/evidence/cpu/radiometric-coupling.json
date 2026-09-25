@@ -1,0 +1,371 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
+  "lane": "pure Node CPU; no WebGL or GPU",
+  "profile": "balanced",
+  "budgets": {
+    "noon": {
+      "revision": 1,
+      "sunDirection": {
+        "x": 0.12940952255126054,
+        "y": 0.8660254037844386,
+        "z": -0.4829629131445342
+      },
+      "sunTransmittance": {
+        "r": 0.9737447401660668,
+        "g": 0.8092832401147618,
+        "b": 0.6464010877699541
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.832487663626374,
+      "spectralColorTemperatureApproxK": 5360.601248628813,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 97034.65003805526,
+        "g": 80928.32401147617,
+        "b": 65691.80171403954
+      },
+      "directNormalLux": 83252.45201485195,
+      "directHorizontalRgbLux": {
+        "r": 84034.4719802885,
+        "g": 70085.98447963654,
+        "b": 56890.769104728366
+      },
+      "directHorizontalLux": 72098.73837220676,
+      "skyIrradianceRgbLux": {
+        "r": 8071.029736977047,
+        "g": 14620.990912414441,
+        "b": 27345.994398656036
+      },
+      "skyIrradianceLux": 14147.214418223093,
+      "groundBounceRgbLux": {
+        "r": 2652.638449457247,
+        "g": 2439.5608912910684,
+        "b": 2426.0187888974706
+      },
+      "groundBounceLux": 2483.88344036438,
+      "totalHorizontalLux": 86245.95279042986,
+      "rendererExposure": 0.8408964152537146,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.8340146945419757,
+        "b": 0.6769932358005762
+      },
+      "sunRendererIntensity": 3.105108801217768,
+      "hemisphereSkyColor": {
+        "r": 0.2951448617781371,
+        "g": 0.5346666388965915,
+        "b": 0.9999999999999999
+      },
+      "hemisphereGroundColor": {
+        "r": 0.09700281550513355,
+        "g": 0.08921090437329149,
+        "b": 0.08871569099043994
+      },
+      "hemisphereIntensity": 1.5192219110364464,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 4.706264000000004
+    },
+    "golden": {
+      "revision": 1,
+      "sunDirection": {
+        "x": -0.8012516067574692,
+        "y": 0.20791169081775931,
+        "z": -0.5610424150542225
+      },
+      "sunTransmittance": {
+        "r": 0.6147013896672023,
+        "g": 0.4405736020189803,
+        "b": 0.2408467854978889
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.46317289352016944,
+      "spectralColorTemperatureApproxK": 3667.3105782528924,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 61255.61634776142,
+        "g": 44057.36020189803,
+        "b": 24476.535661434187
+      },
+      "directNormalLux": 46299.9739266871,
+      "directHorizontalRgbLux": {
+        "r": 12735.758766947054,
+        "g": 9160.040252543677,
+        "b": 5088.957914729965
+      },
+      "directHorizontalLux": 9626.305863915684,
+      "skyIrradianceRgbLux": {
+        "r": 7007.28837698448,
+        "g": 11033.071984453996,
+        "b": 21569.689976676265
+      },
+      "skyIrradianceLux": 10937.934208544426,
+      "groundBounceRgbLux": {
+        "r": 568.5997577452281,
+        "g": 581.5616324255329,
+        "b": 767.7690592724995
+      },
+      "groundBounceLux": 592.2501140868511,
+      "totalHorizontalLux": 20564.24007246011,
+      "rendererExposure": 0.8408964152537146,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.7192378891720694,
+        "b": 0.3995802690560746
+      },
+      "sunRendererIntensity": 1.9601797231283653,
+      "hemisphereSkyColor": {
+        "r": 0.3248673664091417,
+        "g": 0.5115081392632104,
+        "b": 0.9999999999999999
+      },
+      "hemisphereGroundColor": {
+        "r": 0.026361053791689463,
+        "g": 0.026961983832608956,
+        "b": 0.0355948119839786
+      },
+      "hemisphereIntensity": 1.198316109815348,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 1.5470609999999994
+    },
+    "sunset": {
+      "revision": 1,
+      "sunDirection": {
+        "x": -0.9993908270190958,
+        "y": 0.03489949670250097,
+        "z": -1.8358511661092426e-16
+      },
+      "sunTransmittance": {
+        "r": 0.0821931643362028,
+        "g": 0.03002908657483001,
+        "b": 0.0019225877933647338
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.03908988029487606,
+      "spectralColorTemperatureApproxK": 1700,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 8190.632111166639,
+        "g": 3002.9086574830008,
+        "b": 195.38682481997438
+      },
+      "directNormalLux": 3903.1155874178717,
+      "directHorizontalRgbLux": {
+        "r": 285.8489383550587,
+        "g": 104.8000007897396,
+        "b": 6.8189018485168305
+      },
+      "directHorizontalLux": 136.21676957257014,
+      "skyIrradianceRgbLux": {
+        "r": 5497.526348243352,
+        "g": 6131.945529450249,
+        "b": 8850.846020331343
+      },
+      "skyIrradianceLux": 6193.372626967277,
+      "groundBounceRgbLux": {
+        "r": 166.56120825403423,
+        "g": 179.61827127091166,
+        "b": 255.10074975877995
+      },
+      "groundBounceLux": 182.2921746203476,
+      "totalHorizontalLux": 6329.589396539847,
+      "rendererExposure": 0.8408964152537146,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.3666272171337066,
+        "b": 0.02385491402471797
+      },
+      "sunRendererIntensity": 0.2621002275573324,
+      "hemisphereSkyColor": {
+        "r": 0.6211300406328326,
+        "g": 0.6928089716355377,
+        "b": 1
+      },
+      "hemisphereGroundColor": {
+        "r": 0.01881867652780596,
+        "g": 0.020293909854301975,
+        "b": 0.028822188203566777
+      },
+      "hemisphereIntensity": 0.4917136677961857,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 1.0317450000000008
+    }
+  },
+  "autoExposure": {
+    "noon": {
+      "revision": 1,
+      "sunDirection": {
+        "x": 0.12940952255126054,
+        "y": 0.8660254037844386,
+        "z": -0.4829629131445342
+      },
+      "sunTransmittance": {
+        "r": 0.9737447401660668,
+        "g": 0.8092832401147618,
+        "b": 0.6464010877699541
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.832487663626374,
+      "spectralColorTemperatureApproxK": 5360.601248628813,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 97034.65003805526,
+        "g": 80928.32401147617,
+        "b": 65691.80171403954
+      },
+      "directNormalLux": 83252.45201485195,
+      "directHorizontalRgbLux": {
+        "r": 84034.4719802885,
+        "g": 70085.98447963654,
+        "b": 56890.769104728366
+      },
+      "directHorizontalLux": 72098.73837220676,
+      "skyIrradianceRgbLux": {
+        "r": 8071.029736977047,
+        "g": 14620.990912414441,
+        "b": 27345.994398656036
+      },
+      "skyIrradianceLux": 14147.214418223093,
+      "groundBounceRgbLux": {
+        "r": 2652.638449457247,
+        "g": 2439.5608912910684,
+        "b": 2426.0187888974706
+      },
+      "groundBounceLux": 2483.88344036438,
+      "totalHorizontalLux": 86245.95279042986,
+      "rendererExposure": 0.2935974075230746,
+      "autoExposureEv": -1.5180888657052716,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.8340146945419757,
+        "b": 0.6769932358005762
+      },
+      "sunRendererIntensity": 3.105108801217768,
+      "hemisphereSkyColor": {
+        "r": 0.2951448617781371,
+        "g": 0.5346666388965915,
+        "b": 0.9999999999999999
+      },
+      "hemisphereGroundColor": {
+        "r": 0.09700281550513355,
+        "g": 0.08921090437329149,
+        "b": 0.08871569099043994
+      },
+      "hemisphereIntensity": 1.5192219110364464,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 0.6999239999999958
+    },
+    "sunset": {
+      "revision": 1,
+      "sunDirection": {
+        "x": -0.9993908270190958,
+        "y": 0.03489949670250097,
+        "z": -1.8358511661092426e-16
+      },
+      "sunTransmittance": {
+        "r": 0.0821931643362028,
+        "g": 0.03002908657483001,
+        "b": 0.0019225877933647338
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.03908988029487606,
+      "spectralColorTemperatureApproxK": 1700,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 8190.632111166639,
+        "g": 3002.9086574830008,
+        "b": 195.38682481997438
+      },
+      "directNormalLux": 3903.1155874178717,
+      "directHorizontalRgbLux": {
+        "r": 285.8489383550587,
+        "g": 104.8000007897396,
+        "b": 6.8189018485168305
+      },
+      "directHorizontalLux": 136.21676957257014,
+      "skyIrradianceRgbLux": {
+        "r": 5497.526348243352,
+        "g": 6131.945529450249,
+        "b": 8850.846020331343
+      },
+      "skyIrradianceLux": 6193.372626967277,
+      "groundBounceRgbLux": {
+        "r": 166.56120825403423,
+        "g": 179.61827127091166,
+        "b": 255.10074975877995
+      },
+      "groundBounceLux": 182.2921746203476,
+      "totalHorizontalLux": 6329.589396539847,
+      "rendererExposure": 1.9252791630900365,
+      "autoExposureEv": 1.1950676499661161,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.3666272171337066,
+        "b": 0.02385491402471797
+      },
+      "sunRendererIntensity": 0.2621002275573324,
+      "hemisphereSkyColor": {
+        "r": 0.6211300406328326,
+        "g": 0.6928089716355377,
+        "b": 1
+      },
+      "hemisphereGroundColor": {
+        "r": 0.01881867652780596,
+        "g": 0.020293909854301975,
+        "b": 0.028822188203566777
+      },
+      "hemisphereIntensity": 0.4917136677961857,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 0.7302560000000042
+    }
+  },
+  "sweep": {
+    "iterations": 250,
+    "elapsedMs": 41.932244999999995,
+    "perIterationMs": 0.16772897999999997,
+    "checksum": 19162732.02709865
+  },
+  "checks": {
+    "noon_direct_brighter_than_golden": true,
+    "golden_direct_brighter_than_sunset": true,
+    "noon_sky_brighter_than_sunset": true,
+    "sunset_sun_is_warmer": true,
+    "manual_exposure_is_locked": true,
+    "auto_exposure_compensates_sunset": true,
+    "ground_bounce_follows_incident_energy": true,
+    "finite_checksum": true
+  },
+  "allChecksPassed": true
+}

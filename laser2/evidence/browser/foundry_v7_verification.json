@@ -1,0 +1,1179 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
+  "sourceModified": true,
+  "entrypoint": "dist/index.html",
+  "entrypointSha256": "5d5a24355abbd098cb60ca18ac34f8f2d50ec0d0a0cf9abbfe30cee50d35692f",
+  "verificationLane": "exact generated Blob worker test + deterministic main-thread app fallback + Chromium/Xvfb/ANGLE SwiftShader WebGL2",
+  "elapsedSeconds": 18.281695127487183,
+  "dedicatedWorkerBundle": {
+    "generation": 7,
+    "width": 48,
+    "height": 24,
+    "scatteringOrders": 4,
+    "computeMs": 26.199999999953434,
+    "firstOrderEnergy": 327.49158479087055,
+    "finalEnergy": 336.68183532264084,
+    "byteLength": 18432,
+    "error": null
+  },
+  "baseline": {
+    "version": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL_20260716",
+    "atmosphere": {
+      "created": true,
+      "visible": true,
+      "sourceSkyDisabled": true,
+      "backend": "cancellable worker-generated Rayleigh/Mie/ozone LUT with bounded multi-order angular redistribution",
+      "texturePrototype": "sails.main.cloth.map",
+      "hdrEnvironment": true,
+      "textureStorage": "RGBA32F DataTexture-compatible payload",
+      "physicalDomain": {
+        "planetRadiusM": 6371000,
+        "atmosphereRadiusM": 6471000,
+        "rayleighScaleHeightM": 8500,
+        "mieScaleHeightM": 1200,
+        "rayleighScatteringMInv": [
+          5.802e-06,
+          1.3558e-05,
+          3.31e-05
+        ],
+        "mieExtinctionMInv": 2.1e-05,
+        "ozonePeakAltitudeM": 25000,
+        "ozoneHalfWidthM": 15000,
+        "ozoneAbsorptionMInv": [
+          6.5e-07,
+          1.881e-06,
+          8.5e-08
+        ]
+      },
+      "quality": {
+        "id": "balanced",
+        "viewSamples": 12,
+        "sunSamples": 4,
+        "scatteringOrders": 4,
+        "lutWidth": 128,
+        "lutHeight": 64
+      },
+      "worker": {
+        "supported": true,
+        "active": true,
+        "jobs": 1,
+        "fallbacks": 0,
+        "restarts": 1,
+        "bootstrapFallbacks": 1,
+        "pendingGeneration": 1,
+        "appliedGeneration": 1,
+        "cancelledGenerations": 0,
+        "errors": []
+      },
+      "energy": {
+        "firstOrder": 3491.4967789426446,
+        "final": 3589.4770985022187,
+        "multiOrderRatio": 1.0280625547617563
+      },
+      "shaderRebuilds": 1,
+      "lutUpdates": 1,
+      "lutPixels": 8192,
+      "lutWorkerCpuMs": {
+        "last": 67.89999999990687,
+        "mean": 67.89999999990687
+      },
+      "lutMainThreadApplyMs": {
+        "last": 1.5,
+        "mean": 1.5
+      },
+      "frameCpuMs": 0,
+      "cameraRecenters": 0,
+      "deferredDynamicUpdates": 0,
+      "updateAccumulatorSeconds": 0,
+      "updateCadenceHz": 1,
+      "truthBoundary": "Orders above one use a bounded angular redistribution approximation. Full multi-dimensional spectral multiple-scattering precomputation remains a later authority."
+    },
+    "localProbes": {
+      "enabled": true,
+      "probeCount": 6,
+      "patchedMaterials": 13,
+      "shaderCompiles": 0,
+      "outputInjections": 0,
+      "worldPositionInjections": 0,
+      "updateStrideFrames": 4,
+      "updates": 1,
+      "cpuMs": {
+        "last": 0.10000000009313226,
+        "mean": 0.10000000009313226
+      },
+      "strengths": {
+        "diffuse": 0.85,
+        "specular": 0.55
+      },
+      "probes": [
+        {
+          "name": "deck",
+          "local": [
+            0,
+            0.62,
+            0.1
+          ],
+          "radius": 2.8,
+          "tint": [
+            1,
+            0.98,
+            0.91
+          ],
+          "energyScale": 0.95,
+          "worldPosition": [
+            0.04995267332230499,
+            0.9158200622386012,
+            -1.3877787807814457e-17
+          ]
+        },
+        {
+          "name": "main-sail",
+          "local": [
+            0.18,
+            2.85,
+            -0.35
+          ],
+          "radius": 3.2,
+          "tint": [
+            1,
+            0.91,
+            0.72
+          ],
+          "energyScale": 0.7,
+          "worldPosition": [
+            0.49978244759036994,
+            3.1458544059611238,
+            0.18
+          ]
+        },
+        {
+          "name": "jib",
+          "local": [
+            -0.1,
+            2.15,
+            1.35
+          ],
+          "radius": 2.4,
+          "tint": [
+            0.98,
+            0.92,
+            0.78
+          ],
+          "energyScale": 0.58,
+          "worldPosition": [
+            -1.2001641137820862,
+            2.4457246405047735,
+            -0.10000000000000012
+          ]
+        },
+        {
+          "name": "hull-port",
+          "local": [
+            -0.86,
+            0.05,
+            0.05
+          ],
+          "radius": 2.2,
+          "tint": [
+            0.72,
+            0.9,
+            1
+          ],
+          "energyScale": 0.52,
+          "worldPosition": [
+            0.09999618345461982,
+            0.34582388059030555,
+            -0.8599999999999999
+          ]
+        },
+        {
+          "name": "hull-starboard",
+          "local": [
+            0.86,
+            0.05,
+            0.05
+          ],
+          "radius": 2.2,
+          "tint": [
+            0.72,
+            0.9,
+            1
+          ],
+          "energyScale": 0.52,
+          "worldPosition": [
+            0.09999618345462001,
+            0.34582388059030555,
+            0.8600000000000001
+          ]
+        },
+        {
+          "name": "water-ground",
+          "local": [
+            0,
+            -0.48,
+            0.15
+          ],
+          "radius": 4.5,
+          "tint": [
+            0.36,
+            0.69,
+            0.88
+          ],
+          "energyScale": 0.82,
+          "worldPosition": [
+            3.6640671107535105e-05,
+            -0.18418375124768138,
+            0
+          ]
+        }
+      ],
+      "receiverPolicy": "static hull material batches plus mast/boom/spreader surfaces; sail and crew shaders remain untouched to contain compile cost",
+      "model": "six analytic near-field irradiance/specular lobes fed by the atmosphere radiometric budget; no hidden lights",
+      "truthBoundary": "Analytic local lobes approximate sail/deck/hull/water bounce. Parallax-corrected cubemap probes and real local GI remain future authorities."
+    },
+    "hullBatches": {
+      "built": true,
+      "sourceMeshes": 27,
+      "batchMeshes": 7,
+      "materialGroups": 7,
+      "drawCallReduction": 20,
+      "sourceVertices": 5571,
+      "batchVertices": 5571,
+      "sourceTriangles": 9256,
+      "batchTriangles": 9256,
+      "topologyParity": true,
+      "buildMs": 7.699999999953434,
+      "errors": [],
+      "model": "27 semantic static hull/deck/fitting meshes merged by pooled material into shared indexed BufferGeometry batches",
+      "truthBoundary": "Semantic source meshes remain hidden for inspection selection. A future ID-buffer picker can remove that duplicate CPU geometry path entirely."
+    },
+    "nativeHull": {
+      "schema": "laser2-native-static-hull-binary-v3",
+      "assetVersion": "2026-07-15",
+      "assetBackend": "binary typed-array views",
+      "manifestBytes": 40377,
+      "binaryBytes": 233008,
+      "sourceJsonBytes": 873828,
+      "transferReductionRatio": 0.31285905235355244,
+      "sourceHash": "67499664e6e11792b40ecf881aa1f97663229bd17256b07689a33ab1f368ea4f",
+      "loaded": true,
+      "rootMounted": true,
+      "nativeMeshes": 27,
+      "hiddenLegacyMeshes": 27,
+      "retiredLegacyMeshes": 27,
+      "sourceTriangles": 9256,
+      "nativeTriangles": 9256,
+      "sourceVertices": 5571,
+      "nativeVertices": 5571,
+      "topologyParity": true,
+      "nativeMaterialPoolKeys": 7,
+      "nativeMaterialInstances": 7,
+      "releasedGeometryResources": 27,
+      "releasedMaterialResources": 5,
+      "estimatedReleasedGeometryBytes": 233008,
+      "loadMs": 30.5,
+      "buildMs": 3.5,
+      "errors": [],
+      "authority": "27 static hull/deck/fitting meshes reconstructed from a compact binary typed-array asset; compatibility mesh identities remain as empty hidden placeholders while unique legacy GPU resources are retired"
+    },
+    "render": {
+      "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+      "renders": 0,
+      "benchmarkRenders": 0,
+      "captureRenders": 0,
+      "unauthorizedRenderCalls": 0,
+      "warmupRendersExcludedFromSteadyState": 2,
+      "renderCpuSubmissionMs": {
+        "last": 0,
+        "coldStart": 0,
+        "all": {
+          "samples": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "steadyState": {
+          "samples": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        }
+      },
+      "completedBatchWallMs": {
+        "samples": 0,
+        "mean": 0,
+        "min": 0,
+        "max": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "recentReasons": [],
+      "calls": 0,
+      "triangles": 0,
+      "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+    },
+    "scripts": [
+      {
+        "src": "./vendor/legacy/laser2-raf-gate.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/three-legacy.bundle.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-core-legacy.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-evolution-v3.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-rigging-v16.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-rope-hardware-v16.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-sail-material-v17.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-spreader-standing-rig-v17_2.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": "./vendor/legacy/laser2-standing-rig-collision-v17_3.js",
+        "inlineBytes": 0
+      },
+      {
+        "src": null,
+        "inlineBytes": 107
+      },
+      {
+        "src": "./src/main.js",
+        "inlineBytes": 0
+      }
+    ]
+  },
+  "probeImageDifference": {
+    "pixels": 960000,
+    "changedPixelsAt2": 13713,
+    "strongPixelsAt10": 2079,
+    "maxChannelDifference": 65,
+    "meanAbsoluteChannelDifference": 0.07741145833333334
+  },
+  "atmosphereGenerationDuringProbeToggle": {
+    "before": 1,
+    "after": 1
+  },
+  "currentLighting": {
+    "coupling": {
+      "revision": 4,
+      "sunDirection": {
+        "x": 0.45198439986004607,
+        "y": 0.6156614753256582,
+        "z": -0.6455006197386551
+      },
+      "sunTransmittance": {
+        "r": 0.9095981533840618,
+        "g": 0.7406412533710458,
+        "b": 0.5611155612121772
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.7635997353399426,
+      "spectralColorTemperatureApproxK": 5084.853809511018,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 90642.37766648275,
+        "g": 74064.12533710458,
+        "b": 57024.48972197679
+      },
+      "directNormalLux": 76358.40009091815,
+      "directHorizontalRgbLux": {
+        "r": 55805.01996117226,
+        "g": 45598.42867374626,
+        "b": 35107.78147192506
+      },
+      "directHorizontalLux": 47010.92525348154,
+      "skyIrradianceRgbLux": {
+        "r": 7810.1000909066015,
+        "g": 13828.57578924889,
+        "b": 25715.98448326953
+      },
+      "skyIrradianceLux": 13407.318763489608,
+      "groundBounceRgbLux": {
+        "r": 1832.115457499871,
+        "g": 1711.4977285342604,
+        "b": 1751.7244595096042
+      },
+      "groundBounceLux": 1740.045427688769,
+      "totalHorizontalLux": 60418.24401697115,
+      "rendererExposure": 1,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.8171026317251121,
+        "b": 0.6291151135928664
+      },
+      "sunRendererIntensity": 2.9005560853274477,
+      "hemisphereSkyColor": {
+        "r": 0.30370605084117025,
+        "g": 0.5377424223539088,
+        "b": 1
+      },
+      "hemisphereGroundColor": {
+        "r": 0.07124422783393031,
+        "g": 0.06655384823582147,
+        "b": 0.06811811776637415
+      },
+      "hemisphereIntensity": 1.428665804626085,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 0.2999999998137355,
+      "recomputes": 4,
+      "meanCpuMs": 0.7499999999417923,
+      "calibration": {
+        "skyRelativeToLux": 22000,
+        "referenceDirectLux": 100000,
+        "referenceSkyLux": 18000
+      },
+      "authority": "single shared atmosphere \u2192 spectral sun/sky/ground/exposure/PBR-environment energy budget",
+      "truthBoundary": "15-band solar spectrum with RGB atmospheric sky transport, ozone absorption and dual-scattering approximation; full line-by-line spectral atmosphere and measured camera response remain later authorities"
+    },
+    "sail": {
+      "authority": "LASER2_OPAQUE_SHEET_VINYL_OPTICS_V17_R2_20260715",
+      "clothMeshes": 3,
+      "transmission": 0.27,
+      "absorption": 0.42,
+      "sunlightScale": 0.32899804506610614,
+      "transmittedShadowBlurM": 0.055,
+      "incidentRadiometricRevision": 4,
+      "incidentDirectNormalLux": 76358.40009091815,
+      "incidentSkyIrradianceLux": 13407.318763489608,
+      "model": "retained V17 thin-sheet shader driven by the shared atmosphere radiometric budget, with Beer-Lambert absorption and millimetre shadow diffusion"
+    }
+  },
+  "selectionProbe": {
+    "pass": true,
+    "id": "hull.bow-eye",
+    "before": false,
+    "during": true,
+    "after": false
+  },
+  "final": {
+    "atmosphere": {
+      "created": true,
+      "visible": true,
+      "sourceSkyDisabled": true,
+      "backend": "cancellable worker-generated Rayleigh/Mie/ozone LUT with bounded multi-order angular redistribution",
+      "texturePrototype": "sails.main.cloth.map",
+      "hdrEnvironment": true,
+      "textureStorage": "RGBA32F DataTexture-compatible payload",
+      "physicalDomain": {
+        "planetRadiusM": 6371000,
+        "atmosphereRadiusM": 6471000,
+        "rayleighScaleHeightM": 8500,
+        "mieScaleHeightM": 1200,
+        "rayleighScatteringMInv": [
+          5.802e-06,
+          1.3558e-05,
+          3.31e-05
+        ],
+        "mieExtinctionMInv": 2.1e-05,
+        "ozonePeakAltitudeM": 25000,
+        "ozoneHalfWidthM": 15000,
+        "ozoneAbsorptionMInv": [
+          6.5e-07,
+          1.881e-06,
+          8.5e-08
+        ]
+      },
+      "quality": {
+        "id": "balanced",
+        "viewSamples": 12,
+        "sunSamples": 4,
+        "scatteringOrders": 4,
+        "lutWidth": 128,
+        "lutHeight": 64
+      },
+      "worker": {
+        "supported": true,
+        "active": true,
+        "jobs": 1,
+        "fallbacks": 0,
+        "restarts": 1,
+        "bootstrapFallbacks": 1,
+        "pendingGeneration": 1,
+        "appliedGeneration": 1,
+        "cancelledGenerations": 0,
+        "errors": []
+      },
+      "energy": {
+        "firstOrder": 3491.4967789426446,
+        "final": 3589.4770985022187,
+        "multiOrderRatio": 1.0280625547617563
+      },
+      "shaderRebuilds": 1,
+      "lutUpdates": 1,
+      "lutPixels": 8192,
+      "lutWorkerCpuMs": {
+        "last": 67.89999999990687,
+        "mean": 67.89999999990687
+      },
+      "lutMainThreadApplyMs": {
+        "last": 1.5,
+        "mean": 1.5
+      },
+      "frameCpuMs": 0,
+      "cameraRecenters": 7,
+      "deferredDynamicUpdates": 0,
+      "updateAccumulatorSeconds": 0,
+      "updateCadenceHz": 1,
+      "truthBoundary": "Orders above one use a bounded angular redistribution approximation. Full multi-dimensional spectral multiple-scattering precomputation remains a later authority."
+    },
+    "localProbes": {
+      "enabled": true,
+      "probeCount": 6,
+      "patchedMaterials": 13,
+      "shaderCompiles": 26,
+      "outputInjections": 26,
+      "worldPositionInjections": 26,
+      "updateStrideFrames": 4,
+      "updates": 8,
+      "cpuMs": {
+        "last": 0.10000000009313226,
+        "mean": 0.08750000002328308
+      },
+      "strengths": {
+        "diffuse": 0.85,
+        "specular": 0.55
+      },
+      "probes": [
+        {
+          "name": "deck",
+          "local": [
+            0,
+            0.62,
+            0.1
+          ],
+          "radius": 2.8,
+          "tint": [
+            1,
+            0.98,
+            0.91
+          ],
+          "energyScale": 0.95,
+          "worldPosition": [
+            0.04995267332230499,
+            0.9158200622386012,
+            -1.3877787807814457e-17
+          ]
+        },
+        {
+          "name": "main-sail",
+          "local": [
+            0.18,
+            2.85,
+            -0.35
+          ],
+          "radius": 3.2,
+          "tint": [
+            1,
+            0.91,
+            0.72
+          ],
+          "energyScale": 0.7,
+          "worldPosition": [
+            0.49978244759036994,
+            3.1458544059611238,
+            0.18
+          ]
+        },
+        {
+          "name": "jib",
+          "local": [
+            -0.1,
+            2.15,
+            1.35
+          ],
+          "radius": 2.4,
+          "tint": [
+            0.98,
+            0.92,
+            0.78
+          ],
+          "energyScale": 0.58,
+          "worldPosition": [
+            -1.2001641137820862,
+            2.4457246405047735,
+            -0.10000000000000012
+          ]
+        },
+        {
+          "name": "hull-port",
+          "local": [
+            -0.86,
+            0.05,
+            0.05
+          ],
+          "radius": 2.2,
+          "tint": [
+            0.72,
+            0.9,
+            1
+          ],
+          "energyScale": 0.52,
+          "worldPosition": [
+            0.09999618345461982,
+            0.34582388059030555,
+            -0.8599999999999999
+          ]
+        },
+        {
+          "name": "hull-starboard",
+          "local": [
+            0.86,
+            0.05,
+            0.05
+          ],
+          "radius": 2.2,
+          "tint": [
+            0.72,
+            0.9,
+            1
+          ],
+          "energyScale": 0.52,
+          "worldPosition": [
+            0.09999618345462001,
+            0.34582388059030555,
+            0.8600000000000001
+          ]
+        },
+        {
+          "name": "water-ground",
+          "local": [
+            0,
+            -0.48,
+            0.15
+          ],
+          "radius": 4.5,
+          "tint": [
+            0.36,
+            0.69,
+            0.88
+          ],
+          "energyScale": 0.82,
+          "worldPosition": [
+            3.6640671107535105e-05,
+            -0.18418375124768138,
+            0
+          ]
+        }
+      ],
+      "receiverPolicy": "static hull material batches plus mast/boom/spreader surfaces; sail and crew shaders remain untouched to contain compile cost",
+      "model": "six analytic near-field irradiance/specular lobes fed by the atmosphere radiometric budget; no hidden lights",
+      "truthBoundary": "Analytic local lobes approximate sail/deck/hull/water bounce. Parallax-corrected cubemap probes and real local GI remain future authorities."
+    },
+    "hullBatches": {
+      "built": true,
+      "sourceMeshes": 27,
+      "batchMeshes": 7,
+      "materialGroups": 7,
+      "drawCallReduction": 20,
+      "sourceVertices": 5571,
+      "batchVertices": 5571,
+      "sourceTriangles": 9256,
+      "batchTriangles": 9256,
+      "topologyParity": true,
+      "buildMs": 7.699999999953434,
+      "errors": [],
+      "model": "27 semantic static hull/deck/fitting meshes merged by pooled material into shared indexed BufferGeometry batches",
+      "truthBoundary": "Semantic source meshes remain hidden for inspection selection. A future ID-buffer picker can remove that duplicate CPU geometry path entirely."
+    },
+    "nativeHull": {
+      "schema": "laser2-native-static-hull-binary-v3",
+      "assetVersion": "2026-07-15",
+      "assetBackend": "binary typed-array views",
+      "manifestBytes": 40377,
+      "binaryBytes": 233008,
+      "sourceJsonBytes": 873828,
+      "transferReductionRatio": 0.31285905235355244,
+      "sourceHash": "67499664e6e11792b40ecf881aa1f97663229bd17256b07689a33ab1f368ea4f",
+      "loaded": true,
+      "rootMounted": true,
+      "nativeMeshes": 27,
+      "hiddenLegacyMeshes": 27,
+      "retiredLegacyMeshes": 27,
+      "sourceTriangles": 9256,
+      "nativeTriangles": 9256,
+      "sourceVertices": 5571,
+      "nativeVertices": 5571,
+      "topologyParity": true,
+      "nativeMaterialPoolKeys": 7,
+      "nativeMaterialInstances": 7,
+      "releasedGeometryResources": 27,
+      "releasedMaterialResources": 5,
+      "estimatedReleasedGeometryBytes": 233008,
+      "loadMs": 30.5,
+      "buildMs": 3.5,
+      "errors": [],
+      "authority": "27 static hull/deck/fitting meshes reconstructed from a compact binary typed-array asset; compatibility mesh identities remain as empty hidden placeholders while unique legacy GPU resources are retired"
+    },
+    "render": {
+      "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+      "renders": 7,
+      "benchmarkRenders": 0,
+      "captureRenders": 0,
+      "unauthorizedRenderCalls": 0,
+      "warmupRendersExcludedFromSteadyState": 2,
+      "renderCpuSubmissionMs": {
+        "last": 11.600000000093132,
+        "coldStart": 4523.199999999953,
+        "all": {
+          "samples": 7,
+          "mean": 657.4857142857343,
+          "min": 7.800000000046566,
+          "max": 4523.199999999953,
+          "p50": 11.600000000093132,
+          "p95": 28.5,
+          "p99": 28.5
+        },
+        "steadyState": {
+          "samples": 5,
+          "mean": 13.920000000065192,
+          "min": 7.800000000046566,
+          "max": 28.5,
+          "p50": 11.600000000093132,
+          "p95": 11.900000000139698,
+          "p99": 11.900000000139698
+        }
+      },
+      "completedBatchWallMs": {
+        "samples": 4,
+        "mean": 0,
+        "min": 0,
+        "max": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "recentReasons": [
+        "frame-graph",
+        "frame-graph",
+        "frame-graph",
+        "frame-graph",
+        "frame-graph",
+        "frame-graph",
+        "frame-graph"
+      ],
+      "calls": 608,
+      "triangles": 64040,
+      "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+    },
+    "scene": {
+      "schema": "laser2-semantic-scene-v3-runtime",
+      "rootName": "foundry.scene-root.v3",
+      "nativeRootOwned": true,
+      "linkedCompatibilityRoots": 27,
+      "nativeOwnedRoots": 1,
+      "entities": 116,
+      "assignedMeshes": 316,
+      "unassignedMeshes": 13,
+      "bindingErrors": [],
+      "groups": {
+        "crew": 24,
+        "hardware": 25,
+        "hull": 27,
+        "overview": 1,
+        "rig": 9,
+        "ropes": 19,
+        "sails": 8,
+        "steering": 3
+      },
+      "sourceGeometryBackend": "27 static hull/deck/fitting meshes are native versioned BufferGeometry assets; steering, crew, rig, sails, ropes, and hardware retain the compatibility transform/simulation backend"
+    },
+    "body": {
+      "kinematic": true
+    },
+    "rig": {
+      "version": "LASER2_RIGGING_SAIL_AUTHORITY_V16_20260715",
+      "enabled": true,
+      "finite": true,
+      "lastError": null,
+      "steps": 0,
+      "frame": 2,
+      "solverIterations": 6,
+      "mast": {
+        "nodes": 24,
+        "elementLengthM": 0.2530434782608696,
+        "lowerEiSideNm2": 7800,
+        "upperEiSideNm2": 3600,
+        "foreAftFactor": 1.35,
+        "maxBendM": 9.019494489765868e-16,
+        "tipOffsetM": 3.3306690738754696e-15,
+        "maxCurvatureInvM": 2.8011746421768875e-14,
+        "strainEnergyJ": 3.05799644668108e-24,
+        "legacyConstraintsDisabled": 75,
+        "rodConstraints": 22,
+        "trackConstraints": 15,
+        "exactJibHeadTerminal": true,
+        "jibHalyardLoadPath": true,
+        "exactForestayTerminal": true,
+        "legacySpreaderDiagonalsDisabled": 4
+      },
+      "loads": {
+        "sailResultantN": 0,
+        "mainN": 0,
+        "jibN": 0,
+        "spinnakerN": 0,
+        "mastAirWaterN": 0,
+        "boomAirWaterN": 0,
+        "mainsheetN": 0,
+        "forestayN": 0,
+        "jibHalyardN": 0,
+        "jibHalyardTakeupM": 0.026,
+        "jibHalyardControlMode": "fixed total-length take-up (not target-force controlled)",
+        "shroudsN": [
+          0,
+          0
+        ],
+        "trapezeN": 0,
+        "standingCablesN": {
+          "forestay-safety": 0,
+          "port-shroud": 0,
+          "port-diamond-upper": 0,
+          "port-diamond-lower": 0,
+          "starboard-shroud": 0,
+          "starboard-diamond-upper": 0,
+          "starboard-diamond-lower": 0,
+          "jib-halyard-over-sheave-to-rack": 0,
+          "port-shroud-routed": 0,
+          "starboard-shroud-routed": 0
+        }
+      },
+      "wetRig": {
+        "wetness01": 0,
+        "retainedMassKg": 0,
+        "automatic": true,
+        "dryBoomKg": 2.6
+      },
+      "contacts": {
+        "total": 0,
+        "mast": 0,
+        "boom": 0,
+        "sailSail": 0,
+        "jibClewDeck": 0,
+        "maxPenetrationM": 0,
+        "solveMs": 0,
+        "finalPenetrationM": 0.05399999999999997,
+        "finalSparPenetrationM": 0.05399999999999997,
+        "finalSailSailPenetrationM": 0.012992350372500353,
+        "finalJibClewDeckPenetrationM": 0,
+        "jibClewInDeckContactDomain": true,
+        "jibClewDeckClearanceM": 0.06960142675056347,
+        "cumulative": {
+          "total": 0,
+          "mast": 0,
+          "boom": 0,
+          "sailSail": 0,
+          "jibClewDeck": 0,
+          "hardwareDeck": 0
+        },
+        "hardwareDeck": 0
+      },
+      "cloth": {
+        "formulation": "orthotropic warp/fill/bias XPBD membrane with batten-row skip-one stiffness and reinforcement mass",
+        "constraintsRetuned": 1684,
+        "battenConstraintsRetuned": 21,
+        "addedBattenPatchVinylMassKg": 0.7560000000000002,
+        "mainBattens": 3,
+        "jibConfiguredLuffM": 3.74,
+        "jibGeneratedLuffM": 3.7399999999999998,
+        "jibGeneratedLuffErrorM": 4.440892098500626e-16,
+        "jibCurrentLuffRestM": 3.7399999999999998,
+        "jibCurrentLuffRestErrorM": 4.440892098500626e-16,
+        "jibLuffRestAuthority": "fixed measured material rest; halyard force comes from total-length pulley take-up"
+      },
+      "aero": {
+        "authority": "single quasi-steady strip solver for main/jib plus panel pressure for spinnaker",
+        "turbulence01": 0.18,
+        "stepMs": 0
+      },
+      "truthBoundary": {
+        "verified": "loads originate on deformable sail/spar particles and transfer through explicit luff, sheet and standing-rig constraints",
+        "inferred": "EI, pretension, retained-water mass, rope/hardware positions and cloth transport remain calibration parameters until measured Laser 2 data are supplied",
+        "reduced": "quasi-steady aerodynamics, 24-node spar, Morison-style immersed spar force, targeted reaction-coupled jib-clew/deck heightfield contact only (not full sail-to-hull shell contact), no resolved boundary layer or torsion warping"
+      },
+      "sourceModified": true,
+      "spreaders": {
+        "version": "LASER2_SPREADER_STANDING_RIG_V17_2_20260715",
+        "enabled": true,
+        "finite": true,
+        "lastError": null,
+        "directShroudsDisabled": 2,
+        "legacyCollinearStrutsDisabled": 6,
+        "routedShroudsInstalled": 2,
+        "bracketConstraintsInstalled": 2,
+        "loadPath": "chainplate \u2192 spreader tip \u2192 3.74 m mast hounds; compliant mast socket transfers reaction into the flexible mast",
+        "mastCoupling": "port and starboard total-length shrouds solve independently from live mast/spreader geometry",
+        "mastFlexSensitivity": {
+          "probeDeflectionM": 0.01,
+          "assumedCantileverSpreaderDeflectionRatio": 0.36193156797048803,
+          "positiveBodySide": {
+            "port": {
+              "deltaLengthM": 0.0021093144676447295,
+              "elasticTensionDeltaN": 514.4669433279828
+            },
+            "starboard": {
+              "deltaLengthM": -0.0020791224163883015,
+              "elasticTensionDeltaN": -507.1030283873907
+            }
+          },
+          "negativeBodySide": {
+            "port": {
+              "deltaLengthM": -0.0020791224163883015,
+              "elasticTensionDeltaN": -507.1030283873907
+            },
+            "starboard": {
+              "deltaLengthM": 0.0021093144676447295,
+              "elasticTensionDeltaN": 514.4669433279828
+            }
+          },
+          "opposedResponse": true,
+          "statement": "A live lateral mast bend lengthens one routed shroud while shortening the opposite shroud; unilateral cable tension therefore rises on one side and unloads on the other."
+        },
+        "sides": [
+          {
+            "side": "port",
+            "spreaderLengthM": 0.42000000000000004,
+            "foreOffsetM": -0.16000000000000023,
+            "axialOffsetM": 0.02737930434782662,
+            "alignmentErrorM": 6.245004513516506e-17,
+            "correctSide": true,
+            "bracketReactionN": 0,
+            "bracketAxisReactionN": [
+              0,
+              0,
+              0
+            ],
+            "shroudTensionN": 0,
+            "shroudTotalLengthM": 3.8529292452692623,
+            "shroudRestLengthM": 3.8510842452692624,
+            "lowerShroudSegmentM": 2.322823302336763,
+            "upperShroudSegmentM": 1.5301059429324997
+          },
+          {
+            "side": "starboard",
+            "spreaderLengthM": 0.42000000000000004,
+            "foreOffsetM": -0.16000000000000023,
+            "axialOffsetM": 0.027379304347826493,
+            "alignmentErrorM": 6.245004513516506e-17,
+            "correctSide": true,
+            "bracketReactionN": 0,
+            "bracketAxisReactionN": [
+              0,
+              0,
+              0
+            ],
+            "shroudTensionN": 0,
+            "shroudTotalLengthM": 3.8529292452692623,
+            "shroudRestLengthM": 3.8510842452692624,
+            "lowerShroudSegmentM": 2.322823302336763,
+            "upperShroudSegmentM": 1.5301059429324997
+          }
+        ],
+        "tensionDifferenceN": 0,
+        "maxAlignmentErrorM": 6.245004513516506e-17,
+        "maxWrongSideM": 0,
+        "parameters": {
+          "enabled": true,
+          "inheritV16Pretension": true,
+          "shroudPretensionN": 450,
+          "routedShroudComplianceMPerN": 4.1e-06,
+          "mastSpreaderStationM": 2.250012,
+          "mastHoundsStationM": 3.74,
+          "spreaderLengthM": 0.42000000000000004,
+          "spreaderSweepM": -0.16000000000000023,
+          "spreaderAxialOffsetM": 0.027379304347826556,
+          "bracketSideComplianceMPerN": 1.2e-08,
+          "bracketForeComplianceMPerN": 2.8e-08,
+          "bracketAxialComplianceMPerN": 1.2e-08,
+          "bracketDampingNsPerM": 16,
+          "bracketDampingForceLimitN": 160,
+          "diagnosticsVisible": true
+        },
+        "sourceModified": true
+      }
+    },
+    "webgl": {
+      "context": "WebGL2",
+      "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "contextLost": false,
+      "glError": 0
+    },
+    "retainedGlErrors": []
+  },
+  "checks": {
+    "version_v7": true,
+    "external_modular_entrypoint": true,
+    "dedicated_worker_bundle_executes": true,
+    "dedicated_worker_four_orders": true,
+    "sandbox_app_worker_applied": true,
+    "balanced_four_scattering_orders": true,
+    "multi_order_energy_increase": true,
+    "main_thread_lut_apply_under_5ms": true,
+    "local_probe_count_six": true,
+    "local_probes_patch_high_value_materials": true,
+    "local_probe_visual_effect": true,
+    "local_probe_toggle_does_not_rebuild_atmosphere": true,
+    "hull_batched_to_seven_or_less": true,
+    "hull_draw_call_reduction_at_least_20": true,
+    "hull_batch_topology_parity": true,
+    "semantic_selection_survives_batching": true,
+    "sail_transport_has_radiometric_revision": true,
+    "render_calls_reduced_below_v6": true,
+    "render_authority_clean": true,
+    "native_hull_exact": true,
+    "body_anchored": true,
+    "rig_finite": true,
+    "webgl2": true,
+    "context_not_lost": true,
+    "gl_error_zero": true,
+    "no_page_errors": true,
+    "no_shader_errors": true
+  },
+  "allChecksPassed": true,
+  "console": [
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-raf-gate.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/three-legacy.bundle.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-core-legacy.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-evolution-v3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rigging-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rope-hardware-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-sail-material-v17.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-spreader-standing-rig-v17_2.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-standing-rig-collision-v17_3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/src/main.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-raf-gate.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/three-legacy.bundle.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-core-legacy.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-evolution-v3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rigging-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-rope-hardware-v16.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-sail-material-v17.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-spreader-standing-rig-v17_2.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/vendor/legacy/laser2-standing-rig-collision-v17_3.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://foundry.local/src/main.js, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20"
+    },
+    {
+      "type": "warning",
+      "text": "sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_RIGGING_SAIL_AUTHORITY_V16_20260715 initialized {version: LASER2_RIGGING_SAIL_AUTHORITY_V16_20260715, enabled: true, finite: true, lastError: null, steps: 0} {baselineSha256: 0912ed37e7a2c58494d18f27dc82d0a0d95d87337114756bde8d7284739290df, mast: legacy global chord stiffness disabled; tapered di\u2026ctional discrete-rod curvature constraints active, loadPath: main/jib strip and spinnaker panel forces applied to physical cloth particles, jibLuff: generated and live luff-wire material rest fixed a\u2026m; pulley-cable take-up carries halyard authority, contact: main/jib/spinnaker to mast/boom, cross-sail point-\u2026eaction-coupled jib-clew/deck heightfield contact}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_OPAQUE_SHEET_VINYL_OPTICS_V17_R2_20260715 initialized {version: LASER2_OPAQUE_SHEET_VINYL_OPTICS_V17_R2_20260715, enabled: true, finite: true, lastError: null, clothMeshes: 3} {baselineSha256: d0f400350797661775d478bf74f35b7ec9c94fe12d64ccdf8f60b38a3444f4e9, cloth: alpha-blended semi-transparent sail replaced by opaque alpha-clipped matte sheet, transport: back-side illumination is diffuse sheet energy transfer; no background color/detail sampling, shadows: deformed mast and boom capsules softly attenuate transmitted illumination, mainWindow: registered to the baked 512x1024 seam rectangle pixel bounds}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_SPREADER_STANDING_RIG_V17_2_20260715 initialized {version: LASER2_SPREADER_STANDING_RIG_V17_2_20260715, enabled: true, finite: true, lastError: null, directShroudsDisabled: 2} {fault: V16 direct shrouds bypassed the spreader tips, lea\u2026llinear mast struts azimuthally under-constrained, repair: replace each direct shroud with a tension-only tot\u2026ts with one compliant 3-axis mast socket per side, mastFlex: hounds and spreader station are live interpolated \u2026 each side cable length and tension independently, truthBoundary: spreader bracket compliance and pretension remain \u2026are stiffness and tuned wire lengths are supplied}"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_STANDING_RIG_COLLISION_V17_3_20260715 initialized {version: LASER2_STANDING_RIG_COLLISION_V17_3_20260715, enabled: true, finite: true, lastError: null, collisionObjects: 4} {cableObjects: the routed shroud is represented by four separate \u2026bjects, one per visible upper/lower cable segment, sailContact: main, jib and physical spinnaker particles collide\u2026tion into live chainplate/spreader/mast endpoints, ropeContact: every V16 running-rope route resolves node contact\u2026ame live capsules before tube geometry is written, shadowLink: the visible cable meshes are the visual partners o\u2026capsules and may cast ordinary shadow-map shadows, calibration: wire diameter and collision margins are exposed pa\u2026ers pending measured cable and fitting dimensions}"
+    },
+    {
+      "type": "warning",
+      "text": "Unable to load notes SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at FrameGraph.init (https://foundry.local/src/core/FrameGraph.js:21:34)\n    at async AppKernel.init (https://foundry.local/src/core/AppKernel.js:67:9)\n    at async start (https://foundry.local/src/main.js:112:5)"
+    },
+    {
+      "type": "info",
+      "text": "LASER2_LIGHTING_FOUNDRY_V7 initialized {version: LASER2_LIGHTING_FOUNDRY_V7, depth: cached, state: Object, quality: Object, scheduler: Object}"
+    }
+  ],
+  "pageErrors": [],
+  "shaderErrors": []
+}

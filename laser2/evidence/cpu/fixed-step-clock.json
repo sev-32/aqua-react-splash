@@ -1,0 +1,170 @@
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
+  "lane": "Node CPU-only deterministic fixed-step scheduling validation",
+  "elapsedMs": 7.107576999999999,
+  "fixedHz": 60,
+  "maxCatchUpSteps": 4,
+  "seconds": 10,
+  "cadenceResults": [
+    {
+      "renderHz": 30,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.03333333333333333,
+        "clampedDeltaSeconds": 0.03333333333333333,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 2,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 60,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.016666666666666666,
+        "clampedDeltaSeconds": 0.016666666666666666,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 90,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.011111111111111112,
+        "clampedDeltaSeconds": 0.011111111111111112,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 3.469446951953614e-18,
+        "interpolationAlpha": 2.0816681711721685e-16,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 120,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.008333333333333333,
+        "clampedDeltaSeconds": 0.008333333333333333,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 144,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.006944444444444444,
+        "clampedDeltaSeconds": 0.006944444444444444,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 240,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.004166666666666667,
+        "clampedDeltaSeconds": 0.004166666666666667,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    }
+  ],
+  "stall": {
+    "inputDeltaSeconds": 1,
+    "clampedDeltaSeconds": 0.25,
+    "fixedDtSeconds": 0.016666666666666666,
+    "steps": 4,
+    "droppedSteps": 11,
+    "droppedSeconds": 0.18333333333333332,
+    "accumulatorSeconds": 0,
+    "interpolationAlpha": 0,
+    "totalSteps": 4,
+    "totalDroppedSteps": 11,
+    "totalDroppedSeconds": 0.18333333333333332
+  },
+  "checks": {
+    "cadenceIndependent": true,
+    "noCadenceDrops": true,
+    "interpolationFinite": true,
+    "stallClamped": true,
+    "stallCatchupBounded": true,
+    "stallDropsBacklog": true
+  },
+  "allChecksPassed": true
+}
