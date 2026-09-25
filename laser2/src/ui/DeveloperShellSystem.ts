@@ -46,6 +46,11 @@ export class DeveloperShellSystem implements AppSystem {
     this.context = context;
     this.build();
     context.events.on('selection:change', () => this.renderLeft());
+    context.events.on('mode:change', ({ mode }) => {
+      // Sailing needs the whole viewport: fold both drawers away.
+      if (mode === 'sailing') context.state.update({ leftOpen: false, rightOpen: false });
+      this.renderAll();
+    });
     context.quality.subscribe(() => this.renderRight());
     this.lighting.subscribe(() => this.renderRight());
     this.renderAll();
@@ -64,7 +69,7 @@ export class DeveloperShellSystem implements AppSystem {
     const root = document.createElement('div'); root.className = 'foundry-ui'; root.id = 'foundry-ui';
     root.innerHTML = `
       <header class="foundry-topbar">
-        <div class="brand"><b>LASER 2</b><span>LIGHTING FOUNDRY V7</span></div>
+        <div class="brand"><b>LASER 2</b><span>SAILING FOUNDRY V8</span></div>
         <div class="top-actions" data-role="top-actions"></div>
       </header>
       <aside class="rail rail-left" data-role="left-rail"></aside>
@@ -104,9 +109,10 @@ export class DeveloperShellSystem implements AppSystem {
     const host = this.root.querySelector<HTMLElement>('[data-role="top-actions"]')!;
     const inspect = button('INSPECT'); inspect.onclick = () => { this.context!.setDynamic(false); this.renderAll(); };
     const anchored = button('ANCHORED'); anchored.onclick = () => { this.context!.setDynamic(true); this.renderAll(); };
+    const sail = button('SAIL', 'Free sailing on the native ocean (capsize, swim, recovery)'); sail.onclick = () => { this.context!.setMode('sailing'); this.renderAll(); };
     const step = button('STEP 30'); step.onclick = () => this.context!.stepSimulation(30);
     const tools: Array<[MarkupTool, string]> = [['none', '↖'], ['pen', '✎'], ['arrow', '→'], ['rect', '□'], ['erase', '⌫']];
-    host.append(inspect, anchored, step);
+    host.append(inspect, anchored, sail, step);
     for (const [tool, label] of tools) { const b = button(label, `Markup: ${tool}`); b.onclick = () => { this.markup.setTool(tool); this.renderTopActive(); }; host.appendChild(b); b.dataset.markup = tool; }
     const undo = button('UNDO'); undo.onclick = () => this.markup.undo();
     const shot = button('SCREENSHOT'); shot.onclick = async () => { await this.screenshot.capture(true); this.toast('Screenshot captured'); };
@@ -118,6 +124,7 @@ export class DeveloperShellSystem implements AppSystem {
     if (!this.context || !this.root) return;
     const state = this.context.state.get();
     this.root.classList.toggle('left-closed', !state.leftOpen);
+    this.root.classList.toggle('left-open-sailing', state.leftOpen && state.mode === 'sailing');
     this.root.classList.toggle('right-closed', !state.rightOpen);
     this.renderTopActive(); this.renderLeft(); this.renderRight(); this.renderBottom();
   }
@@ -128,6 +135,7 @@ export class DeveloperShellSystem implements AppSystem {
     for (const b of this.root.querySelectorAll<HTMLButtonElement>('.top-actions button')) {
       if (b.textContent === 'INSPECT') b.classList.toggle('active', this.context.state.get().mode === 'inspect');
       if (b.textContent === 'ANCHORED') b.classList.toggle('active', this.context.state.get().mode === 'anchored');
+      if (b.textContent === 'SAIL') b.classList.toggle('active', this.context.state.get().mode === 'sailing');
     }
   }
 

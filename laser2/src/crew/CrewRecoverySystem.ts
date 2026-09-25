@@ -34,7 +34,7 @@ type V3 = P.V3;
 
 export type CrewMode = 'aboard' | 'overboard' | 'attached';
 export type CrewTask =
-  | 'sailing' | 'bracing' | 'falling' | 'treading'
+  | 'sailing' | 'bracing' | 'dryCapsize' | 'falling' | 'treading'
   | 'swimToBoard' | 'hangBoard' | 'climbBoard' | 'standBoard'
   | 'swimToHull' | 'climbHull' | 'standHull'
   | 'swimToCockpit' | 'holdStrap' | 'scooped'
@@ -42,7 +42,7 @@ export type CrewTask =
 export type CrewRole = 'righter' | 'scoop';
 
 const OVERBOARD_TASKS: ReadonlySet<CrewTask> = new Set(['falling', 'treading', 'swimToBoard', 'hangBoard', 'swimToHull', 'swimToCockpit', 'holdStrap', 'swimToGunwale', 'holdGunwale']);
-const ATTACHED_TASKS: ReadonlySet<CrewTask> = new Set(['climbBoard', 'standBoard', 'climbHull', 'standHull', 'climbIn']);
+const ATTACHED_TASKS: ReadonlySet<CrewTask> = new Set(['dryCapsize', 'scooped', 'climbBoard', 'standBoard', 'climbHull', 'standHull', 'climbIn']);
 
 interface HullFrame {
   r: Float64Array; // body→world rotation (row-major)
@@ -77,6 +77,12 @@ class CrewAgent {
   lean = 0;
   progress = 0;
   attachStartDesign: V3 = { x: 0, y: 0, z: 0 };
+  /** Feet (design frame) when a dry capsize started. */
+  dryStartFeet: V3 = { x: 0, y: 0, z: 0 };
+  /** Rope length the current grip is drawn in to (m). */
+  gripTarget = 0.8;
+  /** Lowest recent heel (deg) while waiting for the scoop; detects the boat rising. */
+  scoopHeelMark = 180;
   holdSide = 1; // design x sign of the gunwale/strap used
   heading: V3 = { x: 1, y: 0, z: 0 };
   waypoint = 0;
@@ -106,6 +112,7 @@ class CrewAgent {
     this.task = task;
     this.taskTime = 0;
     this.waypoint = 0;
+    this.scoopHeelMark = 180;
     this.mode = OVERBOARD_TASKS.has(task) ? 'overboard' : ATTACHED_TASKS.has(task) ? 'attached' : 'aboard';
     this.swimmer.active = this.mode === 'overboard';
   }
@@ -123,6 +130,8 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   trapezeAssist = true;
   /** Ease sheets while capsized so the boat does not sail off on righting. */
   releaseSheetsWhenCapsized = true;
+  /** Helm steps over the high side onto the board in a leeward capsize. */
+  dryCapsize = true;
   /** Maximum lean-back angle on the board (rad); U key raises it. */
   maxLeanRad = 1.0;
   heaveBoost = 0;
@@ -467,7 +476,15 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       }
       case 'bracing': {
         const phi = this.phiAway(agent, frame);
+        const phiRate = (phi - agent.lastPhiAway) / Math.max(dt, 1e-3);
+        agent.lastPhiAway = phi;
         agent.hikeCommand = phi > 0 ? 1 : -1.6;
+        // Going over to leeward with this sailor on the high side: a skilled
+        // helm steps over the gunwale onto the centreboard without getting wet.
+        if (agent.role === 'righter' && this.dryCapsize && this.autoRecovery && phi > 62 && heel > 58 && (phiRate > 4 || phi > 76)) {
+          this.beginDryCapsize(agent, frame);
+          break;
+        }
         const comWorld = this.designToWorld(agent.comDesign, P.v3());
         const dunked = comWorld.y < this.surfaceAt(comWorld) + 0.05;
         if (phi > 82 || phi < -65 || heel > 100 || (dunked && heel > 45)) this.fall(agent, frame, phi);
@@ -478,7 +495,14 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
         s.treading = 0.2;
         s.swimThrottle = 0;
         s.verticality = Math.min(1, s.verticality + dt * 1.5);
-        if (s.inWater && agent.taskTime > 0.7) agent.setTask('treading');
+        if (s.inWater && agent.taskTime > 0.7) {
+          // Fell into the flooded cockpit holding a toe strap: stay for the scoop.
+          if (agent.grip.enabled) agent.setTask('holdStrap', 'caught the toe strap');
+          else agent.setTask('treading');
+        }
+        break;
+      case 'dryCapsize':
+        this.stepDryCapsize(agent, frame, dt);
         break;
       case 'treading':
         this.tread(agent, dt);
@@ -527,6 +551,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       case 'climbIn':
         this.climbIn(agent, frame, dt, other);
         break;
+    }
+    // Hands work along a held line at a human pace (no rope snap).
+    if (agent.grip.enabled && agent.mode === 'overboard' && agent.task !== 'hangBoard') {
+      agent.grip.length = Math.max(agent.gripTarget, agent.grip.length - dt * 0.35);
     }
     // Carried crew partly in the water get buoyancy on the hull.
     agent.carriedBuoyancyN = 0;
@@ -602,10 +630,20 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     agent.lastSkeleton = this.currentSkeletonWorld(agent);
     agent.blendFrom = agent.lastSkeleton;
     agent.blendT = 0;
-    agent.swimmer.place(com, { x: v.x + pushH.x * 0.9, y: Math.max(v.y, 0) + 0.8, z: v.z + pushH.z * 0.9 });
+    // In a leeward capsize the crew drops across the cockpit into the water
+    // filling the low side and grabs the toe strap on the way (scoop position).
+    const intoCockpit = phi > 0 && agent.role === 'scoop' && this.autoRecovery;
+    const push = intoCockpit ? 0.35 : 0.9;
+    const lift = intoCockpit ? 0.1 : 0.8;
+    agent.swimmer.place(com, { x: v.x + pushH.x * push, y: Math.max(v.y, 0) + lift, z: v.z + pushH.z * push });
     agent.swimmer.verticality = 0.7;
     agent.heading = P.scale(pushH, -1);
     this.releaseGrip(agent);
+    if (intoCockpit) {
+      const side = this.lowerStrapSide();
+      agent.holdSide = side;
+      this.engageGrip(agent, this.strapDesign(side), 0.8);
+    }
     agent.setTask('falling', phi > 0 ? 'leeward capsize' : 'windward capsize');
     const input = this.context!.legacy.master.input?.state;
     if (input) input.trapeze = false;
@@ -703,7 +741,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       // reach of the hull so the swimmer can hold on and move hand over hand.
       const aroundBow = a > 1.2;
       const endA = aroundBow ? 2.55 : -2.62;
-      path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA * 0.92), B, Math.min(b, -0.7))));
+      // First close with the hull (within arm's reach it can be held and
+      // worked along hand over hand, independent of the drift).
+      if (b < -1.0) path.push(this.waterPoint(P.madd(P.madd(frame.center, L, Math.max(-2.2, Math.min(2.0, a))), B, -0.8)));
+      path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA * 0.92), B, -0.72)));
       path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA), B, -0.1)));
       path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA * 0.92), B, 0.75)));
     }
@@ -724,7 +765,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     agent.grip.setLocal(local);
     const anchor = this.designToWorld(pointDesign, P.v3());
     const current = P.length(P.sub(this.swimmerPos(agent), anchor));
-    agent.grip.length = Math.max(length, Math.min(current, length + 0.6));
+    // Start from the current reach: the line is drawn in gradually (see
+    // stepAgent) instead of snapping taut against a moving hull.
+    agent.grip.length = Math.max(length, current + 0.02);
+    agent.gripTarget = length;
     agent.grip.lambda = 0;
     agent.grip.enabled = true;
   }
@@ -755,7 +799,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
 
   /** Hull-carried → swimmer transition at the current COM. */
   private detach(agent: CrewAgent, task: CrewTask, frame: HullFrame): void {
-    const com = this.designToWorld(agent.comDesign, P.v3());
+    // Release the swimmer outside the hull surface (the carried COM may pass
+    // close to or through the topsides while climbing).
+    const safe = this.pushOutOfHull(agent.comDesign, agent.swimmer.spec.radiusM + 0.03);
+    const com = this.designToWorld(safe, P.v3());
     const v = this.pointVelocity(com);
     agent.swimmer.place(com, v);
     agent.swimmer.verticality = 1;
@@ -808,6 +855,79 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     const pose = P.boardStandPose({ feet, grip, boardOut, lean: agent.lean, stand, hullAxis: frame.fwd, t: this.simTime, dims: agent.dims });
     const skeleton = P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
     return { skeleton, com: P.skeletonCom(skeleton) };
+  }
+
+  /** Leeward capsize: helm climbs over the high gunwale onto the centreboard. */
+  private beginDryCapsize(agent: CrewAgent, frame: HullFrame): void {
+    const skeleton = this.currentSkeletonWorld(agent);
+    agent.lastSkeleton = skeleton;
+    agent.blendFrom = skeleton;
+    agent.blendT = 0;
+    agent.holdSide = this.boardStandSide(frame);
+    const feet = P.lerp3(skeleton.ankleL, skeleton.ankleR, 0.5);
+    this.worldToDesign(feet, agent.dryStartFeet);
+    this.worldToDesign(P.skeletonCom(skeleton), agent.attachStartDesign);
+    agent.progress = 0;
+    agent.lean = 0.1;
+    agent.setTask('dryCapsize', `heel ${frame.heelDeg.toFixed(0)}°`);
+    const input = this.context!.legacy.master.input?.state;
+    if (input) input.trapeze = false;
+  }
+
+  private stepDryCapsize(agent: CrewAgent, frame: HullFrame, dt: number): void {
+    if (frame.heelDeg > 140) { this.detach(agent, 'swimToHull', frame); return; }
+    if (frame.heelDeg < 40 && agent.progress < 0.45) {
+      // The boat came back up before the helm was over the side: sit back in.
+      this.handBackToLegacy(agent, agent.holdSide, 'dry capsize aborted');
+      return;
+    }
+    // Over the gunwale takes most of the time; sliding down onto the board is quick.
+    const rate = agent.progress < 0.4 ? 1 / 2.4 : 1 / 1.4;
+    agent.progress = Math.min(1, agent.progress + dt * rate);
+    const skeleton = this.dryCapsizeSkeleton(agent, frame);
+    this.worldToDesign(P.skeletonCom(skeleton), agent.comDesign);
+    if (agent.progress >= 1) {
+      agent.lean = 0.12;
+      agent.setTask('standBoard', 'on the board (dry)');
+    }
+  }
+
+  private dryCapsizeSkeleton(agent: CrewAgent, frame: HullFrame): P.Skeleton {
+    const side = agent.holdSide;
+    const p = agent.progress;
+    const zb = HULL_POINTS.boardZ;
+    const ub = uOfZ(zb - 0.2);
+    // Feet path (design frame): cockpit → topside just below the high gunwale
+    // → along the bottom → centreboard root, kept 4 cm outside the hull.
+    const f0 = agent.dryStartFeet;
+    const f1 = { x: side * (sheerHalfBreadth(ub) + 0.04), y: sheerY(ub) - 0.16, z: zb - 0.22 };
+    const f2 = { x: 0, y: this.boardRootDesign().y, z: zb - 0.12 };
+    let feetD = p < 0.4 ? P.lerp3(f0, f1, P.smooth(p / 0.4)) : P.lerp3(f1, f2, P.smooth((p - 0.4) / 0.6));
+    feetD = this.pushOutOfHull(feetD, 0.04);
+    const feet = this.designToWorld(feetD, P.v3());
+    const grip = this.designToWorld(this.gunwaleDesign(side, zb - 0.1), P.v3());
+    const stand = p < 0.4 ? 0.22 : 0.22 + 0.78 * P.smooth((p - 0.4) / 0.6);
+    const pose = P.boardStandPose({ feet, grip, boardOut: P.scale(frame.up, -1), lean: 0.1, stand, hullAxis: frame.fwd, t: this.simTime, dims: agent.dims });
+    return P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
+  }
+
+  /** Moves a design-frame point outside the hull surface by at least `margin`. */
+  private pushOutOfHull(d: V3, margin: number): V3 {
+    let x = d.x, y = d.y, z = d.z;
+    for (let i = 0; i < 3; i++) {
+      const sd = hullSignedDistance(x, y, z);
+      if (sd >= margin) break;
+      const e = 0.01;
+      let gx = hullSignedDistance(x + e, y, z) - hullSignedDistance(x - e, y, z);
+      let gy = hullSignedDistance(x, y + e, z) - hullSignedDistance(x, y - e, z);
+      let gz = hullSignedDistance(x, y, z + e) - hullSignedDistance(x, y, z - e);
+      const g = Math.hypot(gx, gy, gz);
+      if (g < 1e-9) break;
+      gx /= g; gy /= g; gz /= g;
+      const push = margin - sd;
+      x += gx * push; y += gy * push; z += gz * push;
+    }
+    return { x, y, z };
   }
 
   private swimToHull(agent: CrewAgent, frame: HullFrame, dt: number): void {
@@ -896,9 +1016,26 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     s.treading = 0.5;
     s.verticality += (0.55 - s.verticality) * Math.min(1, dt * 1.5);
     if (frame.heelDeg > 145) { this.releaseGrip(agent); agent.setTask('treading', 'turtled'); return; }
+    // The boat is coming up: the low gunwale sinks beneath the floating crew
+    // and the hull scoops them in (they stay passive, holding the strap).
+    const rising = frame.heelDeg < agent.scoopHeelMark - 0.5;
+    agent.scoopHeelMark = Math.min(agent.scoopHeelMark + dt * 20, frame.heelDeg);
+    if (frame.heelDeg < 72 && rising && agent.taskTime > 1) {
+      const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
+      const low = this.lowerStrapSide();
+      const cockpit = { x: low * 0.45, y: 0.35, z: -0.7 };
+      if (P.length(P.sub(d, cockpit)) < 1.45) {
+        this.attach(agent, 'scooped');
+        agent.holdSide = low;
+        agent.progress = 0;
+        return;
+      }
+    }
     if (frame.heelDeg < 40) {
       const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
-      const inCockpit = Math.abs(d.x) < 0.62 && d.y > -0.05 && d.z > -1.95 && d.z < 0.45;
+      // Anywhere between the gunwales above the sole counts: the rising hull
+      // scoops the floating crew up with the flooded cockpit.
+      const inCockpit = Math.abs(d.x) < 0.78 && d.y > -0.28 && d.y < 1.3 && d.z > -2.1 && d.z < 0.55;
       if (inCockpit) { this.attach(agent, 'climbIn'); agent.progress = 0.62; agent.holdSide = Math.sign(d.x) || agent.holdSide; this.scoopedFrom(agent); return; }
       if (agent.taskTime > 3 || frame.heelDeg < 25) {
         this.releaseGrip(agent);
@@ -916,15 +1053,17 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   }
 
   private scooped(agent: CrewAgent, frame: HullFrame, dt: number, other: CrewAgent | null): void {
-    agent.progress = Math.min(1, agent.progress + dt / 1.4);
-    // Kneel on the cockpit sole on the side opposite the swimmer climbing in.
+    // Carried in by the rising hull: over the low gunwale, then onto the sole
+    // on the side opposite the swimmer climbing in (counter-balancing).
+    agent.progress = Math.min(1, agent.progress + dt / (frame.heelDeg > 45 ? 2.6 : 1.3));
     const counterSide = other && other.mode !== 'aboard' ? -other.holdSide : agent.holdSide;
     const seat = { x: counterSide * 0.32, y: COCKPIT_SOLE_Y + 0.28, z: -0.55 };
-    const p = P.smooth(agent.progress);
-    agent.comDesign.x = agent.attachStartDesign.x + (seat.x - agent.attachStartDesign.x) * p;
-    agent.comDesign.y = agent.attachStartDesign.y + (seat.y - agent.attachStartDesign.y) * p;
-    agent.comDesign.z = agent.attachStartDesign.z + (seat.z - agent.attachStartDesign.z) * p;
-    agent.holdSide = counterSide;
+    const gunwale = this.gunwaleDesign(agent.holdSide, Math.max(-1.6, Math.min(-0.3, agent.attachStartDesign.z)));
+    const over = { x: gunwale.x * 0.8, y: gunwale.y + 0.2, z: gunwale.z };
+    const p = agent.progress;
+    const target = p < 0.5 ? P.lerp3(agent.attachStartDesign, over, P.smooth(p / 0.5)) : P.lerp3(over, seat, P.smooth((p - 0.5) / 0.5));
+    const safe = this.pushOutOfHull(target, 0.2);
+    agent.comDesign.x = safe.x; agent.comDesign.y = safe.y; agent.comDesign.z = safe.z;
     if (agent.progress >= 1 && frame.heelDeg < 35) this.handBackToLegacy(agent, counterSide, 'scooped and seated');
   }
 
@@ -1053,6 +1192,8 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
         pose = P.scoopFloatPose({ strap, com, bow: frame.fwd, t, dims: agent.dims });
         break;
       }
+      case 'dryCapsize':
+        return this.dryCapsizeSkeleton(agent, frame);
       case 'climbBoard': case 'standBoard': {
         const side = this.boardStandSide(frame);
         const b = this.boardPose(agent, frame, side);
@@ -1184,6 +1325,16 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
 
   update(): void {
     // All crew logic runs per physics step through the step bus.
+  }
+
+  /** World position of the crew member most worth watching (camera 'crew' mode). */
+  cameraFocus(): V3 | null {
+    if (!this.installed) return null;
+    const pick = this.agents.find((a) => a.role === 'righter' && a.mode !== 'aboard')
+      ?? this.agents.find((a) => a.mode !== 'aboard')
+      ?? this.agents.find((a) => a.id === 'helm');
+    if (!pick) return null;
+    return pick.mode === 'overboard' ? this.swimmerPos(pick) : this.designToWorld(pick.comDesign, P.v3());
   }
 
   /** Force a capsize (demo/test): a knockdown gust that lifts the crew's side. */

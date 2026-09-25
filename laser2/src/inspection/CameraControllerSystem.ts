@@ -1,6 +1,17 @@
 import type { AppContext, AppSystem } from '../core/System.js';
 import type { CatalogItem } from './ObjectCatalogSystem.js';
 
+export type SailingCameraMode = 'follow' | 'chase' | 'crew';
+const SAILING_CAMERA_MODES: readonly SailingCameraMode[] = ['follow', 'chase', 'crew'];
+
+/** Optional sailing bindings supplied by main (kept free of system imports). */
+export interface SailingCameraBindings {
+  /** Water surface height at (x, z) (m). */
+  waterHeight(x: number, z: number): number;
+  /** Crew member worth watching (a swimmer, or the helm), world position. */
+  crewFocus(): { x: number; y: number; z: number } | null;
+}
+
 export class CameraControllerSystem implements AppSystem {
   readonly id = 'inspection.camera';
   readonly phase = 'preRender' as const;
@@ -15,6 +26,23 @@ export class CameraControllerSystem implements AppSystem {
   private lastY = 0;
   private canvas: HTMLCanvasElement | null = null;
   private context: AppContext | null = null;
+  private sailingBindings: SailingCameraBindings | null = null;
+  private sailingActive = false;
+  /** Chase mode: user orbit offset relative to the boat's stern (rad). */
+  private chaseYawOffset = 0.35;
+  private lastCamMode = -1;
+  private smoothedHeading = 0;
+  private waterClamps = 0;
+
+  bindSailing(bindings: SailingCameraBindings): this {
+    this.sailingBindings = bindings;
+    return this;
+  }
+
+  get sailingMode(): SailingCameraMode {
+    const index = this.context?.legacy.master?.input?.state?.camMode ?? 0;
+    return SAILING_CAMERA_MODES[((index % 3) + 3) % 3]!;
+  }
 
   init(context: AppContext): void {
     this.context = context;
@@ -25,8 +53,51 @@ export class CameraControllerSystem implements AppSystem {
     this.apply(context);
   }
 
-  update(_dtSeconds: number, context: AppContext): void {
+  update(dtSeconds: number, context: AppContext): void {
+    const sailing = context.state.get().mode === 'sailing';
+    if (sailing !== this.sailingActive) {
+      this.sailingActive = sailing;
+      if (sailing) {
+        const body = context.legacy.body;
+        this.target.set(body.pos.x, body.pos.y + 1.1, body.pos.z);
+        this.distance = 10.5;
+        this.pitch = 0.2;
+      }
+    }
+    if (sailing) this.follow(Math.min(0.1, Math.max(0, dtSeconds)), context);
     this.apply(context);
+  }
+
+  /** Sailing: keep the boat (or a swimmer) framed while it travels. */
+  private follow(dt: number, context: AppContext): void {
+    const master = context.legacy.master;
+    const body = master.body;
+    const mode = this.sailingMode;
+    const camMode = master.input?.state?.camMode ?? 0;
+    const q = body.quat;
+    // Bow direction (design +Z) projected on the water plane.
+    const fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
+    const heading = Math.atan2(fx, fz);
+    if (camMode !== this.lastCamMode) {
+      this.lastCamMode = camMode;
+      this.smoothedHeading = heading;
+      if (mode === 'chase') this.chaseYawOffset = 0.35;
+    }
+    let dh = heading - this.smoothedHeading;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    this.smoothedHeading += dh * Math.min(1, dt * 1.6);
+    let focus = { x: body.pos.x, y: body.pos.y + 1.1, z: body.pos.z };
+    if (mode === 'crew') {
+      const crew = this.sailingBindings?.crewFocus();
+      if (crew) focus = { x: crew.x, y: crew.y + 0.3, z: crew.z };
+    }
+    // Rigid horizontal follow (no lag drift at speed); smoothed height so the
+    // view does not pump with every wave.
+    const kxz = mode === 'crew' ? Math.min(1, dt * 4) : 1;
+    this.target.x += (focus.x - this.target.x) * kxz;
+    this.target.z += (focus.z - this.target.z) * kxz;
+    this.target.y += (focus.y - this.target.y) * Math.min(1, dt * 1.8);
+    if (mode === 'chase') this.yaw = this.smoothedHeading + Math.PI + this.chaseYawOffset;
   }
 
   focus(item: CatalogItem): void {
@@ -87,6 +158,7 @@ export class CameraControllerSystem implements AppSystem {
       this.lastX = event.clientX; this.lastY = event.clientY;
       if (this.button === 0) {
         this.yaw -= dx * 0.006;
+        if (this.sailingActive && this.sailingMode === 'chase') this.chaseYawOffset -= dx * 0.006;
         this.pitch = Math.max(-0.2, Math.min(1.48, this.pitch + dy * 0.005));
       } else {
         const camera = this.context?.legacy.camera;
@@ -117,11 +189,20 @@ export class CameraControllerSystem implements AppSystem {
       this.target.y + Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * horizontal,
     );
+    if (this.sailingActive && this.sailingBindings) {
+      // Never let the lens dip under the (moving) sea surface.
+      const surface = this.sailingBindings.waterHeight(camera.position.x, camera.position.z);
+      const minY = surface + 0.3 + camera.near * 2;
+      if (camera.position.y < minY) { camera.position.y = minY; this.waterClamps++; }
+    }
     camera.lookAt(this.target);
     camera.updateMatrixWorld?.(true);
   }
 
   telemetry(): Record<string, unknown> {
-    return { yaw: this.yaw, pitch: this.pitch, distance: this.distance, target: this.target?.toArray?.() ?? null };
+    return {
+      yaw: this.yaw, pitch: this.pitch, distance: this.distance, target: this.target?.toArray?.() ?? null,
+      sailing: this.sailingActive ? { mode: this.sailingMode, chaseYawOffset: this.chaseYawOffset, waterClamps: this.waterClamps } : null,
+    };
   }
 }

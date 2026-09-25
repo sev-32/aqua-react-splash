@@ -293,6 +293,8 @@ export class HullContactConstraint {
   enabled = true;
   lambda = 0;
   contactDepth = 0;
+  /** Largest separation per sub-step (m): ≈ 5.8 m/s at 720 Hz. */
+  maxPushPerSubstepM = 0.008;
   private readonly world: any;
   private readonly lever: any;
   private readonly normal: any;
@@ -333,8 +335,13 @@ export class HullContactConstraint {
     if (gl < 1e-9) return;
     this.n.x = gx / gl; this.n.y = gy / gl; this.n.z = gz / gl;
     const nw = this.designNormalToWorld(this.n, this.nw);
-    const penetration = Math.min(0.06, r - sd);
-    this.contactDepth = penetration;
+    // The world zeroes lambda every sub-step; it accumulates the correction so
+    // a deep overlap (e.g. a crew member released inside the cockpit well)
+    // resolves over several sub-steps instead of launching swimmer and hull.
+    const penetration = Math.min(0.06, r - sd, Math.max(0, this.maxPushPerSubstepM - this.lambda));
+    this.contactDepth = r - sd;
+    if (penetration <= 0) return;
+    this.lambda += penetration;
     this.normal.set(nw.x, nw.y, nw.z);
     this.world.set(s.x.x - nw.x * r, s.x.y - nw.y * r, s.x.z - nw.z * r);
     this.lever.copy(this.world).sub(this.body.pos);
@@ -380,7 +387,11 @@ export class SparContactConstraint {
       const ws = s.invMass;
       const denom = ws + wa + wb;
       if (denom <= 0) continue;
-      const dl = Math.min(0.05, reach - dist) / denom;
+      const room = Math.max(0, 0.008 - this.lambda);
+      if (room <= 0) return;
+      const push = Math.min(0.05, reach - dist, room);
+      this.lambda += push;
+      const dl = push / denom;
       s.x.x += nx * dl * ws; s.x.y += ny * dl * ws; s.x.z += nz * dl * ws;
       a.x -= nx * dl * this.nodes[i]!.w * (1 - t); a.y -= ny * dl * this.nodes[i]!.w * (1 - t); a.z -= nz * dl * this.nodes[i]!.w * (1 - t);
       b.x -= nx * dl * this.nodes[i + 1]!.w * t; b.y -= ny * dl * this.nodes[i + 1]!.w * t; b.z -= nz * dl * this.nodes[i + 1]!.w * t;

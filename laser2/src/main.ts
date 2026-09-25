@@ -32,12 +32,14 @@ import { MarkupSystem } from './inspection/MarkupSystem.js';
 import { ScreenshotSystem } from './inspection/ScreenshotSystem.js';
 import { BenchmarkRunnerSystem, type BenchmarkId } from './benchmark/BenchmarkRunnerSystem.js';
 import { DeveloperShellSystem } from './ui/DeveloperShellSystem.js';
+import { SailingHudSystem } from './ui/SailingHudSystem.js';
 import { RuntimeBudgetSystem } from './runtime/RuntimeBudgetSystem.js';
 import { OceanSystem } from './water/OceanSystem.js';
 import { WaterSurfaceSystem } from './water/WaterSurfaceSystem.js';
 import { ScenePipeline } from './render/ScenePipeline.js';
 import { SailingPhysicsSystem } from './sailing/SailingPhysicsSystem.js';
 import { SailingModeSystem } from './sailing/SailingModeSystem.js';
+import { SailWaterSystem } from './sailing/SailWaterSystem.js';
 import { PhysicsStepBus } from './sailing/PhysicsStepBus.js';
 import { CrewRecoverySystem } from './crew/CrewRecoverySystem.js';
 import type { FoundryMode } from './core/System.js';
@@ -80,7 +82,8 @@ async function start(): Promise<void> {
   const ocean = new OceanSystem(stepBus);
   const sailingPhysics = new SailingPhysicsSystem(ocean);
   const crewRecovery = new CrewRecoverySystem(ocean, sailingPhysics, stepBus);
-  const sailingMode = new SailingModeSystem().addAuthority(ocean).addAuthority(sailingPhysics).addAuthority(crewRecovery);
+  const sailWater = new SailWaterSystem(ocean);
+  const sailingMode = new SailingModeSystem().addAuthority(ocean).addAuthority(sailingPhysics).addAuthority(sailWater).addAuthority(crewRecovery);
   const waterSurface = new WaterSurfaceSystem(ocean, coupling, atmosphere, lighting);
   renderer.attachPipeline(new ScenePipeline(waterSurface, atmosphere));
 
@@ -90,6 +93,7 @@ async function start(): Promise<void> {
     .add(sailingPhysics)
     .add(physics)
     .add(crewRecovery)
+    .add(sailWater)
     .add(new RigRuntimeSystem())
     .add(nativeHull)
     .add(hullBatches)
@@ -123,6 +127,12 @@ async function start(): Promise<void> {
 
   const ui = new DeveloperShellSystem(catalog, selection, camera, notes, markup, screenshot, lighting, materials, benchmarks);
   kernel.add(ui);
+  const sailingHud = new SailingHudSystem(crewRecovery, camera, ocean);
+  kernel.add(sailingHud);
+  camera.bindSailing({
+    waterHeight: (x, z) => ocean.height(x, z),
+    crewFocus: () => crewRecovery.cameraFocus(),
+  });
 
   window.LASER2_FOUNDRY = {
     version: 'LASER2_SAILING_FOUNDRY_V8_CAPSIZE_RECOVERY',
@@ -131,7 +141,7 @@ async function start(): Promise<void> {
     telemetry,
     quality,
     lighting,
-    systems: { ocean, waterSurface, sailingPhysics, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
+    systems: { sailingHud, ocean, waterSurface, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
     snapshot: (deep = false) => kernel.snapshot({ deep }),
     runBenchmark: (id: BenchmarkId) => benchmarks.run(id),
     setDynamic: (enabled: boolean) => kernel.setDynamic(enabled),
@@ -142,7 +152,9 @@ async function start(): Promise<void> {
   await kernel.init();
   document.documentElement.dataset.foundryReady = 'true';
   console.info('LASER2_SAILING_FOUNDRY_V8 initialized', kernel.snapshot());
-  const requestedMode = new URLSearchParams(location.search).get('mode');
+  // Sailing is the default experience; ?mode=inspect / ?mode=anchored open the
+  // static lighting foundry or the anchored rig lab instead.
+  const requestedMode = new URLSearchParams(location.search).get('mode') ?? 'sailing';
   if (requestedMode === 'sailing' || requestedMode === 'anchored') kernel.setMode(requestedMode);
 }
 

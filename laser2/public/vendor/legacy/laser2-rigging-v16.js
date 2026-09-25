@@ -24,6 +24,9 @@
 
   const params = {
     enabled: true,
+    // Sailing Foundry V8: the native SailWaterSystem owns sailcloth/water
+    // interaction while sailing (sheet drag, near-neutral buoyancy, film).
+    externalClothWater: false,
     solverIterations: 6,
     mastEiScale: 1,
     mastEiLowerSideNm2: 7800,
@@ -1746,6 +1749,7 @@
   }
 
   function applyClothWater(flat) {
+    if (params.externalClothWater) return;
     const rho = cfg.env.rhoWater || 1025;
     const waterVelocity = tmp[21];
     const relative = tmp[22];
