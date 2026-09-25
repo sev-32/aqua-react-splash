@@ -11,7 +11,7 @@ import { computeRadiometricBudget } from '../../dist/src/lighting/RadiometricCou
 import { QUALITY_PROFILES } from '../../dist/src/quality/QualityProfiles.js';
 import { luminance, sunDirectionFromAngles } from '../../dist/src/reference/lightingMath.js';
 
-const root = '/mnt/data/LASER2_LIGHTING_FOUNDRY_V7';
+const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const out = path.join(root, 'evidence/cpu/atmosphere-transport-v7.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const profile = QUALITY_PROFILES.find((candidate) => candidate.id === 'balanced');

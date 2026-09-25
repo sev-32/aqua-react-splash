@@ -80,6 +80,7 @@ export class ShadowSystem implements AppSystem {
       settings.shadowsEnabled,
       settings.sunElevationDeg,
       settings.sunAzimuthDeg,
+      context.state.get().mode === 'sailing',
     ]);
   }
 
@@ -105,12 +106,15 @@ export class ShadowSystem implements AppSystem {
         this.light.shadow.bias = -0.00018;
         this.light.shadow.normalBias = 0.004;
         this.light.shadow.radius = profile.shadowRadius;
+        // Sailing: the boat heels, capsizes and turtles, and its sail shadow
+        // falls on the water, so the frustum is symmetric around the hull.
+        const sailing = context.state.get().mode === 'sailing';
         this.light.shadow.camera.near = 0.5;
-        this.light.shadow.camera.far = 60;
-        this.light.shadow.camera.left = -8;
-        this.light.shadow.camera.right = 8;
-        this.light.shadow.camera.top = 9;
-        this.light.shadow.camera.bottom = -3;
+        this.light.shadow.camera.far = sailing ? 70 : 60;
+        this.light.shadow.camera.left = sailing ? -9.5 : -8;
+        this.light.shadow.camera.right = sailing ? 9.5 : 8;
+        this.light.shadow.camera.top = sailing ? 10 : 9;
+        this.light.shadow.camera.bottom = sailing ? -9.5 : -3;
         this.light.shadow.camera.updateProjectionMatrix?.();
         this.light.shadow.needsUpdate = enabled;
       }

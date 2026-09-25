@@ -1,0 +1,44 @@
+{
+ "results": {
+  "wind_3": {
+   "hsTotal": 0.18783096827621967,
+   "hsPhysics": 0.18471156611915357,
+   "peakPeriodS": 1.5861713156464934,
+   "peakWavelengthM": 3.928161390291093,
+   "physicsComponents": 16,
+   "detailComponents": 22,
+   "maxInverseErrorM": 0.01011271261900322,
+   "meanInverseErrorM": 0.0020340830086594116,
+   "gridBuildMs": 1.8029313000000002,
+   "sampleQueryUs": 0.5689076,
+   "finite": true
+  },
+  "wind_7.2": {
+   "hsTotal": 0.33493449926854396,
+   "hsPhysics": 0.32902119837169025,
+   "peakPeriodS": 2.1361016427247863,
+   "peakWavelengthM": 7.124148556630517,
+   "physicsComponents": 16,
+   "detailComponents": 22,
+   "maxInverseErrorM": 0.008000482861694677,
+   "meanInverseErrorM": 0.0018295754664183525,
+   "gridBuildMs": 1.492757850000001,
+   "sampleQueryUs": 0.28206820000000055,
+   "finite": true
+  },
+  "wind_11": {
+   "hsTotal": 0.4730997771119978,
+   "hsPhysics": 0.4679878362890439,
+   "peakPeriodS": 2.4671887619991537,
+   "peakWavelengthM": 9.50372575061931,
+   "physicsComponents": 16,
+   "detailComponents": 22,
+   "maxInverseErrorM": 0.009756270416298132,
+   "meanInverseErrorM": 0.0022166387246064776,
+   "gridBuildMs": 1.485945799999999,
+   "sampleQueryUs": 0.12090200000000095,
+   "finite": true
+  }
+ },
+ "failures": []
+}

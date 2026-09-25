@@ -19,6 +19,15 @@ import { computeAtmosphereLut, type AtmosphereLutJobRequest, type AtmosphereLutJ
 import type { LightingSettings } from '../LightingSettings.js';
 
 const LUT_RADIANCE_RANGE = 4;
+/**
+ * The sky shader tone-maps itself with the Narkowicz ACES fit, which renders
+ * a given radiance brighter than the renderer's r160 ACES transform. When the
+ * HDR pipeline tone-maps the sky through the renderer instead, scaling the
+ * scene-linear sky radiance by 1.2 reproduces the legacy sky within ~3/255
+ * (measured on the default sky). The water reflects the sky with the same
+ * scale so the horizon stays seamless.
+ */
+export const SKY_LINEAR_DISPLAY_SCALE = 1.2;
 
 function atmosphereSignature(settings: Readonly<LightingSettings>): string {
   return [
@@ -372,6 +381,8 @@ export class AtmosphereSystem implements AppSystem {
         uLutRadianceRange: { value: this.hdrEnvironment ? 1 : LUT_RADIANCE_RANGE },
         uEnabled: { value: settings.atmosphereEnabled ? 1 : 0 },
         uExposure: { value: this.coupling.current.rendererExposure },
+        uOutputLinear: { value: 0 },
+        uLinearScale: { value: SKY_LINEAR_DISPLAY_SCALE },
       },
       side: this.sourceSky?.material?.side ?? 1,
       depthWrite: false,
@@ -410,6 +421,14 @@ export class AtmosphereSystem implements AppSystem {
 
   get environmentTexture(): any { return this.lutTexture; }
   get lutRadianceRange(): number { return LUT_RADIANCE_RANGE; }
+  /** Multiplier that turns LUT texels into radiance for the texture currently bound. */
+  get currentLutRadianceRange(): number { return this.material?.uniforms?.uLutRadianceRange?.value ?? LUT_RADIANCE_RANGE; }
+
+  /** The HDR scene pipeline renders the sky scene-linear into its target. */
+  setLinearOutput(enabled: boolean): void {
+    const uniforms = this.material?.uniforms;
+    if (uniforms?.uOutputLinear) uniforms.uOutputLinear.value = enabled ? 1 : 0;
+  }
 
   telemetry(): Record<string, unknown> {
     const profile = this.context?.quality.current;

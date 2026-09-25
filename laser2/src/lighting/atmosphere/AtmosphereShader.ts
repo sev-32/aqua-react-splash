@@ -23,6 +23,8 @@ uniform float uSunAngularRadiusRad;
 uniform float uLutRadianceRange;
 uniform float uExposure;
 uniform float uEnabled;
+uniform float uOutputLinear;
+uniform float uLinearScale;
 varying vec3 vAtmosphereDirection;
 
 vec3 acesFilm(vec3 x) {
@@ -52,6 +54,11 @@ void main() {
   float diskCosine = cos(max(0.0001, uSunAngularRadiusRad));
   float disk = smoothstep(diskCosine - 0.00012, diskCosine, cosine);
   color += uSunDisplayColor * disk;
+  if (uOutputLinear > 0.5) {
+    // HDR scene pipeline: scene-linear radiance, tone mapped once at composite.
+    gl_FragColor = vec4(max(vec3(0.0), color) * uLinearScale, 1.0);
+    return;
+  }
   vec3 mapped = acesFilm(max(vec3(0.0), color) * uExposure);
   gl_FragColor = vec4(linearToSrgb(mapped), 1.0);
 }

@@ -1,0 +1,406 @@
+{
+ "report": {
+  "mesh": {
+   "vertices": 692,
+   "triangles": 1380,
+   "volumeM3": 1.3174779852781882,
+   "centroid": [
+    0.00021575980001682898,
+    0.1663477327234388,
+    -0.24527412047432803
+   ],
+   "areaM2": 13.348827458658603
+  },
+  "upright": {
+   "hullFoils_85kg": {
+    "designWaterlineY": -0.06569600120933841,
+    "keelDraftM": 0.0993039987906616,
+    "volumeM3": 0.08292682926829283,
+    "cob": [
+     0.000517427649060906,
+     -0.03398416909621681,
+     -0.3822058203193275
+    ],
+    "buoyancyN": 833.85,
+    "pitchMomentNm": 318.7023232732719
+   },
+   "withCrew_235kg": {
+    "designWaterlineY": 0.003940125356290581,
+    "keelDraftM": 0.16894012535629058,
+    "volumeM3": 0.22926829268292667,
+    "cob": [
+     0.00042088786179128395,
+     -0.058264331928885034,
+     -0.48786980882896586
+    ],
+    "buoyancyN": 2305.35,
+    "pitchMomentNm": 1124.710663783855
+   },
+   "overloaded_320kg": {
+    "designWaterlineY": 0.03575394313218837,
+    "keelDraftM": 0.20075394313218836,
+    "volumeM3": 0.3121951219512191,
+    "cob": [
+     0.0003933540551444276,
+     -0.07030152503716955,
+     -0.5006692594710983
+    ],
+    "buoyancyN": 3139.2000000000003,
+    "pitchMomentNm": 1571.7009393316705
+   }
+  },
+  "gzHullOnly85kg": [
+   {
+    "heelDeg": 0,
+    "waterlineDesignY": -0.06569600120933841,
+    "gzM": 0.0005,
+    "torqueZNm": 0.4,
+    "submergedM3": 0.0829,
+    "cobX": 0.001,
+    "cogX": 0
+   },
+   {
+    "heelDeg": 10,
+    "waterlineDesignY": -0.07259310331451463,
+    "gzM": -0.0644,
+    "torqueZNm": -53.7,
+    "submergedM3": 0.0829,
+    "cobX": -0.085,
+    "cogX": -0.021
+   },
+   {
+    "heelDeg": 20,
+    "waterlineDesignY": -0.09368876826226494,
+    "gzM": -0.125,
+    "torqueZNm": -104.2,
+    "submergedM3": 0.0829,
+    "cobX": -0.166,
+    "cogX": -0.041
+   },
+   {
+    "heelDeg": 30,
+    "waterlineDesignY": -0.12911811824113278,
+    "gzM": -0.1805,
+    "torqueZNm": -150.5,
+    "submergedM3": 0.0829,
+    "cobX": -0.24,
+    "cogX": -0.06
+   },
+   {
+    "heelDeg": 40,
+    "waterlineDesignY": -0.18006940796515247,
+    "gzM": -0.2493,
+    "torqueZNm": -207.8,
+    "submergedM3": 0.0829,
+    "cobX": -0.326,
+    "cogX": -0.077
+   },
+   {
+    "heelDeg": 50,
+    "waterlineDesignY": -0.24506108604035104,
+    "gzM": -0.326,
+    "torqueZNm": -271.9,
+    "submergedM3": 0.0829,
+    "cobX": -0.418,
+    "cogX": -0.092
+   },
+   {
+    "heelDeg": 60,
+    "waterlineDesignY": -0.3133842143074439,
+    "gzM": -0.3444,
+    "torqueZNm": -287.2,
+    "submergedM3": 0.0829,
+    "cobX": -0.448,
+    "cogX": -0.104
+   },
+   {
+    "heelDeg": 70,
+    "waterlineDesignY": -0.3800962962191562,
+    "gzM": -0.3153,
+    "torqueZNm": -262.9,
+    "submergedM3": 0.0829,
+    "cobX": -0.428,
+    "cogX": -0.113
+   },
+   {
+    "heelDeg": 80,
+    "waterlineDesignY": -0.4391080134875158,
+    "gzM": -0.2535,
+    "torqueZNm": -211.4,
+    "submergedM3": 0.0829,
+    "cobX": -0.372,
+    "cogX": -0.118
+   },
+   {
+    "heelDeg": 90,
+    "waterlineDesignY": -0.4869807183620595,
+    "gzM": -0.1739,
+    "torqueZNm": -145,
+    "submergedM3": 0.0829,
+    "cobX": -0.294,
+    "cogX": -0.12
+   },
+   {
+    "heelDeg": 100,
+    "waterlineDesignY": -0.5225534764576234,
+    "gzM": -0.0846,
+    "torqueZNm": -70.6,
+    "submergedM3": 0.0829,
+    "cobX": -0.203,
+    "cogX": -0.118
+   },
+   {
+    "heelDeg": 110,
+    "waterlineDesignY": -0.5445041187202724,
+    "gzM": 0.0087,
+    "torqueZNm": 7.3,
+    "submergedM3": 0.0829,
+    "cobX": -0.104,
+    "cogX": -0.113
+   },
+   {
+    "heelDeg": 120,
+    "waterlineDesignY": -0.5522713128808876,
+    "gzM": 0.1017,
+    "torqueZNm": 84.8,
+    "submergedM3": 0.0829,
+    "cobX": -0.002,
+    "cogX": -0.104
+   },
+   {
+    "heelDeg": 130,
+    "waterlineDesignY": -0.5460685753202499,
+    "gzM": 0.1897,
+    "torqueZNm": 158.2,
+    "submergedM3": 0.0829,
+    "cobX": 0.098,
+    "cogX": -0.092
+   },
+   {
+    "heelDeg": 140,
+    "waterlineDesignY": -0.5273304591752765,
+    "gzM": 0.2669,
+    "torqueZNm": 222.6,
+    "submergedM3": 0.0829,
+    "cobX": 0.19,
+    "cogX": -0.077
+   },
+   {
+    "heelDeg": 150,
+    "waterlineDesignY": -0.5000452967059588,
+    "gzM": 0.3203,
+    "torqueZNm": 267,
+    "submergedM3": 0.0829,
+    "cobX": 0.26,
+    "cogX": -0.06
+   },
+   {
+    "heelDeg": 160,
+    "waterlineDesignY": -0.47110876539183044,
+    "gzM": 0.3151,
+    "torqueZNm": 262.8,
+    "submergedM3": 0.0829,
+    "cobX": 0.274,
+    "cogX": -0.041
+   },
+   {
+    "heelDeg": 170,
+    "waterlineDesignY": -0.43898248543170304,
+    "gzM": 0.229,
+    "torqueZNm": 191,
+    "submergedM3": 0.0829,
+    "cobX": 0.208,
+    "cogX": -0.021
+   },
+   {
+    "heelDeg": 180,
+    "waterlineDesignY": -0.4149274145362075,
+    "gzM": 0.0005,
+    "torqueZNm": 0.4,
+    "submergedM3": 0.0829,
+    "cobX": 0,
+    "cogX": 0
+   }
+  ],
+  "gzCrewAboard235kg": [
+   {
+    "heelDeg": 0,
+    "waterlineDesignY": 0.003940125356290581,
+    "gzM": 0.0004,
+    "torqueZNm": 1,
+    "submergedM3": 0.2293,
+    "cobX": 0,
+    "cogX": 0
+   },
+   {
+    "heelDeg": 10,
+    "waterlineDesignY": -0.0025410651088707253,
+    "gzM": -0.0069,
+    "torqueZNm": -15.8,
+    "submergedM3": 0.2293,
+    "cobX": -0.08,
+    "cogX": -0.073
+   },
+   {
+    "heelDeg": 20,
+    "waterlineDesignY": -0.02255340225113868,
+    "gzM": -0.0172,
+    "torqueZNm": -39.7,
+    "submergedM3": 0.2293,
+    "cobX": -0.161,
+    "cogX": -0.144
+   },
+   {
+    "heelDeg": 30,
+    "waterlineDesignY": -0.05747864715102004,
+    "gzM": -0.035,
+    "torqueZNm": -80.7,
+    "submergedM3": 0.2293,
+    "cobX": -0.245,
+    "cogX": -0.21
+   },
+   {
+    "heelDeg": 40,
+    "waterlineDesignY": -0.10714211377789071,
+    "gzM": -0.0595,
+    "torqueZNm": -137.2,
+    "submergedM3": 0.2293,
+    "cobX": -0.329,
+    "cogX": -0.27
+   },
+   {
+    "heelDeg": 50,
+    "waterlineDesignY": -0.15847799796773782,
+    "gzM": -0.0454,
+    "torqueZNm": -104.7,
+    "submergedM3": 0.2293,
+    "cobX": -0.367,
+    "cogX": -0.322
+   },
+   {
+    "heelDeg": 60,
+    "waterlineDesignY": -0.20236532221638182,
+    "gzM": 0.005,
+    "torqueZNm": 11.5,
+    "submergedM3": 0.2293,
+    "cobX": -0.359,
+    "cogX": -0.364
+   },
+   {
+    "heelDeg": 70,
+    "waterlineDesignY": -0.2401874640640982,
+    "gzM": 0.069,
+    "torqueZNm": 159.1,
+    "submergedM3": 0.2293,
+    "cobX": -0.326,
+    "cogX": -0.395
+   },
+   {
+    "heelDeg": 80,
+    "waterlineDesignY": -0.2728988158413098,
+    "gzM": 0.136,
+    "torqueZNm": 313.5,
+    "submergedM3": 0.2293,
+    "cobX": -0.278,
+    "cogX": -0.414
+   },
+   {
+    "heelDeg": 90,
+    "waterlineDesignY": -0.30067207817112773,
+    "gzM": 0.2006,
+    "torqueZNm": 462.3,
+    "submergedM3": 0.2293,
+    "cobX": -0.219,
+    "cogX": -0.42
+   },
+   {
+    "heelDeg": 100,
+    "waterlineDesignY": -0.3227802672323279,
+    "gzM": 0.2593,
+    "torqueZNm": 597.8,
+    "submergedM3": 0.2293,
+    "cobX": -0.154,
+    "cogX": -0.414
+   },
+   {
+    "heelDeg": 110,
+    "waterlineDesignY": -0.3389667759187489,
+    "gzM": 0.3091,
+    "torqueZNm": 712.6,
+    "submergedM3": 0.2293,
+    "cobX": -0.086,
+    "cogX": -0.395
+   },
+   {
+    "heelDeg": 120,
+    "waterlineDesignY": -0.34960428237563823,
+    "gzM": 0.3467,
+    "torqueZNm": 799.2,
+    "submergedM3": 0.2293,
+    "cobX": -0.017,
+    "cogX": -0.364
+   },
+   {
+    "heelDeg": 130,
+    "waterlineDesignY": -0.35597872083862114,
+    "gzM": 0.3669,
+    "torqueZNm": 845.7,
+    "submergedM3": 0.2293,
+    "cobX": 0.045,
+    "cogX": -0.322
+   },
+   {
+    "heelDeg": 140,
+    "waterlineDesignY": -0.3587462039164041,
+    "gzM": 0.3674,
+    "torqueZNm": 846.9,
+    "submergedM3": 0.2293,
+    "cobX": 0.097,
+    "cogX": -0.27
+   },
+   {
+    "heelDeg": 150,
+    "waterlineDesignY": -0.3577676830774138,
+    "gzM": 0.3499,
+    "torqueZNm": 806.5,
+    "submergedM3": 0.2293,
+    "cobX": 0.14,
+    "cogX": -0.21
+   },
+   {
+    "heelDeg": 160,
+    "waterlineDesignY": -0.35293855550055164,
+    "gzM": 0.3083,
+    "torqueZNm": 710.8,
+    "submergedM3": 0.2293,
+    "cobX": 0.165,
+    "cogX": -0.144
+   },
+   {
+    "heelDeg": 170,
+    "waterlineDesignY": -0.34373685061130066,
+    "gzM": 0.2227,
+    "torqueZNm": 513.5,
+    "submergedM3": 0.2293,
+    "cobX": 0.15,
+    "cogX": -0.073
+   },
+   {
+    "heelDeg": 180,
+    "waterlineDesignY": -0.34225806795157054,
+    "gzM": -0.0001,
+    "torqueZNm": -0.2,
+    "submergedM3": 0.2293,
+    "cobX": 0,
+    "cogX": 0
+   }
+  ],
+  "sdf": {
+   "inside": -0.15499999999999997,
+   "below": 0.4395229653866759,
+   "boardTip": -1.0806619862042854
+  },
+  "computeMsPerCall": 0.173029385
+ },
+ "failures": []
+}

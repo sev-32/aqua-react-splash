@@ -7,8 +7,10 @@ import type { FixedStepAdvance } from './FixedStepClock.js';
 
 export type FramePhase = 'prePhysics' | 'physics' | 'postPhysics' | 'preRender' | 'postRender' | 'ui';
 
+export type FoundryMode = 'inspect' | 'anchored' | 'sailing';
+
 export interface FoundryState {
-  mode: 'inspect' | 'anchored';
+  mode: FoundryMode;
   dynamic: boolean;
   waterEnabled: boolean;
   selectedObjectId: string | null;
@@ -28,6 +30,8 @@ export interface FoundryEvents extends Record<string, unknown> {
   'scene:ready': { entities: number; unassignedMeshes: number };
   'lighting:changed': { reason: string; shadowDirty: boolean; environmentDirty: boolean };
   'shadow:invalidate': { reason: string };
+  'sailing:reset': { reason: string };
+  'sailing:capsize': { state: string; heelDeg: number };
 }
 
 export interface SimulationFrameState extends FixedStepAdvance {
@@ -43,6 +47,8 @@ export interface AppContext {
   readonly simulation: SimulationFrameState;
   requestRender(reason: string): void;
   setDynamic(enabled: boolean): void;
+  /** Switches between static inspection, the anchored rig lab and free sailing. */
+  setMode(mode: FoundryMode): void;
   stepSimulation(steps: number): void;
 }
 

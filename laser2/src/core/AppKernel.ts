@@ -2,7 +2,7 @@ import { EventBus } from './EventBus.js';
 import { FixedStepClock } from './FixedStepClock.js';
 import { FrameGraph } from './FrameGraph.js';
 import { StateStore } from './StateStore.js';
-import type { AppContext, AppSystem, FoundryEvents, FoundryState, SimulationFrameState } from './System.js';
+import type { AppContext, AppSystem, FoundryEvents, FoundryMode, FoundryState, SimulationFrameState } from './System.js';
 import type { LegacyRuntimeAdapter } from '../legacy/LegacyRuntimeAdapter.js';
 import type { TelemetryHub } from '../telemetry/TelemetryHub.js';
 import type { QualityManager } from '../quality/QualityManager.js';
@@ -54,6 +54,7 @@ export class AppKernel {
       simulation: this.simulationState,
       requestRender: (reason) => this.requestRender(reason),
       setDynamic: (enabled) => this.setDynamic(enabled),
+      setMode: (mode) => this.setMode(mode),
       stepSimulation: (steps) => this.stepSimulation(steps),
     };
   }
@@ -102,7 +103,7 @@ export class AppKernel {
       this.dirty = false;
       this.frame(measuredDt > 0 ? measuredDt : 1 / 60);
     }
-    if (this.state.get().dynamic) this.queueFrame('anchored continuous');
+    if (this.state.get().dynamic) this.queueFrame(`${this.state.get().mode} continuous`);
   }
 
   frame(dtSeconds: number): void {
@@ -111,7 +112,7 @@ export class AppKernel {
     const advance = this.fixedClock.advance(dt, dynamic);
     Object.assign(this.simulationState, advance, { manualSteps: 0 });
     const reasons = this.renderReasons.splice(0, this.renderReasons.length);
-    const reason = reasons.length ? reasons.join(' | ') : dynamic ? 'anchored continuous' : 'direct frame';
+    const reason = reasons.length ? reasons.join(' | ') : dynamic ? `${this.state.get().mode} continuous` : 'direct frame';
     this.telemetry.beginFrame(dt, dynamic ? 'dynamic' : 'static', reason);
     this.frameGraph.update(dt, this.context);
     this.telemetry.endFrame(this.frameGraph.list());
@@ -124,12 +125,21 @@ export class AppKernel {
   }
 
   setDynamic(enabled: boolean): void {
-    this.state.update({ dynamic: enabled, mode: enabled ? 'anchored' : 'inspect' });
-    this.legacy.setDynamic(enabled);
+    this.setMode(enabled ? 'anchored' : 'inspect');
+  }
+
+  setMode(mode: FoundryMode): void {
+    const previous = this.state.get().mode;
+    const dynamic = mode !== 'inspect';
+    // The legacy adapter must leave (or enter) sailing before listeners run so
+    // systems installing native authorities see a consistent body state.
+    this.legacy.setSailing(mode === 'sailing');
+    this.legacy.setDynamic(dynamic);
+    this.state.update({ dynamic, mode });
     this.fixedClock.advance(0, false);
     this.lastTimeMs = performance.now();
-    this.events.emit('mode:change', { mode: enabled ? 'anchored' : 'inspect' });
-    this.requestRender(enabled ? 'anchored mode enabled' : 'inspect mode enabled');
+    this.events.emit('mode:change', { mode });
+    this.requestRender(`${mode} mode enabled${previous !== mode ? ` (from ${previous})` : ''}`);
   }
 
   stepSimulation(steps = 1): void {
@@ -164,7 +174,7 @@ export class AppKernel {
   snapshot(options: { deep?: boolean } = {}): Record<string, unknown> {
     if (options.deep) this.telemetry.sampleSystems(this.frameGraph.list(), 'deep-snapshot');
     return {
-      version: 'LASER2_LIGHTING_FOUNDRY_V7',
+      version: 'LASER2_SAILING_FOUNDRY_V8',
       depth: options.deep ? 'deep' : 'cached',
       state: this.state.get(),
       quality: this.quality.current,

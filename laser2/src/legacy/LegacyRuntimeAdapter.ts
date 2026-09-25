@@ -18,6 +18,7 @@ export class LegacyRuntimeAdapter {
   private anchorPosition: any = null;
   private anchorQuaternion: any = null;
   private dynamicRequested = false;
+  private sailing = false;
   private simulationSteps = 0;
   private legacyFrameAuthorityFrozen = false;
   private compatibilityBootstrapFrames = 0;
@@ -135,16 +136,40 @@ export class LegacyRuntimeAdapter {
     this.dynamicRequested = !!enabled;
     // Foundry owns cadence and physics stepping. The legacy loop remains frozen.
     this.freezeLegacyFrameAuthority();
-    this.body.kinematic = true;
+    this.body.kinematic = !this.sailing;
     if (!enabled) this.enforceAnchor();
   }
+
+  /**
+   * Sailing releases the kinematic anchor: the hull becomes a free rigid body
+   * driven by the native ocean/hydrodynamics authorities. Leaving sailing
+   * restores the legacy start snapshot before re-anchoring, so the rig never
+   * snaps across the distance the boat has sailed.
+   */
+  setSailing(enabled: boolean): void {
+    const next = !!enabled;
+    if (next === this.sailing) return;
+    this.sailing = next;
+    const body = this.body;
+    if (next) {
+      body.kinematic = false;
+      body.vel?.set?.(0, 0, 0);
+      body.omega?.set?.(0, 0, 0);
+    } else {
+      this.simulation.reset?.();
+      body.kinematic = true;
+      this.enforceAnchor();
+    }
+  }
+
+  get isSailing(): boolean { return this.sailing; }
 
   step(steps = 1): void {
     const count = Math.max(1, Math.floor(steps));
     const { simulation, body } = this.requireHandles();
     simulation.pause(true);
     if (this.master.input?.state) this.master.input.state.paused = true;
-    body.kinematic = true;
+    body.kinematic = !this.sailing;
     simulation.stepN?.(count);
     this.simulationSteps += count;
     this.enforceAnchor();
@@ -156,7 +181,7 @@ export class LegacyRuntimeAdapter {
   }
 
   enforceAnchor(): void {
-    if (!this.anchorPosition || !this.anchorQuaternion) return;
+    if (this.sailing || !this.anchorPosition || !this.anchorQuaternion) return;
     const body = this.body;
     body.pos.copy(this.anchorPosition);
     body.prevPos?.copy?.(this.anchorPosition);
@@ -178,6 +203,7 @@ export class LegacyRuntimeAdapter {
     return {
       frozen: this.legacyFrameAuthorityFrozen,
       dynamicRequested: this.dynamicRequested,
+      sailing: this.sailing,
       simulationSteps: this.simulationSteps,
       compatibilityBootstrapFrames: this.compatibilityBootstrapFrames,
       gateMode: window.__LASER2_RAF_GATE?.mode ?? null,

@@ -1,5 +1,6 @@
 import type { AppContext, AppSystem } from '../core/System.js';
 import { RingBuffer } from '../telemetry/RingBuffer.js';
+import type { ScenePipeline } from './ScenePipeline.js';
 
 interface Stats {
   samples: number;
@@ -52,6 +53,14 @@ export class RenderSystem implements AppSystem {
   private lastTriangles = 0;
   private unauthorizedRenderCalls = 0;
   private authorityActive = false;
+  private pipeline: ScenePipeline | null = null;
+  private pipelineRenders = 0;
+
+  /** Multi-pass HDR pipeline used while the native ocean surface is visible. */
+  attachPipeline(pipeline: ScenePipeline): this {
+    this.pipeline = pipeline;
+    return this;
+  }
 
   init(context: AppContext): void {
     this.context = context;
@@ -79,7 +88,12 @@ export class RenderSystem implements AppSystem {
     const start = performance.now();
     this.authorityActive = true;
     try {
-      this.originalRender(scene, camera);
+      if (this.pipeline?.active) {
+        this.pipeline.render(renderer, scene, camera, this.originalRender);
+        this.pipelineRenders++;
+      } else {
+        this.originalRender(scene, camera);
+      }
     } finally {
       this.authorityActive = false;
     }
@@ -136,11 +150,14 @@ export class RenderSystem implements AppSystem {
       recentReasons: this.reasons.toArray(),
       calls: this.lastCalls,
       triangles: this.lastTriangles,
+      pipelineRenders: this.pipelineRenders,
+      pipeline: this.pipeline?.telemetry() ?? null,
       measurementBoundary: 'submission timing is separate from explicit gl.finish batch completion timing',
     };
   }
 
   dispose(): void {
+    this.pipeline?.dispose();
     if (this.context && this.originalRender) this.context.legacy.renderer.render = this.originalRender;
     this.context = null;
     this.originalRender = null;

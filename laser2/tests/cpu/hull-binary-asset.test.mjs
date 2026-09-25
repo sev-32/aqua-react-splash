@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const root = resolve('/mnt/data/LASER2_LIGHTING_FOUNDRY_V7');
+const root = resolve(new URL('../..', import.meta.url).pathname);
 const manifestPath = resolve(root, 'public/assets/boat/hull-static-v3.manifest.json');
 const binaryPath = resolve(root, 'public/assets/boat/hull-static-v3.bin');
 const sourcePath = resolve(root, 'public/assets/boat/hull-static-v2.json');

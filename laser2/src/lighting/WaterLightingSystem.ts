@@ -4,7 +4,7 @@ export class WaterLightingSystem implements AppSystem {
   readonly id = 'lighting.water';
   readonly phase = 'preRender' as const;
   enabled = false;
-  private backend: 'disabled' | 'legacy' = 'disabled';
+  private backend: 'disabled' | 'native-ocean-v8' = 'disabled';
 
   init(context: AppContext): void {
     this.enabled = context.state.get().waterEnabled;
@@ -19,8 +19,10 @@ export class WaterLightingSystem implements AppSystem {
     const water = context.legacy.master.water;
     if (!water) return;
     const active = context.state.get().waterEnabled;
-    for (const object of [water.meshNear, water.meshFar]) if (object) object.visible = active;
-    this.backend = active ? 'legacy' : 'disabled';
+    // The legacy ocean meshes are retired: WaterSurfaceSystem renders the
+    // native surface (same wave components as the physics) when water is on.
+    for (const object of [water.meshNear, water.meshFar]) if (object) object.visible = false;
+    this.backend = active ? 'native-ocean-v8' : 'disabled';
     context.requestRender('water visibility changed');
   }
 
@@ -29,7 +31,7 @@ export class WaterLightingSystem implements AppSystem {
       enabled: this.enabled,
       backend: this.backend,
       contract: ['sun reflection', 'environment reflection', 'refraction', 'absorption', 'boat shadow', 'water bounce'],
-      note: 'water is disabled in the static inspection milestone; the system boundary is explicit and independently benchmarkable',
+      note: 'inspection keeps water off; sailing renders the native ocean surface (WaterSurfaceSystem + ScenePipeline)',
     };
   }
 }

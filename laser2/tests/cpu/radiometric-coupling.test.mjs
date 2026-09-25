@@ -5,7 +5,7 @@ import { DEFAULT_LIGHTING_SETTINGS } from '../../dist/src/lighting/LightingSetti
 import { computeRadiometricBudget } from '../../dist/src/lighting/RadiometricCouplingSystem.js';
 import { QUALITY_PROFILES } from '../../dist/src/quality/QualityProfiles.js';
 
-const root = '/mnt/data/LASER2_LIGHTING_FOUNDRY_V7';
+const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const out = path.join(root, 'evidence/cpu/radiometric-coupling.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const profile = QUALITY_PROFILES.find((p) => p.id === 'balanced');

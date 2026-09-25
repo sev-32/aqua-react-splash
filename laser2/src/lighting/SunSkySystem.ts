@@ -12,6 +12,9 @@ export class SunSkySystem implements AppSystem {
   private lastRevision = -1;
   private applyCount = 0;
   private lastApplyMs = 0;
+  /** Horizontal point the sun (and its shadow frustum) is centred on. */
+  private readonly focus = { x: 0, z: 0 };
+  private focusMoves = 0;
 
   constructor(
     readonly settings: LightingState,
@@ -36,7 +39,19 @@ export class SunSkySystem implements AppSystem {
   }
 
   update(_dtSeconds: number, context: AppContext): void {
-    this.apply(context, false);
+    // While sailing the boat travels; the sun transform and its shadow camera
+    // follow it so hull, sails and crew keep casting onto deck and water.
+    const body = context.legacy.master?.body;
+    const sailing = context.state.get().mode === 'sailing';
+    const fx = sailing && Number.isFinite(body?.pos?.x) ? body.pos.x : 0;
+    const fz = sailing && Number.isFinite(body?.pos?.z) ? body.pos.z : 0;
+    const moved = Math.abs(fx - this.focus.x) > 1e-3 || Math.abs(fz - this.focus.z) > 1e-3;
+    if (moved) {
+      this.focus.x = fx;
+      this.focus.z = fz;
+      this.focusMoves++;
+    }
+    this.apply(context, moved);
   }
 
   private apply(context: AppContext, force: boolean): void {
@@ -48,11 +63,11 @@ export class SunSkySystem implements AppSystem {
     if (this.sun) {
       const distance = 24;
       this.sun.position.set(
-        budget.sunDirection.x * distance,
+        this.focus.x + budget.sunDirection.x * distance,
         budget.sunDirection.y * distance,
-        budget.sunDirection.z * distance,
+        this.focus.z + budget.sunDirection.z * distance,
       );
-      this.sun.target?.position?.set?.(0, 2.1, 0);
+      this.sun.target?.position?.set?.(this.focus.x, 2.1, this.focus.z);
       this.sun.color?.setRGB?.(
         budget.sunRendererColor.r,
         budget.sunRendererColor.g,
@@ -88,6 +103,8 @@ export class SunSkySystem implements AppSystem {
       rendererExposure: budget.rendererExposure,
       autoExposureEv: budget.autoExposureEv,
       applyCount: this.applyCount,
+      focus: { ...this.focus },
+      focusMoves: this.focusMoves,
       lastApplyMs: this.lastApplyMs,
       model: 'directional sun magnitude and chromaticity are consumed from the shared radiometric budget',
     };
