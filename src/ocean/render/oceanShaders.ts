@@ -777,8 +777,8 @@ void main(){
             if (zS < 1.0 && sLin <= surfLin + 0.05){ hidden = true; tPrev = t; continue; }
             if (zS < 1.0 && hidden && sLin < rLin + slack){
               // The crossing happened behind the foreground body: take the first visible
-              // sample past it (the same seabed, a step further on).
-              sceneRcv = texture(uSceneColor, uk).rgb;
+              // sample past it (the same seabed, a step further on; nearest texel, no rim).
+              sceneRcv = texelFetch(uSceneColor, ivec2(uk*vec2(textureSize(uSceneColor, 0))), 0).rgb;
               floorHit = true; hit = true;
               break;
             }
@@ -795,10 +795,16 @@ void main(){
                 if (zm < 1.0 && sm > surfLin + 0.05 && sm < rm + 0.02*rm + 0.05) t1 = tm; else t0 = tm;
               }
               vec3 ch = viewOf(ro + trd*t1);
-              sceneRcv = texture(uSceneColor, ch.xy*0.5 + 0.5).rgb;
-              pathLen = t1;
-              floorHit = true; hit = true;
-              break;
+              vec2 uh = ch.xy*0.5 + 0.5;
+              float rh = linDepth(ch.z*0.5 + 0.5), sh = linDepth(texture(uSceneDepth, uh).r);
+              // A true crossing converges onto the surface; a ray that passed over a body's
+              // top converges onto its silhouette, still well behind it — keep marching.
+              if (rh - sh < 0.12 + 0.01*rh){
+                sceneRcv = texture(uSceneColor, uh).rgb;
+                pathLen = t1;
+                floorHit = true; hit = true;
+                break;
+              }
             }
             tPrev = t;
           }
@@ -816,7 +822,12 @@ void main(){
                 float zS = texture(uSceneDepth, u).r;
                 if (zS >= 1.0) break;
                 if (linDepth(zS) <= surfLin + 0.05) continue;
-                sceneRcv = texture(uSceneColor, u).rgb; floorHit = true;
+                // Nearest texel, one further from the body's silhouette: bilinear filtering
+                // there would blend the body's own colour back in as a rim.
+                vec2 sz = vec2(textureSize(uSceneColor, 0));
+                vec2 away = normalize(uv0 - suv + 1e-6)/sz;
+                sceneRcv = texelFetch(uSceneColor, ivec2(clamp((u + 1.5*away)*sz, vec2(0.0), sz - 1.0)), 0).rgb;
+                floorHit = true;
                 break;
               }
             }

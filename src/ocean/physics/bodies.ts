@@ -66,12 +66,13 @@ export function scriptPose(s: BodyScript, t: number): { pos: Vec3; vel: Vec3 } {
     const o = s.origin;
     if (s.kind === 'tow') return [o[0] + s.dir[0] * s.speed * u, o[1], o[2] + s.dir[1] * s.speed * u];
     if (s.kind === 'bob') return [o[0], o[1] + s.amp * Math.sin((2 * Math.PI * u) / s.period), o[2]];
-    // plunge: 1 s at rest, down over 0.3·P, hold 0.3·P, out over 0.12·P to well above the surface
+    // plunge: 1 s at rest, down over 0.3·P, hold 0.3·P, pulled out over 0.3·P to well above
+    // the surface (a hand's pull: ~5 m/s at the waterline for the lab's 2.5 s period)
     const P = s.period;
     let y = o[1];
     if (u > 1) y -= s.amp * ease((u - 1) / (0.3 * P));
     const out = 1 + 0.6 * P;
-    if (u > out) y += (s.amp * 2.4) * ease((u - out) / (0.12 * P));
+    if (u > out) y += (s.amp * 2.4) * ease((u - out) / (0.3 * P));
     return [o[0], y, o[2]];
   };
   const e = 1 / 240;

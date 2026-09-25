@@ -131,9 +131,10 @@ void main(){
   // volume V over its disc, so overlapping splats sum to the water's path along the view
   // ray — a 4 cm crown wall reads 4 cm face-on and more at grazing incidence.
   float t = 1.5*sqrt(1.0 - r2)*vSplat.y/(3.14159265*vSplat.x*vSplat.x)*uThickGain*vData.x;
-  // The pool's splash was clear water: coherent sheets and jets stay glassy. Air is only
-  // entrained where the fluid is tearing apart (low MPM density) and in violent shear.
-  float aer = 0.75*(1.0 - vData.w) + 0.25*smoothstep(8.0, 16.0, vData.y);
+  // The pool's splash was clear water: sheets, jets and the drops they shed stay glassy.
+  // Water only turns white where air shear atomizes it — Weber number ρₐv²δ/σ past ~12
+  // for centimetre sheets, i.e. beyond ~8–14 m/s — and a torn-up parcel atomizes sooner.
+  float aer = smoothstep(8.0, 14.0, vData.y)*(0.55 + 0.45*(1.0 - vData.w));
   o = vec4(t, t*aer, 1.0, 1.0);
 }`;
 
@@ -235,12 +236,26 @@ void main(){
   vec3 P = viewPos(vUv, z);
   float zx1 = fluidDepth(vUv + vec2(uTexel.x, 0.0)), zx0 = fluidDepth(vUv - vec2(uTexel.x, 0.0));
   float zy1 = fluidDepth(vUv + vec2(0.0, uTexel.y)), zy0 = fluidDepth(vUv - vec2(0.0, uTexel.y));
-  vec3 dx = abs(zx1 - z) < abs(z - zx0) && zx1 < 5e4 ? viewPos(vUv + vec2(uTexel.x, 0.0), zx1) - P : P - viewPos(vUv - vec2(uTexel.x, 0.0), zx0);
-  vec3 dy = abs(zy1 - z) < abs(z - zy0) && zy1 < 5e4 ? viewPos(vUv + vec2(0.0, uTexel.y), zy1) - P : P - viewPos(vUv - vec2(0.0, uTexel.y), zy0);
+  // At the sheet's silhouette the surface is tangent to the view ray: past the edge, stand
+  // in a surface receding ~4 pixel footprints (≈76°), so the rim gets its grazing normal
+  // (and Fresnel sheen) instead of copying the inner neighbour's.
+  float pix = length(viewPos(vUv + vec2(uTexel.x, 0.0), z) - P);
+  bool ex = zx1 > 5e4 || zx0 > 5e4, ey = zy1 > 5e4 || zy0 > 5e4;
+  if (zx1 > 5e4) zx1 = z + 4.0*pix;
+  if (zx0 > 5e4) zx0 = z + 4.0*pix;
+  if (zy1 > 5e4) zy1 = z + 4.0*pix;
+  if (zy0 > 5e4) zy0 = z + 4.0*pix;
+  vec3 px1 = viewPos(vUv + vec2(uTexel.x, 0.0), zx1), px0 = viewPos(vUv - vec2(uTexel.x, 0.0), zx0);
+  vec3 py1 = viewPos(vUv + vec2(0.0, uTexel.y), zy1), py0 = viewPos(vUv - vec2(0.0, uTexel.y), zy0);
+  // Inside, the one-sided difference with the smaller step (never across a front/back layer).
+  vec3 dx = ex ? 0.5*(px1 - px0) : (abs(zx1 - z) < abs(z - zx0) ? px1 - P : P - px0);
+  vec3 dy = ey ? 0.5*(py1 - py0) : (abs(zy1 - z) < abs(z - zy0) ? py1 - P : P - py0);
   vec3 N = normalize(cross(dy, dx));
   vec3 V = normalize(-P);
   if (dot(N, V) < 0.0) N = -N;
-  float F = fresnelDielectric(max(dot(N, V), 0.0), 1.0, uIor);
+  float F1 = fresnelDielectric(max(dot(N, V), 0.0), 1.0, uIor);
+  // A thin sheet reflects at both faces (incoherent film: 2R/(1+R)); a thick jet at one.
+  float F = mix(2.0*F1/(1.0 + F1), F1, smoothstep(0.05, 0.25, th.r));
   vec3 R = reflect(-V, N);
   float thick = th.r;
   // What lies behind the sheet (the sea, already shaded) seen through it, refracted: the

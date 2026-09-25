@@ -39,6 +39,7 @@ uniform float uWaterline;     // world water height at the body (m)
 uniform vec3 uAbsorb;
 uniform float uRough;
 uniform float uPorous;        // 1: rock (water fills the pores and darkens it); 0: paint, gelcoat
+uniform vec3 uUpwell;         // radiance the sea sends up here (sky reflection + water-leaving light)
 uniform float uFogDensity;
 uniform sampler2D uCloudShadow; uniform vec4 uCloudRect;   // camera-relative xz min, size, strength
 void main(){
@@ -58,7 +59,11 @@ void main(){
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 H = normalize(V + uSunDir);
   float spec = pow(max(dot(n, H), 0.0), mix(24.0, 160.0, wet))*mix(0.08, 0.35, wet);
-  vec3 amb = textureLod(uEnv, dirToEquirect(normalize(n + vec3(0.0, 0.4, 0.0))), uEnvLevels - 3.0).rgb;
+  // Ambient irradiance (as radiance ×π⁻¹): the sky dome above, the sea below. A face tilted
+  // n.y sees (1 + n.y)/2 of the sky's irradiance and (1 − n.y)/2 of the sea's upwelling —
+  // the prefiltered env bled its bare-planet lower half into the horizon and left the shaded
+  // side of a ball navy where the lagoon around it lights it cyan.
+  vec3 amb = (uSkyE*(1.0 + n.y)*0.5 + uUpwell*PI*(1.0 - n.y)*0.5)/PI;
   // Under the waterline only DOWNWELLING light reaches the hull (Beer–Lambert with depth);
   // the view path through the water is the water shader's job (it refracts this frame).
   float depth = max(uWaterline - worldY, 0.0);
@@ -72,7 +77,7 @@ void main(){
     vec3 Ed = sunE*max(uSunDir.y, 0.0) + uSkyE;
     vec3 diffuse = Ed*down*(0.22 + 0.33*(n.y*0.5 + 0.5))/3.14159;
     col = albedo*(sunE*ndlW*down/3.14159 + diffuse) + sunE*spec*0.05*down;
-  } else col = albedo*(sunE*ndl/3.14159 + amb*0.9) + sunE*spec*0.05;
+  } else col = albedo*(sunE*ndl/3.14159 + amb) + sunE*spec*0.05;
   float dist = length(vRel);
   vec3 haze = textureLod(uEnv, dirToEquirect(normalize(vec3(-V.x, 0.035, -V.z))), 3.0).rgb;
   col = mix(haze, col, exp(-dist*uFogDensity));
@@ -239,6 +244,7 @@ export class BodiesRenderer {
     viewProj: Float32Array; cam: Vec3; env: WebGLTexture; envLevels: number; sunDir: Vec3; sunE: Vec3; skyE: Vec3;
     absorb: Vec3; fogDensity: number; waterAt: (x: number, z: number) => number;
     cloud?: { texture: WebGLTexture; rect: [number, number, number]; strength: number } | null;
+    upwellAt?: (x: number, z: number) => Vec3;
   }) {
     const gl = this.gl;
     const p = this.prog.use();
@@ -255,7 +261,8 @@ export class BodiesRenderer {
       if (!b.alive) continue;
       const { mesh, scale } = this.meshFor(b);
       p.set('uRot', quatToMat3(b.rot)).set('uRel', [b.pos[0] - f.cam[0], b.pos[1] - f.cam[1], b.pos[2] - f.cam[2]])
-        .set('uScale', scale).set('uWaterline', f.waterAt(b.pos[0], b.pos[2])).set('uPorous', b.label === 'rock' ? 1 : 0);
+        .set('uScale', scale).set('uWaterline', f.waterAt(b.pos[0], b.pos[2])).set('uPorous', b.label === 'rock' ? 1 : 0)
+        .set('uUpwell', f.upwellAt ? f.upwellAt(b.pos[0], b.pos[2]) : [0, 0, 0]);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
     }

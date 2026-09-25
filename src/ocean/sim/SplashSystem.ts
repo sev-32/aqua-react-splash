@@ -149,7 +149,9 @@ export class SplashSystem {
       // pixel art at splash scale. Occlusion by hand against the scene depth.
       const W2 = f.hdr.width, H2 = f.hdr.height;
       const w = W2, h = H2;
-      const bs = 2;   // blur steps span the same screen distance as the half-res filter did
+      // Blur σ ≈ 7 px: about a parcel's screen radius at splash distances. Wider flattened the
+      // curvature of crown walls, turning their normals to face the camera (no Fresnel sheen).
+      const bs = 1;
       const fl = this.ensureFluid(w, h);
       // Scene behind the splash (sea included) for refraction.
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, f.hdr.fbo);

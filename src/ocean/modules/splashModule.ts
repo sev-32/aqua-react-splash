@@ -40,10 +40,11 @@ export class SplashModule implements EngineModule {
   }
 
   /**
-   * The pool's event spawners, driven by the heightfield: a release next to a body leaves
-   * the way that body is moving the water — a crown ring when it plunges in, a clinging
-   * sheet rising with it when it is pulled out, bow spray thrown ahead and aside when it
-   * is towed. Volume and position come from the limiter; the body shapes the launch.
+   * The pool's event spawners, driven by the heightfield: a release next to a body moving
+   * through the surface is its bow wave, thrown ahead of it. Volume, position and the
+   * vertical launch come from the limiter (the heightfield's own motion); the body's
+   * entry/exit water is thrown by the Froude model (entrySplash), so it is not re-launched
+   * here at the body's speed.
    */
   private shapeByBody(r: ReleasePatch): { r: ReleasePatch; kind: 'impact' | 'crown' | 'sheet'; spread: number } {
     const free = { r, kind: 'impact' as const, spread: Math.min(3, Math.max(0.6, Math.sqrt(r.volume) * 1.3)) };
@@ -56,23 +57,14 @@ export class SplashModule implements EngineModule {
     }
     if (!best) return free;
     const [vx, vz] = [best.vel[0], best.vel[2]];
-    // A plunging body decelerates within a few frames, before its displaced water has
-    // travelled to the waterline and released: judge the entry by the speed it hit with.
-    const entry = this.entries.get(best.id);
-    const vy = entry && this.engine.time - entry.t < 0.5 ? Math.min(best.vel[1], -entry.speed) : best.vel[1];
     const vh = Math.hypot(vx, vz);
-    if (vy < -1.2 && -vy > vh) {
-      // Plunge: the displaced water leaves as a crown around the waterline.
-      return { r: { ...r, x: best.pos[0], z: best.pos[2], vx: 0, vz: 0, vy: Math.min(-vy, 12) }, kind: 'crown', spread: bestR * 1.15 };
-    }
-    if (vy > 0.8 && vy > vh) {
-      // Pulled out: a sheet of water clings to and rises with the body, then drains.
-      return { r: { ...r, x: best.pos[0], z: best.pos[2], vx: vx * 0.8, vz: vz * 0.8, vy: vy * 0.85 }, kind: 'sheet', spread: bestR * 0.9 };
-    }
     if (vh > 0.6) {
-      // Towed: bow spray, thrown forward-and-aside at about the hull speed, climbing its bow.
-      return { r: { ...r, vx: vx * 1.05, vz: vz * 1.05, vy: 0.45 * vh + Math.max(r.vy, 0) * 0.3 }, kind: 'sheet', spread: Math.min(bestR, 1.2) };
+      // Towed: the bow wave travels with the hull, so its released crest leaves forward-and-
+      // aside at about the hull speed, climbing its bow.
+      return { r: { ...r, vx: vx * 1.05, vz: vz * 1.05, vy: Math.max(r.vy, 0) + 0.45 * vh }, kind: 'sheet', spread: Math.min(bestR, 1.2) };
     }
+    // Around a body in the surface (plunging, rising, bobbing) the heightfield's own release
+    // is the physics — e.g. the jet of a collapsing entry cavity — and leaves as it would anywhere.
     return free;
   }
 
@@ -95,8 +87,6 @@ export class SplashModule implements EngineModule {
     return out;
   }
 
-  /** Recent water entries (body id → impact speed, time). */
-  private entries = new Map<number, { speed: number; t: number }>();
   /** Per body: volume below the undisturbed sea last frame, and jet volume not yet emitted. */
   private displaced = new Map<number, { V: number; pending: number }>();
 
@@ -161,14 +151,12 @@ export class SplashModule implements EngineModule {
       if (!tiles.addImpact(b.pos[0], b.pos[2], rr, -splatHeightForVolume(V, rr), 0, 0, time, true)) { st.pending = 0; continue; }
       const share = Math.max(8, Math.min(Math.floor(this.mpm.cfg.capacity / 6), Math.round(V / minV) * 8));
       this.mpm.emitRelease({ x: b.pos[0], z: b.pos[2], y: sea.height, volume: V, vx: b.vel[0], vz: b.vel[2], vy, vr }, 'crown', ring, time, share);
-      if (!exit) this.entries.set(b.id, { speed: U, t: time });
       st.pending = 0;
     }
     for (const id of this.displaced.keys()) if (!alive.has(id)) this.displaced.delete(id);
   }
 
   update(engine: OceanEngine, time: number, dt: number) {
-    for (const e of this.bodies.entries) this.entries.set(e.body.id, { speed: e.speed, t: time });
     this.entrySplash(time, dt);
     const tiles = this.interaction.tiles;
     const shoreField = this.shore.field;

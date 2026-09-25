@@ -27,6 +27,7 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
   const interaction = engine.addModule(new InteractionModule(engine, bodies)) as InteractionModule;
   const shore = engine.addModule(new ShoreModule(engine, world)) as ShoreModule;
   interaction.tiles.depthAt = (x, z) => -world.world.sampleProduct('height', x, z);
+  bodies.depthAt = interaction.tiles.depthAt;
 
   const directTiles = {
     name: 'tile-policy',

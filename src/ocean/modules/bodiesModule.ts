@@ -16,6 +16,8 @@ export class BodiesModule implements EngineModule {
   /** Bodies that entered the water hard this frame (for splash/impact emitters). */
   entries: { body: Body; speed: number; at: Vec3 }[] = [];
   private prevImmersion = new Map<number, number>();
+  /** Water depth below sea level (m) — set by the world; the open ocean when absent. */
+  depthAt: ((x: number, z: number) => number) | null = null;
 
   constructor(private engine: OceanEngine) {
     this.renderer = new BodiesRenderer(engine.gl);
@@ -102,6 +104,28 @@ export class BodiesModule implements EngineModule {
     this.bodies = this.bodies.filter((b) => b.alive);
   }
 
+  /**
+   * Radiance the sea sends up at (x, z) — what lights a body's underside from below.
+   * Sky reflected by the surface (diffuse Fresnel ≈ 6.6 %) plus water-leaving light: the
+   * column's own backscatter (Gordon, R ≈ 0.33·bb/(a+bb)) and the sand beneath it seen
+   * through 2H of water (Kd ≈ 1.25·(a+bb)), halved crossing the surface (n² divergence).
+   * A lagoon over sand glows cyan; the deep ocean sends back a dim blue.
+   */
+  private upwellAt(engine: OceanEngine, x: number, z: number): Vec3 {
+    const o = engine.settings.optics;
+    const H = Math.max(this.depthAt ? this.depthAt(x, z) : 1e3, 0);
+    const sun = engine.sky.sunRadiance, sky = engine.skyE, sd = engine.sky.sunDir;
+    const out: Vec3 = [0, 0, 0];
+    for (let c = 0; c < 3; c++) {
+      const a = o.absorb[c], bb = o.backscatter[c];
+      const e = Math.exp(-2 * 1.25 * (a + bb) * H);
+      const R = 0.33 * (bb / (a + bb)) * (1 - e) + 0.4 * e;
+      const Ed = sun[c] * Math.max(sd[1], 0) + sky[c];
+      out[c] = (0.066 * sky[c] + 0.54 * R * Ed) / Math.PI;
+    }
+    return out;
+  }
+
   drawOpaque(engine: OceanEngine) {
     if (!this.bodies.length) return false;
     const s = engine.settings;
@@ -109,7 +133,7 @@ export class BodiesModule implements EngineModule {
       viewProj: engine.camera.viewProj, cam: engine.camera.position, env: engine.sky.texture, envLevels: engine.sky.levels,
       sunDir: engine.sky.sunDir, sunE: engine.sky.sunRadiance, skyE: engine.skyE, absorb: s.optics.absorb,
       fogDensity: s.optics.fogDensity*(1 + 5*s.weather.precipitation), waterAt: (x, z) => engine.sampleWater(x, z).height,
-      cloud: engine.cloudShadow,
+      cloud: engine.cloudShadow, upwellAt: (x, z) => this.upwellAt(engine, x, z),
     });
     return true;
   }
