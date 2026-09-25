@@ -15,7 +15,7 @@ import { OceanMpm, DEFAULT_MPM, type SphereCollider } from '../sim/oceanMpm';
 import { SplashConnectivity } from '../sim/splashConnectivity';
 import { splatHeightForVolume, type ReleasePatch } from '../sim/InteractionTiles';
 import { QUALITY } from '../engine/settings';
-import { RHO_WATER, bodyHeading, type Body } from '../physics/bodies';
+import { RHO_WATER, bodyHeading, displacedBelow, entryJetFlux, type Body } from '../physics/bodies';
 import type { InteractionModule } from './interactionModule';
 import type { ShoreModule } from './shoreModule';
 import type { BodiesModule } from './bodiesModule';
@@ -97,9 +97,84 @@ export class SplashModule implements EngineModule {
 
   /** Recent water entries (body id → impact speed, time). */
   private entries = new Map<number, { speed: number; t: number }>();
+  /** Per body: volume below the undisturbed sea last frame, and jet volume not yet emitted. */
+  private displaced = new Map<number, { V: number; pending: number }>();
+
+  /**
+   * Froude-limited entry and exit: the crown is the displacement that waves cannot carry.
+   * A body going in at relative speed U displaces Q = dV/dt through its waterplane of
+   * radius a; gravity waves of that scale leave at c = √(g·a). Where U > c the water
+   * arrives faster than it can leave as waves, and the excess Q·(1 − c/U) is thrown off
+   * along the body's surface — Wagner's jet, which starts fast and nearly flat while the
+   * waterline races outward (ȧ = hU/a) and turns upright as the equator passes. A 7 m/s
+   * plunge of the 0.6 m ball throws about two thirds of its displacement; a bob at 1 m/s
+   * throws none; a floating hull only slams spray when it falls faster than √(g·a).
+   * The thrown volume leaves the interaction tile as an exact Gaussian, so heightfield
+   * and fluid together conserve the water.
+   */
+  private entrySplash(time: number, dt: number) {
+    const tiles = this.interaction.tiles;
+    const mirror = this.engine.ocean.mirror;
+    const level = (x: number, z: number) => mirror.sample(x, z).height;
+    const dx = this.mpm.cfg.dx;
+    const minV = (8 * dx * dx * dx) / 27;
+    const alive = new Set<number>();
+    for (const b of this.bodies.bodies) {
+      if (!b.alive) continue;
+      alive.add(b.id);
+      const geo = displacedBelow(b, level);
+      const st = this.displaced.get(b.id);
+      if (!st) { this.displaced.set(b.id, { V: geo.volume, pending: 0 }); continue; }
+      const Q = dt > 0 ? (geo.volume - st.V) / dt : 0;
+      st.V = geo.volume;
+      const sea = mirror.sample(b.pos[0], b.pos[2]);
+      const U = sea.vy - b.vel[1];              // downward speed relative to the sea surface
+      // Leaving is the mirror image: the water moving with the body (a sphere's added mass,
+      // half its displacement) follows it up where the hole it leaves fills slower than it
+      // rises — the mantle that clings, converges beneath it into a column, and drains.
+      const exit = Q < 0;
+      const jet = exit ? 0.5 * entryJetFlux(-Q, -U, geo.a) : entryJetFlux(Q, U, geo.a);
+      if (!(jet > 0)) { st.pending = 0; continue; }
+      st.pending += jet * dt;
+      if (st.pending < minV) continue;
+      // Launch velocity (radial vr, vertical vy). Entry: Wagner's jet along the surface
+      // tangent t = (h, a)/R — fast and flat while the waterline races out (ȧ = hU/a), upright
+      // at the equator, held slightly outward once the flow separates — plus the body's own
+      // normal velocity there, so the water leaves the surface instead of being struck by it.
+      // Exit: the mantle rises with the body and converges beneath it.
+      let vr = -0.1 * -U, vy = 0.85 * -U, ring = geo.a + 0.5 * dx;
+      if (!exit) {
+        vr = 0.4 * U; vy = U;
+        if (b.shape.kind === 'sphere') {
+          const R = b.shape.radius ?? 1;
+          const h = Math.max(-R, Math.min(R, b.pos[1] - sea.height));
+          const jet = U * Math.min(Math.max((2 * h) / geo.a, 1), 2.5);
+          const tx = Math.max(h / R, 0.2), ty = geo.a / R, tl = Math.hypot(tx, ty);
+          const push = Math.max((U * h) / R, 0);
+          vr = (jet * tx) / tl + (push * geo.a) / R;
+          vy = (jet * ty) / tl - (push * h) / R;
+        }
+      }
+      if (b.shape.kind === 'sphere') {
+        // Just outside the collider at the launch height, so the solver sees water leaving it.
+        const R = b.shape.radius ?? 1, dy = sea.height + 0.04 - b.pos[1];
+        ring = Math.max(ring, Math.sqrt(Math.max((R + 0.5 * dx) ** 2 - dy * dy, 0)));
+      }
+      const V = st.pending;
+      const t = tiles.tileAt(b.pos[0], b.pos[2]);
+      const rr = Math.max(geo.a, 2 * (t?.dx ?? dx));
+      if (!tiles.addImpact(b.pos[0], b.pos[2], rr, -splatHeightForVolume(V, rr), 0, 0, time, true)) { st.pending = 0; continue; }
+      const share = Math.max(8, Math.min(Math.floor(this.mpm.cfg.capacity / 6), Math.round(V / minV) * 8));
+      this.mpm.emitRelease({ x: b.pos[0], z: b.pos[2], y: sea.height, volume: V, vx: b.vel[0], vz: b.vel[2], vy, vr }, 'crown', ring, time, share);
+      if (!exit) this.entries.set(b.id, { speed: U, t: time });
+      st.pending = 0;
+    }
+    for (const id of this.displaced.keys()) if (!alive.has(id)) this.displaced.delete(id);
+  }
 
   update(engine: OceanEngine, time: number, dt: number) {
     for (const e of this.bodies.entries) this.entries.set(e.body.id, { speed: e.speed, t: time });
+    this.entrySplash(time, dt);
     const tiles = this.interaction.tiles;
     const shoreField = this.shore.field;
     // 1. Heightfield releases become fluid (the pool's spawners shape them).
@@ -136,7 +211,10 @@ export class SplashModule implements EngineModule {
       const r = 0.9;
       const t = tiles.tileAt(x, z);
       if (t && !t.retiring) {
-        tiles.addImpact(x, z, r, splatHeightForVolume(b.V, r), Math.min(1, b.V * 2 + Math.abs(b.vy) * 0.02), 0, time);
+        // Re-entry entrains air in proportion to the kinetic energy it brings (½·V·vy²),
+        // not to the volume: gentle rain-back leaves the sea clear, violent plunges whiten it.
+        const foam = Math.min(0.6, 0.012 * b.V * b.vy * b.vy / Math.max(r * r, 0.05));
+        tiles.addImpact(x, z, r, splatHeightForVolume(b.V, r), foam, 0, time);
         this.toTiles += b.V;
       } else if (shoreField && shoreField.deposit(x, z, r, b.V)) {
         this.toShore += b.V;

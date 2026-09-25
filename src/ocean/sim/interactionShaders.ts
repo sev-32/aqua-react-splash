@@ -55,12 +55,23 @@ void main(){
   // Displacement capacity: water the bodies occupy in this column, measured against
   // the open-ocean surface (never against this field itself — no feedback loop).
   float ref = oceanHeight(xz);
+  // Band-limited (5×5 binomial, σ ≈ dx): a hull pushes water with a smooth pressure field.
+  // A hard-edged footprint puts energy at the grid Nyquist, where centimetre ripples would
+  // already exceed the ballistic-separation limit (A·k > 1) — numerical spray, not physics.
   float disp = 0.0;
-  for (int i = 0; i < ${MAX_BODIES}; i++){
-    if (i >= uBodyCount) break;
-    mat3 R = mat3(uBodyAx[i*3], uBodyAx[i*3 + 1], uBodyAx[i*3 + 2]);
-    vec2 span = bodyVerticalSpan(int(uBodyPos[i].w), uBodyPos[i].xyz, R, uBodyDims[i], xz);
-    if (span.x < span.y) disp += clamp(ref - span.x, 0.0, span.y - span.x);
+  if (uBodyCount > 0){
+    const float W[5] = float[5](1.0, 4.0, 6.0, 4.0, 1.0);
+    for (int j = -2; j <= 2; j++) for (int k = -2; k <= 2; k++){
+      vec2 q = xz + vec2(float(k), float(j))*uDx;
+      float dq = 0.0;
+      for (int i = 0; i < ${MAX_BODIES}; i++){
+        if (i >= uBodyCount) break;
+        mat3 R = mat3(uBodyAx[i*3], uBodyAx[i*3 + 1], uBodyAx[i*3 + 2]);
+        vec2 span = bodyVerticalSpan(int(uBodyPos[i].w), uBodyPos[i].xyz, R, uBodyDims[i], q);
+        if (span.x < span.y) dq += clamp(ref - span.x, 0.0, span.y - span.x);
+      }
+      disp += dq*W[j + 2]*W[k + 2]/256.0;
+    }
   }
   // Continuity (the pool's volume coupling, sign-corrected): a body entering a column
   // displaces that water, which rises and runs outward — bow crest, stern trough.
@@ -207,7 +218,8 @@ void main(){
     rb += vec4(V*xz.x, V*xz.y, V*e0, 1.0);
   }
   // Foam: born where the surface was forced past its envelope and where hulls churn it.
-  float churn = smoothstep(0.02, 0.2, aux.x)*smoothstep(0.4, 2.5, length(u));
+  // Hull churn: turbulent wake entrains bubbles in proportion to how fast the water is shed.
+  float churn = smoothstep(0.02, 0.2, aux.x)*smoothstep(1.5, 5.0, length(u))*0.3;
   // Bounded birth: a release whitens toward saturation instead of stacking to solid white.
   // Released water is airborne: the surface keeps only the bubbles it entrained on leaving
   // (a patchy trace), the bulk of the foam comes back with the re-entry splats.
@@ -230,8 +242,9 @@ void main(){
 
 /**
  * 4. Render-facing output: (η, ∂η/∂x, ∂η/∂z, foam) with linear filtering. Under a body the
- * surface is drawn beneath the hull: the displaced water that the capacity source put in
- * those columns is on its way outward, and must not cover the hull's dry side.
+ * surface is held at or below the undisturbed level: the displaced water that the capacity
+ * source put in those columns is on its way outward and must not cover the hull's dry side,
+ * but dropping it further would bare the submerged part of the body as a dark band.
  */
 export const TILE_OUTPUT_FS = /* glsl */ `#version 300 es
 precision highp float;
@@ -244,7 +257,8 @@ out vec4 outField;
 float eta(ivec2 c){
   c = clamp(c, ivec2(0), ivec2(uN - 1));
   float occ = texelFetch(uAux, c, 0).x;
-  return texelFetch(uState, c, 0).x - (occ > 0.02 ? occ + 0.05 : 0.0);
+  float e = texelFetch(uState, c, 0).x;
+  return occ > 0.02 ? min(e, 0.0) : e;
 }
 void main(){
   ivec2 c = ivec2(gl_FragCoord.xy);
@@ -322,7 +336,7 @@ void main(){
 export const SPLAT_VS = /* glsl */ `#version 300 es
 precision highp float;
 layout(location=0) in vec4 aSplat;   // tile-local x, z (m), radius (m), dEta
-layout(location=1) in vec4 aExtra;   // dFoam, dPhi, -, -
+layout(location=1) in vec4 aExtra;   // dFoam, dPhi, exact, -
 uniform float uTileSize;
 uniform float uN;
 out vec4 vData;
@@ -331,7 +345,7 @@ void main(){
   gl_Position = vec4(ndc, 0.0, 1.0);
   gl_PointSize = max(2.0, aSplat.z/uTileSize*uN*4.0);
   // Normalise so the splat deposits exactly dEta·(πr²) of volume regardless of size.
-  vData = vec4(aSplat.w, aExtra.x, aExtra.y, 0.0);
+  vData = vec4(aSplat.w, aExtra.x, aExtra.y, aExtra.z);
 }
 `;
 export const SPLAT_FS = /* glsl */ `#version 300 es
@@ -343,8 +357,9 @@ void main(){
   float r2 = dot(d, d);
   if (r2 > 1.0) discard;
   float g = exp(-4.0*r2);
-  // A crater-and-rim profile for negative dEta impacts (drop pushes water out to a ring).
-  float shape = vData.x < 0.0 ? g - 0.55*exp(-4.0*(sqrt(r2) - 0.6)*(sqrt(r2) - 0.6)*8.0) : g;
+  // A crater-and-rim profile for negative dEta impacts (drop pushes water out to a ring);
+  // exact splats (water handed to the fluid) stay Gaussian so the volume removed is dEta·πr².
+  float shape = vData.x < 0.0 && vData.w < 0.5 ? g - 0.55*exp(-4.0*(sqrt(r2) - 0.6)*(sqrt(r2) - 0.6)*8.0) : g;
   o = vec4(vData.x*shape, vData.y*g, vData.z*g, 0.0);
 }
 `;

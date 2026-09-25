@@ -197,6 +197,43 @@ export function bodyHeading(b: Body): number {
 
 const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
+/**
+ * Volume of `b` below a reference sea level (the undisturbed T0 surface, not the tile the
+ * body is disturbing) and the radius `a` of its waterplane (√(A/π) for non-spheres). A
+ * sphere is exact (spherical cap); other shapes integrate their columns.
+ */
+export function displacedBelow(b: Body, level: (x: number, z: number) => number): { volume: number; a: number } {
+  const s = b.shape;
+  if (s.kind === 'sphere') {
+    const R = s.radius ?? 1;
+    const h = b.pos[1] - level(b.pos[0], b.pos[2]);
+    const d = clamp(R - h, 0, 2 * R);
+    return { volume: (Math.PI * d * d * (3 * R - d)) / 3, a: Math.abs(h) < R ? Math.sqrt(R * R - h * h) : 0 };
+  }
+  const up = quatRotate(b.rot, [0, 1, 0]);
+  let volume = 0, plane = 0;
+  for (const c of b.columns) {
+    const r = quatRotate(b.rot, c.local);
+    const yb = b.pos[1] + r[1] + c.bottom * up[1];
+    const yt = b.pos[1] + r[1] + c.top * up[1];
+    const y0 = level(b.pos[0] + r[0], b.pos[2] + r[2]);
+    const h = clamp(y0 - yb, 0, yt - yb);
+    volume += h * c.area * Math.max(up[1], 0.2);
+    if (h > 0 && h < yt - yb) plane += c.area;
+  }
+  return { volume, a: Math.sqrt(plane / Math.PI) };
+}
+
+/**
+ * Froude-limited entry jet: of the displacement flux Q a body drives through a waterplane of
+ * radius a at relative speed U, gravity waves of that scale carry away at most c = √(g·a);
+ * the excess Q·(1 − c/U) is thrown off as the splash (m³/s).
+ */
+export function entryJetFlux(Q: number, U: number, a: number): number {
+  const c = Math.sqrt(G * Math.max(a, 0));
+  return Q > 0 && a > 1e-3 && U > c ? Q * (1 - c / U) : 0;
+}
+
 export interface StepStats {
   submergedVolume: number;
   waterlineSpeed: number;

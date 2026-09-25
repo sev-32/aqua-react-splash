@@ -50,6 +50,23 @@ describe('T4 MLS-MPM splash (evolved from the pool solver)', () => {
     expect(r.maxSpeed).toBeLessThanOrEqual(DEFAULT_MPM.maxVelocity + 1e-3);
   });
 
+  it('the physics does not depend on how finely the water is sampled (mass ∝ volume)', () => {
+    // The same crown sampled by 60 or by ~400 particles must fly the same way: pressure
+    // reads water mass per cell, not particles per cell.
+    const spread = (count: number) => {
+      const mpm = new OceanMpm({ ...DEFAULT_MPM, capacity: 2000 });
+      mpm.emitRelease({ x: 0, z: 0, y: 0, volume: 0.5, vx: 0, vy: 4, vz: 0, vr: 2 }, 'crown', 0.7, 0, count);
+      run(mpm, 0.4);
+      const P = mpm.particles;
+      let r = 0, y = 0, n = 0;
+      for (let p = 0; p < P.count; p++) if (P.flags[p] & FLAG_ALIVE) { r += Math.hypot(P.px[p], P.pz[p]); y += P.py[p]; n++; }
+      return { r: r / n, y: y / n };
+    };
+    const coarse = spread(60), fine = spread(2000);
+    expect(Math.abs(fine.r - coarse.r) / coarse.r).toBeLessThan(0.15);
+    expect(Math.abs(fine.y - coarse.y)).toBeLessThan(0.15);
+  });
+
   it('a moving sphere pushes the fluid and feels the reaction (two-way, pool collider)', () => {
     const mpm = new OceanMpm({ ...DEFAULT_MPM, capacity: 2000 });
     mpm.emitRelease({ x: 0, z: 0, y: 0.3, volume: 1.5, vx: 0, vy: 5, vz: 0 }, 'impact', 1.2, 0);

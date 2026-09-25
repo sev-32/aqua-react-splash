@@ -1,4 +1,6 @@
 export const G = 9.81;
+/** Planet radius (m): the sphere the sea, terrain and Nimbus atmosphere (Rp) share. */
+export const PLANET_RADIUS = 6.36e6;
 export const TAU = Math.PI * 2;
 
 export const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);

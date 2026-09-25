@@ -5,6 +5,7 @@
 import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/OceanEngine';
 import { World } from '../world/World';
 import { TerrainRenderer } from '../render/terrainRender';
+import { PLANET_RADIUS } from '../math/scalar';
 import type { ShoreModule } from './shoreModule';
 import type { QualityName } from '../engine/settings';
 
@@ -42,7 +43,7 @@ export class WorldModule implements EngineModule {
       viewProj: engine.camera.viewProj, planes: engine.camera.planes, cam: engine.camera.position,
       env: engine.sky.texture, envLevels: engine.sky.levels, sunDir: engine.sky.sunDir, sunE: engine.sky.sunRadiance,
       skyE: engine.skyE, fogDensity: s.optics.fogDensity*(1 + 5*s.weather.precipitation), absorb: s.optics.absorb, time: engine.time,
-      earthRadius: s.earthCurvature ? 6.371e6 : 0,
+      earthRadius: s.earthCurvature ? PLANET_RADIUS : 0,
       shore: shore && shore.fade > 0 ? { rect: [shore.origin[0], shore.origin[1], shore.size], extra: shore.out.textures[2], surf: shore.out.textures[0] } : null,
       cloud: engine.cloudShadow,
     }, engine.ocean);

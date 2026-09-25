@@ -38,7 +38,8 @@ export interface ReleasePatch {
   events: number;
 }
 
-interface Impact { x: number; z: number; r: number; dEta: number; dFoam: number; dPhi: number }
+/** `exact`: a pure Gaussian (volume-exact removal); otherwise a negative dEta is a crater with a rim. */
+interface Impact { x: number; z: number; r: number; dEta: number; dFoam: number; dPhi: number; exact: boolean }
 
 export interface InteractionTile {
   id: number;
@@ -201,10 +202,10 @@ export class InteractionTiles {
     return this.allocate(center, reason, now, want);
   }
 
-  addImpact(x: number, z: number, r: number, dEta: number, dFoam = 0, dPhi = 0, now = 0) {
+  addImpact(x: number, z: number, r: number, dEta: number, dFoam = 0, dPhi = 0, now = 0, exact = false) {
     const t = this.tileAt(x, z) ?? this.ensure([x, z], 'impact', now);
     if (!t) return false;
-    t.impacts.push({ x: x - t.origin[0], z: z - t.origin[1], r, dEta, dFoam, dPhi });
+    t.impacts.push({ x: x - t.origin[0], z: z - t.origin[1], r, dEta, dFoam, dPhi, exact });
     t.lastActive = now;
     return true;
   }
@@ -238,7 +239,7 @@ export class InteractionTiles {
     this.clear(this.impactsTarget);
     if (!t.impacts.length) return;
     const data = new Float32Array(Math.min(t.impacts.length, 256) * 8);
-    t.impacts.slice(0, 256).forEach((im, i) => data.set([im.x, im.z, im.r, im.dEta, im.dFoam, im.dPhi, 0, 0], i * 8));
+    t.impacts.slice(0, 256).forEach((im, i) => data.set([im.x, im.z, im.r, im.dEta, im.dFoam, im.dPhi, im.exact ? 1 : 0, 0], i * 8));
     this.impactsTarget.bind();
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);

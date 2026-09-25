@@ -22,6 +22,7 @@ import { Camera, FlyController, type CameraPose } from './camera';
 import { defaultSettings, QUALITY, WATER_TYPES, opticsFor, type EngineSettings, type QualityName } from './settings';
 import { SEA_STATES } from '../spectrum/seaStates';
 import type { Vec3 } from '../math/mat4';
+import { PLANET_RADIUS } from '../math/scalar';
 import type { WaterQuery, WaterSample } from '../physics/bodies';
 import { Target, createTexture, FMT } from '../gl/context';
 
@@ -341,7 +342,7 @@ export class OceanEngine {
       optics: s.optics,
       surface: s.surface,
       debug: s.debug,
-      earthRadius: s.earthCurvature ? 6.36e6 : 0,
+      earthRadius: s.earthCurvature ? PLANET_RADIUS : 0,
       tiles,
       tileArray,
       shore,

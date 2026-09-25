@@ -237,7 +237,7 @@ export class OceanMpm {
    * follows: 'impact' = crown ring + central Worthington jet (limiter jets from
    * impacts), 'sheet' = forward-thrown sheet (breaking lips, bow sheets).
    */
-  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
+  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number; vr?: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
     const V = r.volume;
     if (!(V > 0)) return;
     this.stats.emitted += V;
@@ -259,7 +259,13 @@ export class OceanMpm {
       const nx = Math.cos(a), nz = Math.sin(a);
       const foam = this.rand() < 0.4;
       const j = 0.8 + 0.4 * this.rand();
-      if (kind === 'impact' || crownOnly) {
+      if (crownOnly && r.vr !== undefined) {
+        // Entry jet: leaves the waterline ring along the body's surface — outward at vr,
+        // upward at vy (the tangent there), carried along with the body's drift.
+        const ring = spread * (1 + 0.08 * this.rand());
+        this.spawn(r.x + nx * ring, r.y + 0.02 + this.rand() * 0.04, r.z + nz * ring,
+          nx * r.vr * j + r.vx * 0.3, r.vy * j, nz * r.vr * j + r.vz * 0.3, vp, foam);
+      } else if (kind === 'impact' || crownOnly) {
         if (!crownOnly && i % 4 === 0) {
           // Central Worthington jet (pool spawnImpact): narrow, fast, near-vertical.
           const rr = this.rand() * spread * 0.2;
@@ -318,6 +324,8 @@ export class OceanMpm {
       }
       this.g2p(h, water);
     }
+    // Colliders summed the force of every substep: the frame's mean force is 1/sub of that.
+    for (const c of colliders) { c.fx /= sub; c.fy /= sub; c.fz /= sub; }
     // Ledger view.
     let vol = 0, n = 0;
     for (let p = 0; p < P.count; p++) if (P.flags[p] & FLAG_ALIVE) { vol += P.vol[p]; n++; }
@@ -337,10 +345,18 @@ export class OceanMpm {
     return ix >= 1 && ix < nx - 1 && iy >= 1 && iy < ny - 1 && iz >= 1 && iz < nz - 1;
   }
 
+  /**
+   * Grid mass units per m³ of water: a particle carries mass in proportion to the water it
+   * holds, so a cell full of water weighs restDensity however finely it is sampled (the
+   * equation of state and the body reactions both read true water mass).
+   */
+  private get massPerVolume() { return this.cfg.restDensity / (this.cfg.dx * this.cfg.dx * this.cfg.dx); }
+
   private p2gMassMomentum(v: SplashVolume, vi: number) {
-    const P = this.particles, inv = 1 / this.cfg.dx;
+    const P = this.particles, inv = 1 / this.cfg.dx, mpv = this.massPerVolume;
     for (let p = 0; p < P.count; p++) {
       if (!(P.flags[p] & FLAG_ALIVE) || this.owner[p] !== vi) continue;
+      const mp = P.vol[p] * mpv;
       const [gx, gy, gz] = this.grid(v, P.px[p], P.py[p], P.pz[p]);
       if (!this.inStencil(gx, gy, gz)) continue;
       const ci = Math.floor(gx), cj = Math.floor(gy), ck = Math.floor(gz);
@@ -353,7 +369,7 @@ export class OceanMpm {
           const j = cj + oy - 1, cdy = j + 0.5 - gy, wxy = wx[ox] * wy[oy];
           for (let oz = 0; oz < 3; oz++) {
             const k = ck + oz - 1, cdz = k + 0.5 - gz;
-            const m = wxy * wz[oz];
+            const m = wxy * wz[oz] * mp;
             const idx = v.idx(i, j, k);
             v.mass[idx] += m;
             v.mx[idx] += m * (pvx + cxx * cdx + cxy * cdy + cxz * cdz);
@@ -369,6 +385,7 @@ export class OceanMpm {
   private p2gStress(v: SplashVolume, vi: number, dt: number) {
     const P = this.particles;
     const { stiffness, restDensity, viscosity: mu } = this.cfg;
+    const mpv = this.massPerVolume;
     for (let p = 0; p < P.count; p++) {
       if (!(P.flags[p] & FLAG_ALIVE) || this.owner[p] !== vi) continue;
       const [gx, gy, gz] = this.grid(v, P.px[p], P.py[p], P.pz[p]);
@@ -382,7 +399,7 @@ export class OceanMpm {
       }
       if (density <= 1e-6) continue;
       P.density[p] = density;
-      const volume = 1 / density;
+      const volume = (P.vol[p] * mpv) / density;
       const pressure = Math.max(0, stiffness * (density / restDensity - 1));
       const cxx = P.cxx[p], cxy = P.cxy[p], cxz = P.cxz[p], cyx = P.cyx[p], cyy = P.cyy[p], cyz = P.cyz[p], czx = P.czx[p], czy = P.czy[p], czz = P.czz[p];
       const sxx = -pressure + mu * 2 * cxx, syy = -pressure + mu * 2 * cyy, szz = -pressure + mu * 2 * czz;

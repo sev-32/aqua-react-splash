@@ -144,9 +144,11 @@ export class SplashSystem {
     const count = this.count;
     gl.bindVertexArray(this.vao);
     if (f.mode === 'fluid' && f.hdr.depth) {
-      // Half resolution (standard for screen-space fluids); occlusion by hand against scene depth.
+      // Full resolution: a crown is thin sheets and droplets, and half-res blocks read as
+      // pixel art at splash scale. Occlusion by hand against the scene depth.
       const W2 = f.hdr.width, H2 = f.hdr.height;
-      const w = Math.max(1, W2 >> 1), h = Math.max(1, H2 >> 1);
+      const w = W2, h = H2;
+      const bs = 2;   // blur steps span the same screen distance as the half-res filter did
       const fl = this.ensureFluid(w, h);
       // Scene behind the splash (sea included) for refraction.
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, f.hdr.fbo);
@@ -180,14 +182,14 @@ export class SplashSystem {
       gl.disable(gl.BLEND);
       // Bilateral depth smoothing (separable) → sheet surface; thickness smoothed too.
       const pb = this.pBlur.use();
-      pb.set('uDir', [1 / w, 0]).tex('uSrc', fl.depth.texture);
+      pb.set('uDir', [bs / w, 0]).tex('uSrc', fl.depth.texture);
       fl.blur.bind(); this.quad.draw();
-      pb.set('uDir', [0, 1 / h]).tex('uSrc', fl.blur.texture);
+      pb.set('uDir', [0, bs / h]).tex('uSrc', fl.blur.texture);
       fl.depth.bind(); this.quad.draw();
       const pg = this.pGBlur.use();
-      pg.set('uDir', [1 / w, 0]).tex('uSrc', fl.thick.texture);
+      pg.set('uDir', [bs / w, 0]).tex('uSrc', fl.thick.texture);
       fl.blur.bind(); this.quad.draw();
-      pg.set('uDir', [0, 1 / h]).tex('uSrc', fl.blur.texture);
+      pg.set('uDir', [0, bs / h]).tex('uSrc', fl.blur.texture);
       fl.thick.bind(); this.quad.draw();
       // Shade and composite over the frame (full resolution, depth-tested against the sea).
       f.hdr.bind();
