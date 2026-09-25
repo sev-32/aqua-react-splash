@@ -16,6 +16,9 @@ uniform float uTime;
 uniform float uSeaLevel;
 uniform vec3 uGridCenter;
 uniform float uFarFade;
+uniform sampler2D uInteraction;     // local solver: h, dh/dx, dh/dz, foam
+uniform vec4 uInteractionRegion;    // originX, originZ, size, enabled
+uniform float uInteractionCell;
 attribute float spacing;
 varying vec3 vWorld;
 varying vec2 vBase;
@@ -43,6 +46,14 @@ void main() {
     p.x += qa * a.x * c;
     p.z += qa * a.y * c;
     p.y += b.x * s * lod;
+  }
+  if (uInteractionRegion.w > 0.5) {
+    vec2 iuv = (p.xz - uInteractionRegion.xy) / uInteractionRegion.z;
+    if (iuv.x > 0.0 && iuv.y > 0.0 && iuv.x < 1.0 && iuv.y < 1.0) {
+      // Vertices much coarser than the solver cells keep only a softened share.
+      float resolved = 1.0 - smoothstep(1.5, 6.0, spacing / max(uInteractionCell, 1e-3));
+      p.y += texture2D(uInteraction, iuv).r * mix(0.45, 1.0, resolved);
+    }
   }
   vWorld = p;
   vBase = base;
@@ -92,6 +103,8 @@ uniform vec3 uAerialColor;
 uniform float uAerialDensity;
 uniform float uAerialEnabled;
 uniform float uFarFade;
+uniform sampler2D uInteraction;
+uniform vec4 uInteractionRegion;
 varying vec3 vWorld;
 varying vec2 vBase;
 varying float vSpacing;
@@ -178,6 +191,13 @@ void main() {
   vec3 N = normalize(cross(Tb, Ta));
   if (N.y < 0.0) N = -N;
   float jacobian = (1.0 + dxa) * (1.0 + dzb) - dxb * dza;
+  // Local interaction field (wakes, ripples, foam) on top of the sea.
+  vec4 inter = vec4(0.0);
+  if (uInteractionRegion.w > 0.5) {
+    vec2 iuv = (vWorld.xz - uInteractionRegion.xy) / uInteractionRegion.z;
+    if (iuv.x > 0.0 && iuv.y > 0.0 && iuv.x < 1.0 && iuv.y < 1.0) inter = texture2D(uInteraction, iuv);
+  }
+  N = normalize(N / max(N.y, 0.05) + vec3(-inter.g, 0.0, -inter.b));
 
   // Capillary detail normal (fades with distance).
   float detailFade = exp(-dist * 0.045);
@@ -238,6 +258,12 @@ void main() {
   vec3 sigmaT = uAbsorption + uScattering;
   vec3 transmittance = exp(-sigmaT * waterPath);
   vec3 behind = texture2D(uSceneColor, refrUv).rgb;
+  // Submerged geometry was lit in air by the scene pass; daylight reaching it
+  // has crossed the water column above it too (diffuse attenuation
+  // K_d ≈ a + b_b/μ̄). Its depth follows from the refracted view path.
+  float cosT = sqrt(max(0.0, 1.0 - sint2));
+  float objectDepth = min(waterPath, 60.0) * cosT;
+  behind *= exp(-(uAbsorption + uBackscatter * 1.6) * objectDepth);
 
   // Water-leaving radiance of an optically deep column: remote-sensing
   // reflectance from the inherent optical properties (Lee et al. 1999)
@@ -268,6 +294,14 @@ void main() {
   }
   float breakup = valueNoise(vWorld.xz * 3.7 + wind * 0.3) * 0.6 + valueNoise(vWorld.xz * 11.0) * 0.4;
   foam = clamp(foam * smoothstep(0.25, 0.75, breakup + foam * 0.35), 0.0, 1.0) * detailFade * 1.2;
+  // Wake / splash foam: solid where fresh, breaking into lace as it ages.
+  float wakeFoam = clamp(inter.a, 0.0, 1.2);
+  float lace = valueNoise(vWorld.xz * 2.3) * 0.5 + valueNoise(vWorld.xz * 6.9 + 3.1) * 0.32 + valueNoise(vWorld.xz * 17.0 + 7.7) * 0.18;
+  // Thin, aged foam is a translucent lace over the water; only fresh, dense
+  // foam approaches an opaque white.
+  float coverage = smoothstep(0.66, 1.0, lace + wakeFoam * 0.7) * min(1.0, wakeFoam * 1.3);
+  coverage *= mix(0.45, 0.85, smoothstep(0.3, 1.0, wakeFoam));
+  foam = max(foam, clamp(coverage, 0.0, 0.85));
   vec3 foamColor = (uSunIrradiance * max(dot(N, L), 0.0) * shadow + uSkyIrradiance) * 0.8 / 3.14159265359;
   color = mix(color, foamColor, clamp(foam, 0.0, 0.95));
 

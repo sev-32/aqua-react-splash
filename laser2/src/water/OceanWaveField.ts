@@ -243,6 +243,22 @@ export class OceanWaveField {
     return true;
   }
 
+  /**
+   * Copies the grid elevations (still-water level included) at the end of the
+   * current step window into `out` (nx·nz floats, row-major in z). Used by
+   * the GPU interaction solver to measure hull immersion against the exact
+   * physics surface. Returns false before the first slice exists.
+   */
+  copyEndHeights(out: Float32Array): boolean {
+    if (!this.valid || out.length < this.nx * this.nz) return false;
+    const src = this.sliceB.eulerian;
+    for (let i = 0, n = this.nx * this.nz; i < n; i++) out[i] = this.seaLevel + src[i * EUL_CHANNELS]!;
+    return true;
+  }
+
+  get gridOriginX(): number { return this.originX; }
+  get gridOriginZ(): number { return this.originZ; }
+
   /** Surface elevation at world (x, z). */
   height(x: number, z: number): number {
     const s = this.scratch;

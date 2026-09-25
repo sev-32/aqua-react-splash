@@ -27,12 +27,12 @@ input,select,textarea{padding:7px 8px;min-width:0}textarea{resize:none;width:100
 #foundry-markup-canvas{position:fixed;inset:0;z-index:45}.foundry-toast{position:absolute;left:50%;bottom:42px;transform:translate(-50%,12px);padding:8px 14px;background:#0c151e;border:1px solid var(--accent);border-radius:8px;opacity:0;transition:.18s;pointer-events:none}.foundry-toast.show{opacity:1;transform:translate(-50%,0)}
 .fatal-error{position:fixed;z-index:1000;inset:20px;padding:18px;white-space:pre-wrap;color:#ffe8e6;background:#2a0e0d;border:1px solid var(--danger);overflow:auto}
 @media(max-width:1000px){.drawer{width:320px}.brand span{display:none}.top-actions button{padding:4px 6px}.foundry-bottom span:nth-of-type(n+5){display:none}}
-.sailing-hud{position:absolute;left:54px;bottom:34px;width:350px;display:none;flex-direction:column;gap:7px;padding:9px 10px;background:rgba(10,17,24,.9);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(6px)}
+.sailing-hud{position:absolute;left:54px;bottom:34px;width:392px;display:none;flex-direction:column;gap:7px;padding:9px 10px;background:rgba(10,17,24,.9);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(6px)}
 .sailing-hud.visible{display:flex}.left-open-sailing .sailing-hud{left:436px}
 .sailing-hud>header{display:flex;align-items:center;gap:10px;letter-spacing:1.3px;font-size:11px}.sailing-hud>header b{color:var(--cyan)}
 .sailing-hud>header span{margin-left:auto;font:10px ui-monospace,monospace;padding:2px 7px;border-radius:5px;background:#16212c}
 .sailing-hud>header span[data-level=ok]{color:var(--ok)}.sailing-hud>header span[data-level=warn]{color:var(--accent)}.sailing-hud>header span[data-level=alert]{color:var(--danger)}
-.sailing-hud-body{display:flex;flex-direction:column;gap:7px}.sailing-hud-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.sailing-hud-body{display:flex;flex-direction:column;gap:7px}.sailing-hud-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
 .sailing-hud-stats div{background:#121d27;border:1px solid #263541;border-radius:7px;padding:4px 6px}.sailing-hud-stats small{display:block;font-size:8px;color:var(--muted);letter-spacing:1px}
 .sailing-hud-stats b{font:600 15px ui-monospace,monospace}.sailing-hud-stats i{font-style:normal;font-size:9px;color:var(--muted);margin-left:2px}
 .sailing-hud .kv b{max-width:230px}.sailing-hud-actions{display:flex;flex-wrap:wrap;gap:4px}.sailing-hud-actions button{padding:3px 7px;font-size:10px}

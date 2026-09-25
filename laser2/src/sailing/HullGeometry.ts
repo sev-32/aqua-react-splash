@@ -65,6 +65,13 @@ export function deckY(x: number, z: number): number {
   return lerp(sheerY(u) + crown, COCKPIT_SOLE_Y, cockpitBlend(x, z));
 }
 
+/** Deck height with the cockpit closed over at deck level. */
+export function sealedDeckY(x: number, z: number): number {
+  const u = uOfZ(z);
+  const r = halfWidth(u);
+  return sheerY(u) + 0.045 * (1 - Math.pow(Math.min(Math.abs(x) / Math.max(r, 0.01), 1), 2));
+}
+
 /** Sheer (gunwale) half-breadth including the shell flare term at t = 1. */
 export const sheerHalfBreadth = (u: number): number => halfWidth(u) * 1.05;
 
@@ -84,6 +91,12 @@ export interface HullMeshOptions {
   stations?: number;
   shellSegments?: number;
   deckSegmentsPerSide?: number;
+  /**
+   * Close the cockpit at deck level (the hull's outer envelope). Used where
+   * the water is displaced by the whole hull (wake/obstacle rendering), not
+   * for hydrostatics, where the open cockpit floods.
+   */
+  sealedCockpit?: boolean;
 }
 
 /**
@@ -136,7 +149,7 @@ export function buildHullMesh(options: HullMeshOptions = {}): HullMesh {
       positions.push(p.x, p.y, p.z);
     }
     const z = zOfU(u);
-    for (const x of deckSamples(u, perSide)) positions.push(x, deckY(x, z), z);
+    for (const x of deckSamples(u, perSide)) positions.push(x, options.sealedCockpit ? sealedDeckY(x, z) : deckY(x, z), z);
   }
   const triangles: number[] = [];
   const idx = (k: number, i: number): number => k * ring + ((i + ring) % ring);

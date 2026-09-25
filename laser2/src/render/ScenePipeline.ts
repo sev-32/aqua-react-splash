@@ -14,6 +14,7 @@ import { three, GL } from '../three/ThreeRuntime.js';
 import { COMPOSITE_FRAGMENT_SHADER, COMPOSITE_VERTEX_SHADER } from '../water/WaterShaders.js';
 import type { WaterSurfaceSystem } from '../water/WaterSurfaceSystem.js';
 import type { AtmosphereSystem } from '../lighting/atmosphere/AtmosphereSystem.js';
+import type { WaterInteractionSystem } from '../water/WaterInteractionSystem.js';
 
 type DrawFn = (scene: any, camera: any) => void;
 
@@ -35,6 +36,7 @@ export class ScenePipeline {
   constructor(
     readonly water: WaterSurfaceSystem,
     readonly atmosphere: AtmosphereSystem,
+    readonly interaction: WaterInteractionSystem | null = null,
   ) {}
 
   get active(): boolean { return this.water.active && !!this.water.material; }
@@ -98,6 +100,8 @@ export class ScenePipeline {
     const previousTarget = renderer.getRenderTarget?.() ?? null;
     if (info) { info.autoReset = false; info.reset(); }
     try {
+      // Pass 0: local water-interaction solver (wake, ripples, foam).
+      this.interaction?.renderPasses(renderer, draw);
       // Pass 1: scene-linear HDR scene.
       this.atmosphere.setLinearOutput(true);
       renderer.setRenderTarget(this.target);

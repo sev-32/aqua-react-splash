@@ -17,6 +17,7 @@ import { SKY_RELATIVE_TO_LUX } from '../lighting/RadiometricCouplingSystem.js';
 import { SKY_LINEAR_DISPLAY_SCALE } from '../lighting/atmosphere/AtmosphereSystem.js';
 import { three, GL } from '../three/ThreeRuntime.js';
 import { MAX_WAVES, WATER_VERTEX_SHADER, WATER_FRAGMENT_SHADER } from './WaterShaders.js';
+import type { WaterInteractionSystem } from './WaterInteractionSystem.js';
 
 export interface WaterOptics {
   /** Absorption coefficient a (1/m) at ~650/550/450 nm. */
@@ -64,6 +65,7 @@ export class WaterSurfaceSystem implements AppSystem {
   foamMap: any = null;
   foamRegion = { x: 0, z: 0, size: 64, enabled: false };
   private vertexCount = 0;
+  interaction: WaterInteractionSystem | null = null;
   private triangleCount = 0;
   private updates = 0;
 
@@ -134,6 +136,9 @@ export class WaterSurfaceSystem implements AppSystem {
         uAerialColor: { value: new Vec3(0.7, 0.8, 0.9) },
         uAerialDensity: { value: 0 },
         uAerialEnabled: { value: 0 },
+        uInteraction: { value: this.dummyShadow },
+        uInteractionRegion: { value: new T.Vector4(0, 0, 1, 0) },
+        uInteractionCell: { value: 0.2 },
       },
       depthWrite: true,
       depthTest: true,
@@ -271,6 +276,16 @@ export class WaterSurfaceSystem implements AppSystem {
       u.uShadowMap.value = map;
       u.uShadowMatrix.value.copy(shadow.matrix);
       u.uShadowMapSize.value.set(shadow.mapSize.x, shadow.mapSize.y);
+    }
+    // Local interaction solver (wake, ripples, foam).
+    const binding = this.interaction?.binding;
+    if (binding?.enabled && binding.texture) {
+      u.uInteraction.value = binding.texture;
+      u.uInteractionRegion.value.set(binding.originX, binding.originZ, binding.size, 1);
+      u.uInteractionCell.value = this.interaction?.cellM ?? 0.2;
+    } else {
+      u.uInteraction.value = this.dummyShadow;
+      u.uInteractionRegion.value.w = 0;
     }
     // Aerial perspective: identical law and colour to AerialPerspectiveSystem.
     const maxDistance = Math.max(1, settings.aerialPerspectiveMaxDistanceM);

@@ -79,6 +79,7 @@ export class SailingHudSystem implements AppSystem {
     make('CAPSIZE', 'Knockdown gust that capsizes the boat to leeward (O)', () => this.crew.forceCapsize());
     make('AUTO', 'Crew recover the boat by themselves (I)', () => { this.crew.autoRecovery = !this.crew.autoRecovery; }).dataset.toggle = 'auto';
     make('DRY', 'Expert helm steps over onto the board in a leeward capsize (dry capsize); off = falls in and swims', () => { this.crew.dryCapsize = !this.crew.dryCapsize; }).dataset.toggle = 'dry';
+    make('TRIM', 'Crew trim the sheets to the apparent wind and ease in gusts (manual W/S Q/E override)', () => { this.crew.trimAssist = !this.crew.trimAssist; }).dataset.toggle = 'trim';
     make('CAMERA', 'Cycle follow / chase / crew camera (V)', () => {
       const state = this.context?.legacy.master.input?.state;
       if (state) state.camMode = ((state.camMode ?? 0) + 1) % 3;
@@ -138,13 +139,14 @@ export class SailingHudSystem implements AppSystem {
       <div class="sailing-hud-stats">
         <div><small>SPEED</small><b>${Number(sim.sog ?? 0).toFixed(1)}<i>kn</i></b></div>
         <div><small>HEEL</small><b>${heel.toFixed(0)}<i>°</i></b></div>
-        <div><small>HEADING</small><b>${Number(sim.hdg ?? 0).toFixed(0)}<i>°</i></b></div>
+        <div><small>HDG</small><b>${Number(sim.hdg ?? 0).toFixed(0)}<i>°</i></b></div>
         <div><small>WIND</small><b>${windKn.toFixed(0)}<i>kn</i></b></div>
+        <div><small>AWA</small><b>${Number(crew.apparentWindAngleDeg ?? 0).toFixed(0)}<i>°</i></b></div>
         <div><small>SEA Hs</small><b>${Number(sea.significantHeightM ?? 0).toFixed(2)}<i>m</i></b></div>
       </div>
       <div class="kv">${crewRows}<span>Capsizes / recoveries</span><b>${crew.capsizes ?? 0} / ${crew.recoveries ?? 0}${crew.lastRecoveryDurationS ? ` · last ${Number(crew.lastRecoveryDurationS).toFixed(0)} s` : ''}</b><span>Camera</span><b>${this.camera.sailingMode}</b></div>`;
     for (const b of this.root.querySelectorAll<HTMLButtonElement>('[data-toggle]')) {
-      const on = b.dataset.toggle === 'auto' ? this.crew.autoRecovery : this.crew.dryCapsize;
+      const on = b.dataset.toggle === 'auto' ? this.crew.autoRecovery : b.dataset.toggle === 'trim' ? this.crew.trimAssist : this.crew.dryCapsize;
       b.classList.toggle('active', on);
     }
   }

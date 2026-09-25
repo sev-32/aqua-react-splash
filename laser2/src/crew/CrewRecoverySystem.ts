@@ -130,6 +130,9 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   trapezeAssist = true;
   /** Ease sheets while capsized so the boat does not sail off on righting. */
   releaseSheetsWhenCapsized = true;
+  /** Crew trim main and jib to the apparent wind (and ease in gusts) unless keys are held. */
+  trimAssist = true;
+  private lastAwaDeg = 0;
   /** Helm steps over the high side onto the board in a leeward capsize. */
   dryCapsize = true;
   /** Maximum lean-back angle on the board (rad); U key raises it. */
@@ -608,6 +611,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       input.trapeze = false;
       input.tiller = 0;
       this.restoreTrimS = 0;
+    } else if (this.savedTrim && this.trimAssist) {
+      // The trim assist sets the sheets for the new course from the eased
+      // position instead of restoring the pre-capsize trim blindly.
+      this.savedTrim = null;
     } else if (this.savedTrim) {
       this.restoreTrimS += dt;
       if (this.restoreTrimS > 1.5) {
@@ -616,7 +623,37 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
         input.jibScope += (this.savedTrim.jibScope - input.jibScope) * k;
         if (Math.abs(input.mainScope - this.savedTrim.mainScope) < 0.01) this.savedTrim = null;
       }
+    } else if (this.trimAssist && frame.heelDeg < 60) {
+      this.autoTrim(master, frame, dt);
     }
+  }
+
+  /**
+   * Sheet trim by the crew: sails set for the apparent wind angle (sheeted
+   * hard on the wind, eased progressively towards a run) and the main eased
+   * when a gust heels the boat beyond what full hiking can hold.
+   */
+  private autoTrim(master: any, frame: HullFrame, dt: number): void {
+    const input = master.input?.state;
+    const keys = master.input?.keys ?? {};
+    const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+    if (!input || !wind) return;
+    const ax = -(wind.x - frame.vel.x), az = -(wind.z - frame.vel.z);
+    const al = Math.hypot(ax, az), fl = Math.hypot(frame.fwd.x, frame.fwd.z);
+    if (al < 0.3 || fl < 0.2) return;
+    const cosA = (ax * frame.fwd.x + az * frame.fwd.z) / (al * fl);
+    const awa = (Math.acos(Math.max(-1, Math.min(1, cosA))) * 180) / Math.PI;
+    this.lastAwaDeg = awa;
+    const mainTarget = Math.max(0.03, Math.min(0.97, 1 - (awa - 30) / 118));
+    const jibTarget = Math.max(0.03, Math.min(0.97, 1 - (awa - 32) / 104));
+    // Ease the main when the heel exceeds what the crew can hold: early when
+    // they are already fully hiked, later (and harder) when they are not.
+    const fullyHiked = this.agents.every((a) => a.mode !== 'aboard' || a.hikeCommand > 0.88);
+    const threshold = fullyHiked ? 21 : 27;
+    const ease = Math.min(0.65, Math.max(0, frame.heelDeg - threshold) / 22);
+    const step = (value: number, target: number, rate: number): number => value + Math.max(-rate * 2.5, Math.min(rate, target - value));
+    if (!keys.KeyW && !keys.KeyS) input.mainScope = step(input.mainScope, mainTarget - ease, dt * 0.45);
+    if (!keys.KeyQ && !keys.KeyE) input.jibScope = step(input.jibScope, jibTarget - 0.5 * ease, dt * 0.45);
   }
 
   private fall(agent: CrewAgent, frame: HullFrame, phi: number): void {
@@ -1327,6 +1364,21 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // All crew logic runs per physics step through the step bus.
   }
 
+  /** Overboard crew as seen by the water-interaction solver. */
+  swimmerStates(): Array<{ id: string; active: boolean; inWater: boolean; x: number; y: number; z: number; heading: V3; verticality: number; throttle: number; strokePhase: number; treading: number }> {
+    return this.agents.map((a) => ({
+      id: a.id,
+      active: this.installed && a.swimmer.active,
+      inWater: a.swimmer.inWater,
+      x: a.swimmer.x.x, y: a.swimmer.x.y, z: a.swimmer.x.z,
+      heading: a.heading,
+      verticality: a.swimmer.verticality,
+      throttle: a.swimmer.swimThrottle,
+      strokePhase: a.swimmer.strokePhase,
+      treading: a.swimmer.treading,
+    }));
+  }
+
   /** World position of the crew member most worth watching (camera 'crew' mode). */
   cameraFocus(): V3 | null {
     if (!this.installed) return null;
@@ -1352,6 +1404,8 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       installed: this.installed,
       autoRecovery: this.autoRecovery,
       balanceAssist: this.balanceAssist,
+      trimAssist: this.trimAssist,
+      apparentWindAngleDeg: this.lastAwaDeg,
       trapezeAssist: this.trapezeAssist,
       capsizeActive: this.capsizeActive,
       capsizes: this.capsizeCount,
