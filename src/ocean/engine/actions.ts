@@ -19,6 +19,7 @@ export const oceanActions = {
   ripple: (e: OceanEngine, at?: Vec3) => run('ripple', e, at),
   clearBodies: (e: OceanEngine) => run('clearBodies', e),
   goToShore: (e: OceanEngine) => run('goToShore', e),
+  frameBody: (e: OceanEngine, arg?: unknown) => run('frameBody', e, arg),
   /** Dispatch a click on the sea according to the current click mode. */
   click(e: OceanEngine, at: Vec3) {
     if (this.clickMode === 'rock') this.dropRock(e, at);

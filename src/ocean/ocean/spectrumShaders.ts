@@ -214,9 +214,11 @@ void main(){
  */
 export const FOAM_FS = /* glsl */ `#version 300 es
 precision highp float;
-uniform sampler2D uPrev;
-uniform sampler2D uDeriv;
-uniform sampler2D uDisp;
+precision highp sampler2DArray;
+uniform sampler2DArray uPrev;
+uniform sampler2DArray uDeriv;
+uniform sampler2DArray uDisp;
+uniform float uLayer;
 uniform float uDt;
 uniform float uFoldStart;   // J below this starts to foam
 uniform float uFoldFull;    // J at which birth saturates
@@ -232,15 +234,16 @@ out vec4 outFoam;
 void main(){
   vec2 uv = gl_FragCoord.xy*uTexel;
   vec2 src = uv - uDrift*uDt;                      // semi-Lagrangian drift (periodic tile)
-  vec4 f = texture(uPrev, src);
+  #define P(q) textureLod(uPrev, vec3(q, uLayer), 0.0)
+  vec4 f = P(src);
   vec2 a = uWindDir*uTexel*(1.0 + 2.5*uStreak), b = vec2(-uWindDir.y, uWindDir.x)*uTexel;
-  vec4 along = texture(uPrev, src + a) + texture(uPrev, src - a);
-  vec4 across = texture(uPrev, src + b) + texture(uPrev, src - b);
+  vec4 along = P(src + a) + P(src - a);
+  vec4 across = P(src + b) + P(src - b);
   // Anisotropic diffusion: extensive quantities blur as a whole, so age/mass stay consistent.
   vec4 n = mix(0.5*(along + across), along, clamp(uStreak, 0.0, 0.85));
   f.rgb = mix(f.rgb, n.rgb*0.5, clamp(uSpread*uDt, 0.0, 0.25));
-  vec4 d = texture(uDeriv, uv);
-  float dxz = texture(uDisp, uv).w;
+  vec4 d = textureLod(uDeriv, vec3(uv, uLayer), 0.0);
+  float dxz = textureLod(uDisp, vec3(uv, uLayer), 0.0).w;
   float J = (1.0 + d.z)*(1.0 + d.w) - dxz*dxz;
   float fold = smoothstep(uFoldStart, uFoldFull, 1.0 - J);
   float m = max(f.r, 0.0), A = max(f.g, 0.0), air = max(f.b, 0.0);

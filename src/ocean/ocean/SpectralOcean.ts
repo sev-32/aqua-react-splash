@@ -8,7 +8,7 @@
  * On sea-state change: regenerate h0 on the GPU, rebuild the slope-variance
  * LUT (CPU polar integral) and the CPU spectral mirror (deterministic twin).
  */
-import { Program, Target, Quad, FULLSCREEN_VS, createTexture, FMT, type GL, type GLCaps } from '../gl/context';
+import { Program, Target, LayerTarget, Quad, FULLSCREEN_VS, createTexture, createTextureArray, FMT, type GL, type GLCaps } from '../gl/context';
 import { H0_FS, EVOLVE_FS, FFT_FS, RESOLVE_FS, FOAM_FS, MAX_SYSTEMS, MAX_CASCADES } from './spectrumShaders';
 import {
   makeLayout, generateNoiseAtlas, spreadingNormLUT, makeSpectrumModel, computeSpectralStats,
@@ -55,10 +55,12 @@ export class SpectralOcean {
   private noiseTex: WebGLTexture; private spreadLutTex: WebGLTexture;
   private h0: Target;
   private work: [Target, Target];
-  readonly disp: WebGLTexture[] = [];
-  readonly deriv: WebGLTexture[] = [];
-  private resolveTargets: Target[] = [];
-  private foamTargets: [Target, Target][] = [];
+  /** Cascade products as texture arrays (layer = cascade) — 3 sampler units total. */
+  readonly dispArray: WebGLTexture;   // (λDx, h, λDz, λDxz)
+  readonly derivArray: WebGLTexture;  // (Sx, Sz, λDxx, λDzz)
+  private foamArrays: [WebGLTexture, WebGLTexture];
+  private resolveTargets: LayerTarget[] = [];
+  private foamTargets: [LayerTarget, LayerTarget][] = [];
   private foamPing = 0;
   slopeLutTex: WebGLTexture;
 
@@ -106,28 +108,27 @@ export class SpectralOcean {
     this.work = [mkWork(), mkWork()];
 
     const outFmt = opts.highPrecision && caps.floatLinear ? FMT.rgba32f(gl) : FMT.rgba16f(gl);
+    const C = this.cascades;
+    const arr = (fmt: typeof outFmt) => createTextureArray(gl, n, n, C, { ...fmt, filter: gl.LINEAR, wrap: gl.REPEAT, mips: true });
+    this.dispArray = arr(outFmt);
+    this.derivArray = arr(outFmt);
+    this.foamArrays = [arr(FMT.rgba16f(gl)), arr(FMT.rgba16f(gl))];
     const aniso = caps.anisotropic;
-    for (let c = 0; c < this.cascades; c++) {
-      const opt = { ...outFmt, filter: gl.LINEAR, wrap: gl.REPEAT, mips: true };
-      const d = createTexture(gl, n, n, opt);
-      const v = createTexture(gl, n, n, opt);
-      if (aniso) {
-        for (const t of [d, v]) {
-          gl.bindTexture(gl.TEXTURE_2D, t);
-          gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, caps.maxAniso));
-        }
+    if (aniso) {
+      for (const t of [this.dispArray, this.derivArray, ...this.foamArrays]) {
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+        gl.texParameterf(gl.TEXTURE_2D_ARRAY, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, caps.maxAniso));
       }
-      this.disp.push(d);
-      this.deriv.push(v);
-      this.resolveTargets.push(new Target(gl, n, n, [d, v]));
-      const foamOpt = { ...FMT.rgba16f(gl), filter: gl.LINEAR, wrap: gl.REPEAT, mips: true };
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+    }
+    for (let c = 0; c < C; c++) {
+      this.resolveTargets.push(new LayerTarget(gl, n, n, [{ tex: this.dispArray, layer: c }, { tex: this.derivArray, layer: c }]));
       this.foamTargets.push([
-        new Target(gl, n, n, [createTexture(gl, n, n, foamOpt)]),
-        new Target(gl, n, n, [createTexture(gl, n, n, foamOpt)]),
+        new LayerTarget(gl, n, n, [{ tex: this.foamArrays[0], layer: c }]),
+        new LayerTarget(gl, n, n, [{ tex: this.foamArrays[1], layer: c }]),
       ]);
     }
-    for (const pair of this.foamTargets) for (const t of pair) { t.bind(); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.clearFoam();
     this.foldOffset = opts.sizes.map(() => 0);
     this.measuredCoverage = opts.sizes.map(() => 0);
   }
@@ -156,7 +157,7 @@ export class SpectralOcean {
     const px = new Float32Array(4);
     this.targetCoverage = monahanCoverage(this.wind.speed) * this.foam.coverage;
     for (let c = 0; c < this.cascades; c++) {
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.foamTexture(c), top);
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.foamArray, top, c);
       gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, px);
       const measured = px[3];
       this.measuredCoverage[c] = measured;
@@ -171,8 +172,9 @@ export class SpectralOcean {
     return this.layout.n;
   }
 
-  foamTexture(c: number) {
-    return this.foamTargets[c][this.foamPing].texture;
+  /** Current whitecap foam array (layer = cascade): (mass, mass·age, air, coverage). */
+  get foamArray() {
+    return this.foamArrays[this.foamPing];
   }
 
   /** Apply a sea state (library morph + user controls). Returns true when the spectrum changed. */
@@ -279,11 +281,9 @@ export class SpectralOcean {
       this.resolveTargets[c].bind();
       this.quad.draw();
     }
-    for (let c = 0; c < this.cascades; c++) {
-      gl.bindTexture(gl.TEXTURE_2D, this.disp[c]);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.bindTexture(gl.TEXTURE_2D, this.deriv[c]);
-      gl.generateMipmap(gl.TEXTURE_2D);
+    for (const t of [this.dispArray, this.derivArray]) {
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+      gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
     }
 
     // 4. Whitecap foam (cascade space).
@@ -302,13 +302,14 @@ export class SpectralOcean {
       const start = Math.max(f.foldStart + off, 0.25);
       pfm.set('uDt', Math.min(dt, 0.1)).set('uFoldStart', start).set('uFoldFull', start + Math.max(f.foldFull - f.foldStart, 0.05))
         .set('uBirth', f.birth).set('uLife', f.life).set('uAirLife', f.airLife)
-        .set('uSpread', f.spread).set('uTexel', 1 / n)
-        .tex('uPrev', this.foamTargets[c][this.foamPing].texture).tex('uDeriv', this.deriv[c]).tex('uDisp', this.disp[c]);
+        .set('uSpread', f.spread).set('uTexel', 1 / n).set('uLayer', c)
+        .tex('uPrev', this.foamArrays[this.foamPing]).tex('uDeriv', this.derivArray).tex('uDisp', this.dispArray);
       this.foamTargets[c][next].bind();
       this.quad.draw();
-      gl.bindTexture(gl.TEXTURE_2D, this.foamTargets[c][next].texture);
-      gl.generateMipmap(gl.TEXTURE_2D);
     }
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.foamArrays[next]);
+    gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
     this.foamPing = next;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     if (dt > 0) this.calibrateFoam(time);
@@ -337,6 +338,7 @@ export class SpectralOcean {
     this.work.forEach((w) => w.dispose());
     this.resolveTargets.forEach((t) => t.dispose());
     this.foamTargets.forEach((p) => p.forEach((t) => t.dispose()));
+    [this.dispArray, this.derivArray, ...this.foamArrays].forEach((t) => gl.deleteTexture(t));
     gl.deleteTexture(this.noiseTex);
     gl.deleteTexture(this.spreadLutTex);
     gl.deleteTexture(this.slopeLutTex);

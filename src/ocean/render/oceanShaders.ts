@@ -16,31 +16,29 @@ import { SKY_COMMON_GLSL } from './sky';
 
 export const MAX_TILES = 4;
 export const MAX_LEVELS = 16;
-const C4 = [0, 1, 2, 3];
-const T4 = Array.from({ length: MAX_TILES }, (_, i) => i);
-/** GLSL ES 3.00 forbids indexing sampler arrays with loop variables: unroll in JS instead. */
-const unroll = (ids: number[], body: (i: number) => string) => ids.map(body).join('\n');
+// Sampler budget: the fragment stage binds 11 units (cascade arrays ×3, tile array,
+// shore ×2, env, slope LUT, tier map, scene colour/depth) — inside the 16-unit floor.
 
 export const OCEAN_COMMON_GLSL = /* glsl */ `
 #define PI 3.14159265358979
 ${SKY_COMMON_GLSL}
+precision highp sampler2DArray;
 uniform int uCascadeCount;
 uniform float uSizes[4];
 uniform vec2 uCamOffset[4];      // fract(camXZ/L)·L, computed in double on the CPU
-uniform sampler2D uDisp0, uDisp1, uDisp2, uDisp3;
-uniform sampler2D uDeriv0, uDeriv1, uDeriv2, uDeriv3;
+uniform sampler2DArray uDispArr;   // layer = cascade: (λDx, h, λDz, λDxz)
+uniform sampler2DArray uDerivArr;  // layer = cascade: (Sx, Sz, λDxx, λDzz)
 uniform float uTexN;              // cascade texture resolution
 
-// ── T3 interaction tiles (eWave): rect = (relMinX, relMinZ, size, weight)
+// ── T3 interaction tiles (eWave): rect = (relMinX, relMinZ, size, layer)
 uniform int uTileCount;
 uniform vec4 uTileRect[${MAX_TILES}];
-${unroll(T4, (t) => `uniform sampler2D uTileTex${t};`)} // (η, ∂η/∂x, ∂η/∂z, foam)
+uniform sampler2DArray uTileArr;  // (η, ∂η/∂x, ∂η/∂z, foam) — fade pre-applied
 
 // ── T2 shore field (shallow water): rect = (relMinX, relMinZ, size, enabled)
 uniform vec4 uShoreRect;
 uniform sampler2D uShoreSurf;    // (η_total, slopeX, slopeZ, water depth h)
 uniform sampler2D uShoreAux;     // (foam, breaking, lipOffset, lipLift)
-uniform sampler2D uShoreBed;     // (bed elevation, …)
 
 vec2 cascadeUv(vec2 rel, int c){ return (rel + uCamOffset[c])/uSizes[c]; }
 
@@ -48,7 +46,7 @@ float tileWeight(vec2 rel, vec4 r, out vec2 uv){
   uv = (rel - r.xy)/r.z;
   vec2 e = min(uv, 1.0 - uv);
   float w = smoothstep(0.0, 0.12, min(e.x, e.y));
-  return w*r.w*step(0.0, min(e.x, e.y));
+  return w*step(0.0, min(e.x, e.y));
 }
 
 /** How much of the open-ocean spectrum survives at this point of the shore field (0 on the beach). */
@@ -96,17 +94,19 @@ void main(){
   float open = shoreOpenOcean(rel, suv, inside);
   vec3 d = vec3(0.0);
   // Inside the shore field, only the chop the shallow solver cannot carry survives.
-${unroll(C4, (c) => `  if (uCascadeCount > ${c}){
-    float lod = max(log2(effSpacing/(uSizes[${c}]/uTexN)) + uGeoLodBias, 0.0);
-    vec4 s = textureLod(uDisp${c}, cascadeUv(rel, ${c}), lod);
-    float keep = ${c} == uCascadeCount - 1 ? mix(1.0, 0.35, inside) : open;
+  for (int c = 0; c < 4; c++){
+    if (c >= uCascadeCount) break;
+    float lod = max(log2(effSpacing/(uSizes[c]/uTexN)) + uGeoLodBias, 0.0);
+    vec4 s = textureLod(uDispArr, vec3(cascadeUv(rel, c), float(c)), lod);
+    float keep = c == uCascadeCount - 1 ? mix(1.0, 0.35, inside) : open;
     d += s.xyz*keep;
-  }`)}
+  }
   // T3 interaction tiles (linear superposition of dispersive local fields).
-${unroll(T4, (t) => `  if (uTileCount > ${t}){
-    vec2 tuv; float w = tileWeight(rel, uTileRect[${t}], tuv);
-    if (w > 0.0) d.y += w*textureLod(uTileTex${t}, tuv, 0.0).x;
-  }`)}
+  for (int t = 0; t < ${MAX_TILES}; t++){
+    if (t >= uTileCount) break;
+    vec2 tuv; float w = tileWeight(rel, uTileRect[t], tuv);
+    if (w > 0.0) d.y += w*textureLod(uTileArr, vec3(tuv, uTileRect[t].w), 0.0).x;
+  }
   vShore = vec4(0.0);
   if (inside > 0.0){
     vec4 s = textureLod(uShoreSurf, suv, 0.0);
@@ -165,7 +165,7 @@ uniform float uTime;
 uniform int uDebug;
 uniform float uFoamGain;
 uniform float uFoamLife;
-uniform sampler2D uFoam0, uFoam1, uFoam2, uFoam3;
+uniform sampler2DArray uFoamArr;  // layer = cascade: (mass, mass·age, air, coverage)
 uniform sampler2D uTierMap;     // scheduler tier overlay (debug)
 uniform vec4 uTierRect;         // rel minX, minZ, size, 1
 // Screen-space refraction (scene behind the water: terrain, hulls)
@@ -286,20 +286,22 @@ void main(){
   float Sx = 0.0, Sz = 0.0, Dxx = 0.0, Dzz = 0.0, Dxz = 0.0;
   float foamMass = 0.0, foamAge = 0.0, foamAir = 0.0;
   float open = 1.0 - vShore.x;
-${unroll(C4, (c) => `  if (uCascadeCount > ${c}){
-    vec2 uv = cascadeUv(vParam, ${c});
-    float keep = ${c} == uCascadeCount - 1 ? mix(1.0, 0.35, vShore.x) : open;
-    vec4 dv = texture(uDeriv${c}, uv);
-    vec4 ds = texture(uDisp${c}, uv);
+  for (int c = 0; c < 4; c++){
+    if (c >= uCascadeCount) break;
+    vec3 uv = vec3(cascadeUv(vParam, c), float(c));
+    float keep = c == uCascadeCount - 1 ? mix(1.0, 0.35, vShore.x) : open;
+    vec4 dv = texture(uDerivArr, uv);
+    vec4 ds = texture(uDispArr, uv);
     Sx += dv.x*keep; Sz += dv.y*keep; Dxx += dv.z*keep; Dzz += dv.w*keep; Dxz += ds.w*keep;
-    vec4 f = texture(uFoam${c}, uv);
+    vec4 f = texture(uFoamArr, uv);
     foamMass += f.r*keep; foamAge += f.g*keep; foamAir += f.b*keep;
-  }`)}
+  }
   float localFoam = 0.0;
-${unroll(T4, (t) => `  if (uTileCount > ${t}){
-    vec2 tuv; float w = tileWeight(vParam, uTileRect[${t}], tuv);
-    if (w > 0.0){ vec4 s = texture(uTileTex${t}, tuv); Sx += w*s.y; Sz += w*s.z; localFoam = max(localFoam, w*s.w); }
-  }`)}
+  for (int t = 0; t < ${MAX_TILES}; t++){
+    if (t >= uTileCount) break;
+    vec2 tuv; float w = tileWeight(vParam, uTileRect[t], tuv);
+    if (w > 0.0){ vec4 s = texture(uTileArr, vec3(tuv, uTileRect[t].w)); Sx += w*s.y; Sz += w*s.z; localFoam = max(localFoam, w*s.w); }
+  }
   if (vShore.x > 0.0){
     vec2 suv = (vParam - uShoreRect.xy)/uShoreRect.z;
     vec4 s = texture(uShoreSurf, suv);
@@ -363,7 +365,10 @@ ${unroll(T4, (t) => `  if (uTileCount > ${t}){
     // ── whitecap + interaction foam ──
     float mass = foamMass*uFoamGain + localFoam;
     if (mass > 0.004){
-      float age01 = sat((foamAge/max(foamMass, 1e-3))/max(uFoamLife, 0.1));
+      float ageW = sat((foamAge/max(foamMass, 1e-3))/max(uFoamLife, 0.1));
+      // Interaction foam carries no age channel: thinning mass reads as ageing lace.
+      float ageL = 1.0 - smoothstep(0.08, 0.7, localFoam);
+      float age01 = mix(ageW, ageL, localFoam/max(mass, 1e-3));
       vec2 q = (vParam + uCamOffset[0])*1.1;
       float cover = foamTopology(q, mass, age01, footprint);
       float ndl = max(dot(n, uSunDir), 0.0);

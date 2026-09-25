@@ -54,6 +54,8 @@ const SAMPLER_TYPES = new Set<number>([
   0x8b5e, // SAMPLER_2D
   0x8b60, // SAMPLER_CUBE
   0x8dc1, // SAMPLER_2D_ARRAY
+  0x8dcf, // INT_SAMPLER_2D_ARRAY
+  0x8dd7, // UNSIGNED_INT_SAMPLER_2D_ARRAY
   0x8b5f, // SAMPLER_3D
   0x8dca, // INT_SAMPLER_2D
   0x8dd2, // UNSIGNED_INT_SAMPLER_2D
@@ -63,6 +65,7 @@ export class Program {
   readonly handle: WebGLProgram;
   private uniforms = new Map<string, UniformInfo>();
   private warned = new Set<string>();
+  samplerUnits = 0;
 
   constructor(private gl: GL, readonly name: string, vs: string, fs: string) {
     this.handle = linkProgram(gl, name, vs, fs);
@@ -79,6 +82,14 @@ export class Program {
       if (isSampler) unit += info.size;
       // Also register individual struct/array elements that GL reports as separate names.
     }
+    // WebGL2 only guarantees 16 texture units per stage; flag programs that exceed it
+    // (SwiftShader and some desktop drivers allow more, real hardware often does not).
+    if (unit > 16) {
+      const msg = `[${name}] binds ${unit} sampler units (> 16 portable limit)`;
+      console.warn(msg);
+      ((globalThis as any).__THALASSA_SAMPLER_WARNINGS__ ??= []).push(msg);
+    }
+    this.samplerUnits = unit;
     gl.useProgram(this.handle);
     for (const u of this.uniforms.values()) {
       if (u.unit >= 0) {
@@ -97,13 +108,14 @@ export class Program {
     return this.uniforms.has(name);
   }
 
-  /** Bind a texture to a sampler uniform (unit assigned at link time). */
-  tex(name: string, texture: WebGLTexture | null, target: number = this.gl.TEXTURE_2D): this {
+  /** Bind a texture to a sampler uniform (unit assigned at link time). Array samplers bind as TEXTURE_2D_ARRAY. */
+  tex(name: string, texture: WebGLTexture | null, target?: number): this {
     const u = this.uniforms.get(name);
     if (!u) return this;
     const gl = this.gl;
+    const t = target ?? (u.type === 0x8dc1 ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D);
     gl.activeTexture(gl.TEXTURE0 + u.unit);
-    gl.bindTexture(target, texture);
+    gl.bindTexture(t, texture);
     return this;
   }
 
@@ -379,5 +391,45 @@ export class GpuTimers {
       gl.deleteQuery(p.q);
     }
     this.pending = keep.slice(-64);
+  }
+}
+
+/* ─────────────────────────── texture arrays ─────────────────────────── */
+
+/** 2D texture array (layers share size/format). Used to stay within 16 sampler units. */
+export function createTextureArray(gl: GL, w: number, h: number, layers: number, o: TexOptions): WebGLTexture {
+  const t = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, o.internal, w, h, layers, 0, o.format, o.type, null);
+  const mag = o.filter ?? gl.NEAREST;
+  const min = o.minFilter ?? (o.mips ? gl.LINEAR_MIPMAP_LINEAR : mag);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, min);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, mag);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, o.wrap ?? gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, o.wrap ?? gl.CLAMP_TO_EDGE);
+  if (o.mips) gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+  return t;
+}
+
+/** Framebuffer whose colour attachments are single layers of texture arrays (MRT allowed). */
+export class LayerTarget {
+  readonly fbo: WebGLFramebuffer;
+  constructor(private gl: GL, readonly width: number, readonly height: number, attachments: { tex: WebGLTexture; layer: number; level?: number }[]) {
+    this.fbo = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    attachments.forEach((a, i) => gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, a.tex, a.level ?? 0, a.layer));
+    gl.drawBuffers(attachments.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) throw new Error(`Layer framebuffer incomplete (0x${status.toString(16)})`);
+  }
+  bind() {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.viewport(0, 0, this.width, this.height);
+  }
+  dispose() {
+    this.gl.deleteFramebuffer(this.fbo);
   }
 }

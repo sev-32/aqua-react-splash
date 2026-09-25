@@ -19,6 +19,8 @@ import { Camera, FlyController, type CameraPose } from './camera';
 import { defaultSettings, QUALITY, WATER_TYPES, opticsFor, type EngineSettings, type QualityName } from './settings';
 import { SEA_STATES } from '../spectrum/seaStates';
 import type { Vec3 } from '../math/mat4';
+import type { WaterQuery, WaterSample } from '../physics/bodies';
+import { Target, createTexture, FMT } from '../gl/context';
 
 export interface EngineTelemetry {
   fps: number;
@@ -45,9 +47,9 @@ export interface EngineModule {
   /** Simulation step (before rendering). */
   update?(engine: OceanEngine, time: number, dt: number): void;
   /** Contribute T3 tiles / T2 shore bindings to the surface draw. */
-  surfaceBindings?(engine: OceanEngine): { tiles?: TileBinding[]; shore?: ShoreBinding | null };
-  /** Draw opaque geometry into the HDR target (after sky, before water). */
-  drawOpaque?(engine: OceanEngine): void;
+  surfaceBindings?(engine: OceanEngine): { tiles?: TileBinding[]; tileArray?: WebGLTexture; shore?: ShoreBinding | null };
+  /** Draw opaque geometry into the HDR target (after sky, before water). Return true if anything was drawn. */
+  drawOpaque?(engine: OceanEngine): boolean | void;
   /** Draw transparent effects after the water surface. */
   drawTransparent?(engine: OceanEngine): void;
   /** Telemetry contributions. */
@@ -83,6 +85,14 @@ export class OceanEngine {
   fixedDt = 0;
   onPick: ((world: Vec3 | null, e: MouseEvent) => void) | null = null;
   readonly quality: QualityName;
+  /**
+   * Height providers layered over the spectral mirror (interaction tiles add,
+   * the shore field may replace). Order = tier order.
+   */
+  heightProviders: ((x: number, z: number, h: number) => number)[] = [];
+  /** Composite water query for physics and gameplay (deterministic T0 + async T2/T3). */
+  readonly water: WaterQuery = { sample: (x, z) => this.sampleWater(x, z) };
+  private sceneTarget: Target | null = null;
 
   constructor(readonly canvas: HTMLCanvasElement, opts: { quality?: QualityName; seed?: number; settings?: Partial<EngineSettings> } = {}) {
     const { gl, caps } = createGL(canvas);
@@ -139,6 +149,36 @@ export class OceanEngine {
     this.ocean.foam = this.settings.foam;
     this.ocean.setSea(this.settings.sea, { loopPeriod: this.settings.loopPeriod, rebuildStats: full });
     if (!full) this.cpuProductsPending = true;
+  }
+
+  sampleWater(x: number, z: number): WaterSample {
+    const s = this.ocean.mirror.sample(x, z);
+    let h = s.height;
+    for (const p of this.heightProviders) h = p(x, z, h);
+    return { height: h, vx: s.vx, vy: s.vy, vz: s.vz, normal: s.normal };
+  }
+
+  /** Copy the opaque frame (colour + depth) so the water can refract what lies beneath it. */
+  private captureScene() {
+    const gl = this.gl;
+    const w = this.post.width, h = this.post.height;
+    if (!this.sceneTarget || this.sceneTarget.width !== w || this.sceneTarget.height !== h) {
+      this.sceneTarget?.dispose();
+      this.sceneTarget = new Target(gl, w, h, [createTexture(gl, w, h, { ...FMT.rgba16f(gl), filter: gl.LINEAR })], 'texture');
+    }
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.post.hdr.fbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.sceneTarget.fbo);
+    gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    this.sceneBinding = {
+      color: this.sceneTarget.texture,
+      depth: this.sceneTarget.depth as WebGLTexture,
+      viewport: [w, h],
+      near: this.camera.near,
+      far: this.camera.far,
+    };
   }
 
   /** Ray from NDC through the mean sea plane (y=0) → world point. */
@@ -231,13 +271,18 @@ export class OceanEngine {
     gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this.sky.drawBackground(this.camera.invViewProj);
-    for (const m of this.modules) m.drawOpaque?.(this);
+    let opaque = false;
+    for (const m of this.modules) opaque = (m.drawOpaque?.(this) === true) || opaque;
+    if (opaque) this.captureScene();
+    else this.sceneBinding = null;
 
     let tiles: TileBinding[] = [];
+    let tileArray: WebGLTexture | null = null;
     let shore: ShoreBinding | null = null;
     for (const m of this.modules) {
       const b = m.surfaceBindings?.(this);
       if (b?.tiles) tiles = tiles.concat(b.tiles);
+      if (b?.tileArray) tileArray = b.tileArray;
       if (b?.shore) shore = b.shore;
     }
     const frame: SurfaceFrame = {
@@ -254,6 +299,7 @@ export class OceanEngine {
       debug: s.debug,
       earthRadius: s.earthCurvature ? 6.371e6 : 0,
       tiles,
+      tileArray,
       shore,
       tierMap: this.tierMap,
       scene: this.sceneBinding,
@@ -317,5 +363,6 @@ export class OceanEngine {
     this.sky.dispose();
     this.surface.dispose();
     this.post.dispose();
+    this.sceneTarget?.dispose();
   }
 }

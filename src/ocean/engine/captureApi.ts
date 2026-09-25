@@ -5,6 +5,7 @@
 import type { OceanEngine } from './OceanEngine';
 import type { CameraPose } from './camera';
 import { CAMERA_PRESETS } from './cameraPresets';
+import { oceanActions } from './actions';
 
 export interface ThalassaApi {
   ready: boolean;
@@ -18,6 +19,8 @@ export interface ThalassaApi {
   applySea(): void;
   telemetry(): unknown;
   glError(): number;
+  /** Invoke a UI action (spawnBoat, dropRock, spawnBuoys, ripple, …) with an optional world position. */
+  action(name: string, arg?: unknown): void;
 }
 
 function setPath(obj: any, path: string, value: unknown) {
@@ -59,6 +62,10 @@ export function installCaptureApi(engine: OceanEngine) {
     },
     telemetry: () => ({ ...engine.telemetry, gpuRenderer: engine.gl.getParameter(engine.gl.RENDERER) }),
     glError: () => engine.gl.getError(),
+    action(name, arg) {
+      const fn = (oceanActions as unknown as Record<string, (e: OceanEngine, a?: unknown) => void>)[name];
+      if (typeof fn === 'function') fn.call(oceanActions, engine, arg);
+    },
   };
   (window as any).__THALASSA__ = api;
   (window as any).__THALASSA_PRESETS__ = CAMERA_PRESETS.map((p) => p.id);

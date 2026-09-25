@@ -17,8 +17,7 @@ interface InstancedMesh {
 }
 
 export interface TileBinding {
-  rect: [number, number, number, number]; // world minX, minZ, size, weight
-  texture: WebGLTexture;
+  rect: [number, number, number, number]; // world minX, minZ, size, array layer
 }
 
 export interface ShoreBinding {
@@ -55,6 +54,7 @@ export interface SurfaceFrame {
   debug: number;
   earthRadius: number;
   tiles: TileBinding[];
+  tileArray: WebGLTexture | null;
   shore: ShoreBinding | null;
   tierMap: { texture: WebGLTexture; rect: [number, number, number] } | null;
   scene: { color: WebGLTexture; depth: WebGLTexture; viewport: [number, number]; near: number; far: number } | null;
@@ -69,6 +69,7 @@ export class OceanSurface {
   lastSelection: CdlodSelection | null = null;
   private baseCoverage: number | null = null;
   private dummy: WebGLTexture;
+  private dummyArray: WebGLTexture;
 
   constructor(private gl: GL, cfg: CdlodConfig) {
     this.prog = new Program(gl, 'ocean.surface', OCEAN_VS, OCEAN_FS);
@@ -78,6 +79,10 @@ export class OceanSurface {
     this.dummy = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, this.dummy);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 1, 1, 0, gl.RGBA, gl.HALF_FLOAT, new Uint16Array(4));
+    this.dummyArray = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.dummyArray);
+    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA16F, 1, 1, 1, 0, gl.RGBA, gl.HALF_FLOAT, new Uint16Array(4));
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
   }
 
   setConfig(cfg: CdlodConfig) {
@@ -150,26 +155,20 @@ export class OceanSurface {
     p.set('uViewProj', f.viewProj).set('uCamHeight', f.cam[1]).set('uMorph', morph)
       .set('uEarthRadius', f.earthRadius).set('uGeoLodBias', f.geoLodBias)
       .set('uCascadeCount', C).set('uSizes', sizes).set('uCamOffset', offsets).set('uTexN', ocean.n);
-    for (let c = 0; c < 4; c++) {
-      const cc = Math.min(c, C - 1);
-      p.tex(`uDisp${c}`, ocean.disp[cc]).tex(`uDeriv${c}`, ocean.deriv[cc]).tex(`uFoam${c}`, ocean.foamTexture(cc));
-    }
-    // Interaction tiles (camera-relative rects).
+    p.tex('uDispArr', ocean.dispArray).tex('uDerivArr', ocean.derivArray).tex('uFoamArr', ocean.foamArray);
+    // Interaction tiles (camera-relative rects; .w = array layer).
     const rects = new Float32Array(MAX_TILES * 4);
     const nTiles = Math.min(f.tiles.length, MAX_TILES);
-    for (let t = 0; t < MAX_TILES; t++) {
+    for (let t = 0; t < nTiles; t++) {
       const tb = f.tiles[t];
-      if (t < nTiles) {
-        rects.set([tb.rect[0] - f.cam[0], tb.rect[1] - f.cam[2], tb.rect[2], tb.rect[3]], t * 4);
-        p.tex(`uTileTex${t}`, tb.texture);
-      } else p.tex(`uTileTex${t}`, this.dummy);
+      rects.set([tb.rect[0] - f.cam[0], tb.rect[1] - f.cam[2], tb.rect[2], tb.rect[3]], t * 4);
     }
-    p.set('uTileCount', nTiles).set('uTileRect', rects);
+    p.set('uTileCount', nTiles).set('uTileRect', rects).tex('uTileArr', f.tileArray ?? this.dummyArray);
     if (f.shore) {
       p.set('uShoreRect', [f.shore.rect[0] - f.cam[0], f.shore.rect[1] - f.cam[2], f.shore.rect[2], 1])
-        .tex('uShoreSurf', f.shore.surf).tex('uShoreAux', f.shore.aux).tex('uShoreBed', f.shore.bed);
+        .tex('uShoreSurf', f.shore.surf).tex('uShoreAux', f.shore.aux);
     } else {
-      p.set('uShoreRect', [0, 0, 1, 0]).tex('uShoreSurf', this.dummy).tex('uShoreAux', this.dummy).tex('uShoreBed', this.dummy);
+      p.set('uShoreRect', [0, 0, 1, 0]).tex('uShoreSurf', this.dummy).tex('uShoreAux', this.dummy);
     }
     const o = f.optics;
     p.tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE)
@@ -211,5 +210,6 @@ export class OceanSurface {
     this.prog.dispose();
     for (const m of [this.full, this.half]) { gl.deleteVertexArray(m.vao); gl.deleteBuffer(m.instanceBuf); }
     gl.deleteTexture(this.dummy);
+    gl.deleteTexture(this.dummyArray);
   }
 }
