@@ -295,7 +295,7 @@ export class OceanSurface {
       .tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uEnvWidth', f.envWidth)
       .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE)
       .tex('uSlopeLut', ocean.slopeLutTex).set('uLogKMin', stats?.logKMin ?? 0).set('uLogKMax', stats?.logKMax ?? 1)
-      .set('uRoughnessGain', o.roughnessGain).set('uIor', o.ior).set('uAbsorb', o.absorb).set('uScatter', o.scatter)
+      .set('uRoughnessGain', o.roughnessGain).set('uIor', o.ior).set('uAbsorb', o.absorb).set('uScatter', o.scatter).set('uBackscatter', o.backscatter)
       .set('uFoamLife', ocean.foam.life).set('uTime', f.time).set('uDebug', f.debug).set('uRain', f.rain)
       .set('uTurbidity', S.turbidity).set('uSurfaceHaze', S.surfaceHaze).set('uSedimentHaze', S.sedimentHaze)
       .set('uAnisotropy', S.anisotropy).set('uGodray', S.godray).set('uVolumeSteps', S.volumeSteps)

@@ -347,7 +347,7 @@ uniform vec3 uSunE;            // sun radiance at sea level (Nimbus, clear air)
 uniform vec3 uSkyE;            // sky irradiance on a horizontal plane
 uniform sampler2D uSlopeLut; uniform float uLogKMin, uLogKMax; uniform float uRoughnessGain;
 uniform float uIor;
-uniform vec3 uAbsorb, uScatter;
+uniform vec3 uAbsorb, uScatter, uBackscatter;
 uniform float uFoamLife;
 uniform float uTime;
 uniform int uDebug;
@@ -492,6 +492,18 @@ bool traceFloor(vec3 ro, vec3 rd, float maxD, out float tHit, out vec3 hit){
   tHit = 0.5*(lo + hi);
   hit = ro + rd*tHit;
   return tHit > 0.0 && tHit < maxD;
+}
+/**
+ * Multiply-scattered upwelling of an optically deep column (Gordon et al.:
+ * R = 0.0949u + 0.0794u², u = b_b/(a + b_b)) less its first order, which the
+ * single-scattering march already carries — the diffuse blue that is still there
+ * when the sun is behind the viewer.
+ */
+vec3 msUpwelling(){
+  vec3 u = uBackscatter/(uAbsorb + uBackscatter);   // water type's b_b (particles + molecular)
+  vec3 R = 0.0949*u + 0.0794*u*u;
+  vec3 Ed = gSunE*max(uSunDir.y, 0.0)*0.97 + uSkyE*0.93;
+  return R*Ed/PI*0.55;
 }
 float hgPhaseW(float mu, float g){ float g2 = g*g; return (1.0 - g2)/(4.0*PI*pow(max(1.0 + g2 - 2.0*g*mu, 1e-4), 1.5)); }
 /** Focusing of the refracted sun by the surface above a point (god-ray beams). */
@@ -754,7 +766,7 @@ void main(){
         if (floorHit && luma(trans) > uBottomThreshold){
           vec3 rcv = sceneRcv.x >= 0.0 ? sceneRcv : shadeReceiver(fp, floorNormal(fp.xz), caustic);
           transmitted = inscatter + trans*rcv;
-        } else transmitted = inscatter + trans*vec3(0.0025, 0.010, 0.016)*gLight;
+        } else transmitted = inscatter + trans*vec3(0.0025, 0.010, 0.016)*gLight + msUpwelling();
         col = mix(transmitted, refl, F);
         dbgRefl = refl; dbgTrans = transmitted; dbgF = F;
         // Aerated water under fresh foam glows milky turquoise (Foam Foundry).

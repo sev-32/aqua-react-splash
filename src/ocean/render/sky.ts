@@ -314,8 +314,9 @@ export interface SkyParams {
 }
 
 export const DEFAULT_SKY: SkyParams = {
-  sunAzimuthDeg: 208,
-  sunElevationDeg: 24,
+  // POSEIDON's reference light: sun ahead of the default views, well up.
+  sunAzimuthDeg: 62,
+  sunElevationDeg: 40,
   // Nimbus "sky energy" (its default): the atmosphere integral, cloud light and exposure are calibrated to it.
   sunIntensity: 4.85,
   turbidity: 1.0,
