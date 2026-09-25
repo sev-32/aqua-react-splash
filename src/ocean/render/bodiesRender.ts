@@ -60,7 +60,16 @@ void main(){
   // the view path through the water is the water shader's job (it refracts this frame).
   float depth = max(uWaterline - worldY, 0.0);
   vec3 down = exp(-uAbsorb*depth*1.2);
-  vec3 col = albedo*(sunE*ndl/3.14159*down + amb*0.9*mix(vec3(1.0), down*0.6, step(0.001, depth))) + sunE*spec*0.05*down;
+  vec3 col;
+  if (depth > 0.001){
+    // Under water: the sun arrives refracted (steeper), and the light field is diffuse —
+    // skylight scattered in the column plus what the sea floor and the water send back up.
+    vec3 Ts = refract(-uSunDir, vec3(0.0, 1.0, 0.0), 1.0/1.333);
+    float ndlW = max(dot(n, -Ts), 0.0);
+    vec3 Ed = sunE*max(uSunDir.y, 0.0) + uSkyE;
+    vec3 diffuse = Ed*down*(0.22 + 0.33*(n.y*0.5 + 0.5))/3.14159;
+    col = albedo*(sunE*ndlW*down/3.14159 + diffuse) + sunE*spec*0.05*down;
+  } else col = albedo*(sunE*ndl/3.14159 + amb*0.9) + sunE*spec*0.05;
   float dist = length(vRel);
   vec3 haze = textureLod(uEnv, dirToEquirect(normalize(vec3(-V.x, 0.035, -V.z))), 3.0).rgb;
   col = mix(haze, col, exp(-dist*uFogDensity));

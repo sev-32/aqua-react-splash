@@ -16,6 +16,7 @@ import { Sky } from '../render/sky';
 import { seaMorphForWind, seaWindDirAt, relaxSeaMorph, weatherLabel } from '../atmos/weather';
 import { OceanSurface, type SurfaceFrame, type TileBinding, type ShoreBinding } from '../render/OceanSurface';
 import { WindWaves } from '../ocean/windWaves';
+import { AsyncReader } from '../gl/asyncReader';
 import { Post } from '../render/post';
 import { Camera, FlyController, type CameraPose } from './camera';
 import { defaultSettings, QUALITY, WATER_TYPES, opticsFor, type EngineSettings, type QualityName } from './settings';
@@ -106,6 +107,7 @@ export class OceanEngine {
     this.gl = gl;
     this.caps = caps;
     this.quality = opts.quality ?? 'high';
+    AsyncReader.sync = this.quality === 'capture';
     this.settings = { ...defaultSettings(this.quality), ...(opts.settings ?? {}) };
     const q = QUALITY[this.quality];
     this.timers = new GpuTimers(gl, caps.timer);
@@ -353,7 +355,7 @@ export class OceanEngine {
       haze: s.weather.haze,
       wind: this.wind,
       hdr: post.hdr,
-      aerial: this.sky.aerial ? { inscatter: this.sky.aerial.textures[0], transmittance: this.sky.aerial.textures[1] } : null,
+      aerial: this.sky.aerial ? { texture: this.sky.aerial.texture, ratios: this.sky.aerialRatios() } : null,
     };
     post.hdr.bind();
     this.timers.begin('surface');

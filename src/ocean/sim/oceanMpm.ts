@@ -75,6 +75,8 @@ export class MpmParticles {
   czx: Float32Array; czy: Float32Array; czz: Float32Array;
   density: Float32Array;
   life: Float32Array;
+  /** Seconds spent below the sea surface (settles within ~0.1 s, the pool's merge). */
+  wet: Float32Array;
   vol: Float64Array;       // m³ of water this particle carries (ledger unit)
   flags: Uint8Array;
   seed: Float32Array;
@@ -87,7 +89,7 @@ export class MpmParticles {
     this.cxx = f(); this.cxy = f(); this.cxz = f();
     this.cyx = f(); this.cyy = f(); this.cyz = f();
     this.czx = f(); this.czy = f(); this.czz = f();
-    this.density = f(); this.life = f(); this.seed = f();
+    this.density = f(); this.life = f(); this.seed = f(); this.wet = f();
     this.vol = new Float64Array(capacity);
     this.flags = new Uint8Array(capacity);
   }
@@ -209,6 +211,7 @@ export class OceanMpm {
     P.cxx[i] = 0; P.cxy[i] = 0; P.cxz[i] = 0; P.cyx[i] = 0; P.cyy[i] = 0; P.cyz[i] = 0; P.czx[i] = 0; P.czy[i] = 0; P.czz[i] = 0;
     P.density[i] = this.cfg.restDensity;
     P.life[i] = 0;
+    P.wet[i] = 0;
     P.vol[i] = vol;
     P.seed[i] = this.rand();
     P.flags[i] = FLAG_ALIVE | FLAG_AIRBORNE | (foam ? FLAG_FOAM : 0);
@@ -234,19 +237,21 @@ export class OceanMpm {
    * follows: 'impact' = crown ring + central Worthington jet (limiter jets from
    * impacts), 'sheet' = forward-thrown sheet (breaking lips, bow sheets).
    */
-  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number }, kind: 'impact' | 'sheet', spread: number, now: number, maxCount = 400) {
+  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
     const V = r.volume;
     if (!(V > 0)) return;
     this.stats.emitted += V;
     this.volumeFor(r.x, r.z, now);
     const dx = this.cfg.dx;
-    // Particle count from the volume at ~8 particles per cell of water, capped by budget.
-    const n = Math.max(4, Math.min(maxCount, Math.round(V / (dx * dx * dx / 8))));
+    // Particle count from the volume at ~27 particles per cell of water (a crown is a thin
+    // continuous sheet — too few samples and it breaks into lobes), capped by budget.
+    const n = Math.max(8, Math.min(maxCount, Math.round(V / (dx * dx * dx / 27))));
     const vp = V / n;
     const y0 = Math.max(r.y * 0.35, 0) + 0.02;
     // Jet speed: impact limiter releases over-state the surface rise (the capacity source
     // injects a body's displacement within a frame), so the sheet leaves at a fraction of it.
     const w = kind === 'impact' ? Math.min(Math.max(r.vy, 0), 14) * 0.6 : Math.max(r.vy, 0);
+    const crownOnly = kind === 'crown';
     const hs = Math.hypot(r.vx, r.vz);
     const hx = hs > 1e-4 ? r.vx / hs : 0, hz = hs > 1e-4 ? r.vz / hs : 0;
     for (let i = 0; i < n; i++) {
@@ -254,8 +259,8 @@ export class OceanMpm {
       const nx = Math.cos(a), nz = Math.sin(a);
       const foam = this.rand() < 0.4;
       const j = 0.8 + 0.4 * this.rand();
-      if (kind === 'impact') {
-        if (i % 4 === 0) {
+      if (kind === 'impact' || crownOnly) {
+        if (!crownOnly && i % 4 === 0) {
           // Central Worthington jet (pool spawnImpact): narrow, fast, near-vertical.
           const rr = this.rand() * spread * 0.2;
           this.spawn(r.x + nx * rr, y0, r.z + nz * rr, nx * 0.4 * j + r.vx * 0.2, (w * 1.05 + 0.6) * j, nz * 0.4 * j + r.vz * 0.2, vp, foam);
@@ -509,7 +514,10 @@ export class OceanMpm {
     const s = v && v.contains(x, 0, z) ? v.surfaceAt(x, z) : water.heightAt(x, z);
     if (P.py[p] >= s) P.flags[p] |= FLAG_AIRBORNE; else P.flags[p] &= ~FLAG_AIRBORNE;
     const crossed = prevY > s - 0.02 && P.py[p] <= s && P.vy[p] < -0.05;
-    const sunk = P.py[p] < s - 0.3 && P.life[p] > 0.2;
+    // Water that is back in the sea rejoins the heightfield promptly (the pool merged its
+    // particles within a few frames); only fast entries dive a little first.
+    if (P.py[p] < s - 0.02) P.wet[p] += dt; else P.wet[p] = 0;
+    const sunk = (P.wet[p] > 0.08 || P.py[p] < s - 0.25) && P.life[p] > 0.05;
     if (crossed || sunk || P.life[p] > this.cfg.lifetime || !Number.isFinite(P.py[p])) {
       if (!Number.isFinite(P.px[p]) || !Number.isFinite(P.pz[p])) { this.stats.lost += P.vol[p]; P.flags[p] = 0; P.vol[p] = 0; return; }
       this.settle(p, x, z, P.vy[p]);

@@ -13,9 +13,9 @@ import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/Ocean
 import { SplashSystem } from '../sim/SplashSystem';
 import { OceanMpm, DEFAULT_MPM, type SphereCollider } from '../sim/oceanMpm';
 import { SplashConnectivity } from '../sim/splashConnectivity';
-import { splatHeightForVolume } from '../sim/InteractionTiles';
+import { splatHeightForVolume, type ReleasePatch } from '../sim/InteractionTiles';
 import { QUALITY } from '../engine/settings';
-import { RHO_WATER, bodyHeading } from '../physics/bodies';
+import { RHO_WATER, bodyHeading, type Body } from '../physics/bodies';
 import type { InteractionModule } from './interactionModule';
 import type { ShoreModule } from './shoreModule';
 import type { BodiesModule } from './bodiesModule';
@@ -39,6 +39,43 @@ export class SplashModule implements EngineModule {
     this.renderer = new SplashSystem(engine.gl, cap * 2);
   }
 
+  /**
+   * The pool's event spawners, driven by the heightfield: a release next to a body leaves
+   * the way that body is moving the water — a crown ring when it plunges in, a clinging
+   * sheet rising with it when it is pulled out, bow spray thrown ahead and aside when it
+   * is towed. Volume and position come from the limiter; the body shapes the launch.
+   */
+  private shapeByBody(r: ReleasePatch): { r: ReleasePatch; kind: 'impact' | 'crown' | 'sheet'; spread: number } {
+    const free = { r, kind: 'impact' as const, spread: Math.min(3, Math.max(0.6, Math.sqrt(r.volume) * 1.3)) };
+    let best: Body | null = null, bestD = Infinity, bestR = 0;
+    for (const b of this.bodies.bodies) {
+      if (!b.alive) continue;
+      const R = b.shape.kind === 'sphere' ? b.shape.radius ?? 1 : b.shape.kind === 'hull' ? (b.shape.beam ?? 2.4) * 0.5 : Math.max(...(b.shape.half ?? [1, 1, 1]));
+      const d = Math.hypot(r.x - b.pos[0], r.z - b.pos[2]) - R;
+      if (d < 1.5 + R * 0.5 && d < bestD) { best = b; bestD = d; bestR = R; }
+    }
+    if (!best) return free;
+    const [vx, vz] = [best.vel[0], best.vel[2]];
+    // A plunging body decelerates within a few frames, before its displaced water has
+    // travelled to the waterline and released: judge the entry by the speed it hit with.
+    const entry = this.entries.get(best.id);
+    const vy = entry && this.engine.time - entry.t < 0.5 ? Math.min(best.vel[1], -entry.speed) : best.vel[1];
+    const vh = Math.hypot(vx, vz);
+    if (vy < -1.2 && -vy > vh) {
+      // Plunge: the displaced water leaves as a crown around the waterline.
+      return { r: { ...r, x: best.pos[0], z: best.pos[2], vx: 0, vz: 0, vy: Math.min(-vy, 12) }, kind: 'crown', spread: bestR * 1.15 };
+    }
+    if (vy > 0.8 && vy > vh) {
+      // Pulled out: a sheet of water clings to and rises with the body, then drains.
+      return { r: { ...r, x: best.pos[0], z: best.pos[2], vx: vx * 0.8, vz: vz * 0.8, vy: vy * 0.85 }, kind: 'sheet', spread: bestR * 0.9 };
+    }
+    if (vh > 0.6) {
+      // Towed: bow spray, thrown forward-and-aside at about the hull speed, climbing its bow.
+      return { r: { ...r, vx: vx * 1.05, vz: vz * 1.05, vy: 0.45 * vh + Math.max(r.vy, 0) * 0.3 }, kind: 'sheet', spread: Math.min(bestR, 1.2) };
+    }
+    return free;
+  }
+
   /** Bodies as colliders (spheres; hulls as three spheres along the keel). */
   private colliders(): SphereCollider[] {
     const out: SphereCollider[] = [];
@@ -58,13 +95,17 @@ export class SplashModule implements EngineModule {
     return out;
   }
 
+  /** Recent water entries (body id → impact speed, time). */
+  private entries = new Map<number, { speed: number; t: number }>();
+
   update(engine: OceanEngine, time: number, dt: number) {
+    for (const e of this.bodies.entries) this.entries.set(e.body.id, { speed: e.speed, t: time });
     const tiles = this.interaction.tiles;
     const shoreField = this.shore.field;
     // 1. Heightfield releases become fluid (the pool's spawners shape them).
     const budget = Math.max(64, Math.floor(this.mpm.cfg.capacity / 6));
     const rel = [
-      ...this.interaction.releases.map((r) => ({ r, kind: 'impact' as const, spread: Math.min(3, Math.max(0.6, Math.sqrt(r.volume) * 1.3)) })),
+      ...this.interaction.releases.map((r) => this.shapeByBody(r)),
       ...(shoreField ? this.shore.releases.map((r) => ({ r, kind: 'sheet' as const, spread: 4 })) : []),
     ];
     this.interaction.releases = [];
@@ -143,7 +184,7 @@ export class SplashModule implements EngineModule {
       env: engine.sky.texture, envLevels: engine.sky.levels, absorb: s.optics.absorb,
       fogDensity: s.optics.fogDensity * (1 + 5 * s.weather.precipitation),
       haze: [L[0] * 0.3, L[1] * 0.32, L[2] * 0.36], scatter: o.scatter, backscatter: o.backscatter, ior: o.ior,
-      hdr: engine.post.hdr, mode: s.spray.render,
+      hdr: engine.post.hdr, mode: s.spray.render, seaPos: engine.surface.positions,
     });
   }
 

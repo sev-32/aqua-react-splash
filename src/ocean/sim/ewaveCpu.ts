@@ -111,8 +111,13 @@ export function limitRepresentability(
   eta: Float64Array, phi: Float64Array, etaPrev: Float64Array | null,
   n: number, dx: number, dt: number, maxSlope: number, relax: number,
   releaseMap?: Float64Array,
-  /** Fastest coherent surface rise (m/s); faster-rising water detaches (GPU: uWCrit). */
-  wCrit = Infinity,
+  /**
+   * Surface velocity ∂η/∂t of the previous step (GPU aux.z), updated in place: enables the
+   * ballistic-separation criterion (the surface may not decelerate faster than g).
+   */
+  wPrev?: Float64Array,
+  /** Body displacement per column (m, GPU aux.x): occupied columns never release. */
+  occupied?: Float64Array,
 ): Release {
   const out: Release = { volume: 0, momentumX: 0, momentumY: 0, momentumZ: 0, cells: 0 };
   const limit = maxSlope * dx;
@@ -120,11 +125,14 @@ export function limitRepresentability(
   for (let z = 1; z < n - 1; z++)
     for (let x = 1; x < n - 1; x++) {
       const i = z * n + x;
+      if (occupied && occupied[i] > 0.02) continue;
       const lo = Math.min(eta[i - 1], eta[i + 1], eta[i - n], eta[i + n]);
       const e = eta[i] - lo - limit;
       let r = e > 0 ? e * relax : 0;
       const w = etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
-      if (w > wCrit && eta[i] > 0) r += Math.min((w - wCrit) * dt * relax * 0.6, eta[i]);
+      const wp = wPrev ? wPrev[i] : 0;
+      const acc = (w - wp) / Math.max(dt, 1e-6);
+      if (wPrev && acc < -G && wp > 0 && eta[i] > 0) r += Math.min((-acc - G) * dt * dt * relax, eta[i]);
       removed[i] = Math.min(r, Math.max(eta[i] - lo, 0) + Math.max(eta[i], 0));
     }
   for (let z = 1; z < n - 1; z++)
@@ -133,14 +141,16 @@ export function limitRepresentability(
       const r = removed[i];
       if (r <= 0) continue;
       const v = r * dx * dx;
-      const w = etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
+      const wp = wPrev ? wPrev[i] : etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
       const ux = (phi[i + 1] - phi[i - 1]) / (2 * dx);
       const uz = (phi[i + n] - phi[i - n]) / (2 * dx);
       eta[i] -= r;
       out.volume += v;
-      out.momentumX += v * ux; out.momentumY += v * Math.max(w, 0); out.momentumZ += v * uz;
+      out.momentumX += v * ux; out.momentumY += v * Math.max(wp, 0); out.momentumZ += v * uz;
       out.cells++;
       if (releaseMap) releaseMap[i] += v;
     }
+  // Next step's wPrev: the surface velocity after limiting.
+  if (wPrev && etaPrev) for (let i = 0; i < n * n; i++) wPrev[i] = (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6);
   return out;
 }

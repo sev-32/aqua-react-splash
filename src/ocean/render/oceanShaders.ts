@@ -37,6 +37,26 @@ uniform float uTexN;
 
 vec2 cascadeUv(vec2 rel, int c){ return (rel + uCamOffset[c])/uSizes[c]; }
 
+// ── T3 interaction tiles (eWave): rect = (relMinX, relMinZ, size, layer)
+uniform int uTileCount;
+uniform vec4 uTileRect[${MAX_TILES}];
+uniform sampler2DArray uTileArr;   // (η, ∂η/∂x, ∂η/∂z, foam) — fade pre-applied
+float tileWeight(vec2 rel, vec4 r, out vec2 uv){
+  uv = (rel - r.xy)/r.z;
+  vec2 e = min(uv, 1.0 - uv);
+  return smoothstep(0.0, 0.12, min(e.x, e.y))*step(0.0, min(e.x, e.y));
+}
+/** Local interaction field at q: (η, ∂η/∂x, ∂η/∂z). */
+vec3 tileField(vec2 q){
+  vec3 f = vec3(0.0);
+  for (int t = 0; t < ${MAX_TILES}; t++){
+    if (t >= uTileCount) break;
+    vec2 tuv; float w = tileWeight(q, uTileRect[t], tuv);
+    if (w > 0.0) f += w*textureLod(uTileArr, vec3(tuv, uTileRect[t].w), 0.0).xyz;
+  }
+  return f;
+}
+
 // ── T1 depth-limited shoaling + seabed (terrain heights) ──
 uniform int uTerrainOn;
 uniform sampler2D uTFine;  uniform vec3 uTFineRect;    // camera-relative min, size
@@ -98,10 +118,6 @@ vec4 bilerpWrap(sampler2D t, vec2 uv){
 const GBUF_COMMON = /* glsl */ `
 ${OCEAN_COMMON_GLSL}
 ${BILERP_GLSL}
-// ── T3 interaction tiles (eWave): rect = (relMinX, relMinZ, size, layer)
-uniform int uTileCount;
-uniform vec4 uTileRect[${MAX_TILES}];
-uniform sampler2DArray uTileArr;   // (η, ∂η/∂x, ∂η/∂z, foam) — fade pre-applied
 // ── T2 shore field: rect = (relMinX, relMinZ, size, fade)
 uniform vec4 uShoreRect;
 uniform sampler2D uShoreSurf;     // (η + lip lift, slopeX, slopeZ, water depth h)
@@ -109,11 +125,6 @@ uniform sampler2D uShoreAux;      // (foam cover, breaking E, lip+chop dx, dz)
 // ── wind micro-waves (POSEIDON)
 uniform sampler2D uMicro; uniform vec2 uMicroOff; uniform float uMicroDomain;
 uniform float uMicroGain, uMicroNormalGain, uMicroRange;
-float tileWeight(vec2 rel, vec4 r, out vec2 uv){
-  uv = (rel - r.xy)/r.z;
-  vec2 e = min(uv, 1.0 - uv);
-  return smoothstep(0.0, 0.12, min(e.x, e.y))*step(0.0, min(e.x, e.y));
-}
 float shoreOpenOcean(vec2 rel, out vec2 suv, out float inside){
   inside = 0.0; suv = vec2(0.0);
   if (uShoreRect.w <= 0.0) return 1.0;
@@ -358,7 +369,6 @@ uniform sampler2D uWind; uniform vec2 uWindOff; uniform float uWindDomain; unifo
 // Scene behind the water (terrain, hulls) — receiver colour and occluders
 uniform sampler2D uSceneColor; uniform sampler2D uSceneDepth; uniform int uHasScene;
 uniform float uNear, uFar;
-uniform sampler2D uTierMap; uniform vec4 uTierRect;
 // POSEIDON volume + lanes + glitter (current-best defaults)
 uniform float uTurbidity, uSurfaceHaze, uSedimentHaze, uAnisotropy, uGodray;
 uniform int uVolumeSteps;
@@ -372,7 +382,8 @@ uniform vec4 uGlitter;        // strength, near density, far density, far broade
 uniform vec4 uGlitterFade;    // clamp, fade start, fade end, softness
 uniform float uFogDensity;
 // Nimbus aerial perspective of the planet surface along each view ray (low-res, screen space)
-uniform sampler2D uAerialIn, uAerialT;
+uniform sampler2D uAerial;        // rgb in-scatter, a green transmittance
+uniform vec3 uAerialK;             // τ_c/τ_g
 uniform int uHasAerial;
 
 #define MAX_VOLUME_STEPS 16
@@ -403,15 +414,14 @@ vec3 gSeaBody;       // radiance of the open sea seen from above (second-bounce 
  * What a reflected ray sees. Upward: the Nimbus sky. Downward: the sea itself — its body,
  * plus the sky mirrored once more off the far surface at that grazing angle (Fresnel).
  */
-vec3 skyOrSea(vec3 r, float lod){
+vec3 skyOrSea(vec3 r, float lod, vec3 sea){
   if (r.y >= 0.0) return envLod(r, lod);
   float F2 = fresnelDielectric(-r.y, 1.0, uIor);
-  return mix(gSeaBody, envLod(vec3(r.x, -r.y, r.z), lod), F2);
+  return mix(sea, envLod(vec3(r.x, -r.y, r.z), lod), F2);
 }
-/** Nimbus sky along r (the same map the visible sky and the clouds bake into). */
-vec3 sky(vec3 r){ return skyOrSea(r, 0.5); }
-/** Reflection of a rough surface: the env pre-filtered to the reflected lobe's width. */
-vec3 filteredSky(vec3 r, float rough){ return skyOrSea(r, log2(max(2.2*rough*uEnvWidth/(2.0*PI), 1.0))); }
+/** Reflection of a rough surface: the env pre-filtered to the reflected lobe's width. sea:
+ *  the water a downward reflection lands on (the pixel's own water nearby; open-sea body far). */
+vec3 filteredSky(vec3 r, float rough, vec3 sea){ return skyOrSea(r, log2(max(2.2*rough*uEnvWidth/(2.0*PI), 1.0)), sea); }
 /** Horizon sky in the view azimuth — what distance fades the sea toward. */
 vec3 hazeColor(vec3 rd){ return envLod(normalize(vec3(rd.x, 0.012, rd.z)), 2.0); }
 
@@ -451,7 +461,7 @@ vec3 sunGlitter(vec3 n, vec3 V, vec4 mom, float d){
 
 // ── the water column (POSEIDON integrateVolume / traceFloor / caustics) ──
 float surfaceHeightRel(vec2 q){
-  float h = 0.0;
+  float h = tileField(q).x;
   for (int c = 0; c < 4; c++){ if (c >= uCascadeCount) break; h += textureLod(uDispArr, vec3(cascadeUv(q, c), float(c)), 0.0).y; }
   return seaLevelAt(q) + h;
 }
@@ -462,6 +472,9 @@ vec3 normalAt(vec2 q){
     vec4 dv = textureLod(uDerivArr, vec3(cascadeUv(q, c), float(c)), 0.0);
     Sx += dv.x; Sz += dv.y; Dxx += dv.z; Dzz += dv.w;
   }
+  // The interaction field focuses light too (the pool's caustic rings).
+  vec3 tf = tileField(q);
+  Sx += tf.y; Sz += tf.z;
   vec2 sl = vec2(Sx/max(1.0 + Dxx, 0.16), Sz/max(1.0 + Dzz, 0.16));
   return normalize(vec3(-sl.x, 1.0, -sl.y));
 }
@@ -624,7 +637,7 @@ vec3 laneColor(vec3 rd, vec2 q, float d, float footprint, vec3 lane, out vec3 gl
   vec4 mom = momentAt(PI/max(footprint, 0.05))*lane.y + windMoments(q);
   float rough = sqrt(max(mom.w, 2e-5));
   glit = sunGlitter(n, V, mom, d);
-  vec3 refl = filteredSky(R, rough) + glit;
+  vec3 refl = filteredSky(R, rough, gSeaBody) + glit;
   float F = fresnelDielectric(max(dot(n, V), 0.0), 1.0, uIor);
   vec3 body = mix(vec3(0.008, 0.035, 0.052), vec3(0.018, 0.075, 0.095), sat(n.y*0.7 + 0.2))*gLight;
   vec3 c = mix(body, refl, sat(F + 0.18));
@@ -731,10 +744,10 @@ void main(){
       mom += vec4(rainVar, rainVar, 0.0, 2.0*rainVar);
       float rough = sqrt(max(mom.w, 0.0));
       vec3 R = reflect(rd, n);
-      vec3 refl = filteredSky(R, rough) + sunGlitter(n, V, mom, dist)*(1.0 - sat(foam.x));
+      vec3 glint = sunGlitter(n, V, mom, dist)*(1.0 - sat(foam.x));
       float F = fresnelDielectric(max(dot(n, V), 0.0), 1.0, uIor);
       vec3 trd = refract(rd, n, 1.0/uIor);
-      if (dot(trd, trd) < 1e-4){ col = refl; }
+      if (dot(trd, trd) < 1e-4){ col = filteredSky(R, rough, gSeaBody) + glint; }
       else {
         vec3 ro = sp + trd*0.04;
         float tF; vec3 fp;
@@ -767,6 +780,7 @@ void main(){
           vec3 rcv = sceneRcv.x >= 0.0 ? sceneRcv : shadeReceiver(fp, floorNormal(fp.xz), caustic);
           transmitted = inscatter + trans*rcv;
         } else transmitted = inscatter + trans*vec3(0.0025, 0.010, 0.016)*gLight + msUpwelling();
+        vec3 refl = filteredSky(R, rough, transmitted) + glint;
         col = mix(transmitted, refl, F);
         dbgRefl = refl; dbgTrans = transmitted; dbgF = F;
         // Aerated water under fresh foam glows milky turquoise (Foam Foundry).
@@ -803,8 +817,8 @@ void main(){
     }
     // Aerial perspective: the Nimbus atmosphere between the eye and the sea (any altitude).
     if (uHasAerial == 1){
-      vec3 aT = texture(uAerialT, vUv).rgb, aIn = texture(uAerialIn, vUv).rgb;
-      col = col*aT + aIn;
+      vec4 ap = texture(uAerial, vUv);
+      col = col*pow(vec3(max(ap.a, 0.0)), uAerialK) + ap.rgb;
     }
     // Weather haze (rain curtains, overcast murk) beyond the clear-air atmosphere.
     col = mix(hazeColor(rd), col, exp(-dist*uFogDensity));
@@ -814,7 +828,7 @@ void main(){
     float cosI = max(dot(nd, V), 0.0);
     vec3 Tdir = refract(rd, nd, uIor);
     float F = dot(Tdir, Tdir) < 1e-6 ? 1.0 : fresnelDielectric(cosI, uIor, 1.0);
-    vec3 skyT = dot(Tdir, Tdir) < 1e-6 ? vec3(0.0) : filteredSky(normalize(Tdir), 0.085)*vec3(0.8, 1.0, 1.1);
+    vec3 skyT = dot(Tdir, Tdir) < 1e-6 ? vec3(0.0) : filteredSky(normalize(Tdir), 0.085, gSeaBody)*vec3(0.8, 1.0, 1.1);
     vec3 body = vec3(0.004, 0.018, 0.032)*gLight;
     float bm;
     vec3 L = integrateVolume(vec3(0.0), rd, dist, trans, bm);
@@ -827,10 +841,9 @@ void main(){
   else if (uDebug == 4) col = vec3(foam.x, foam.z*0.5, foam.y);
   else if (uDebug == 5) col = foam.w > 1.0 ? vec3(1.0, 0.1, 0.05) : vec3(sat(foam.w));
   else if (uDebug == 6){
-    vec2 tuv = (q - uTierRect.xy)/uTierRect.z;
-    vec4 tm = texture(uTierMap, tuv);
-    float inside = step(0.0, min(min(tuv.x, tuv.y), min(1.0 - tuv.x, 1.0 - tuv.y)));
-    col = mix(col*0.35, tierColor(tm.r*4.0 + 0.001)*(0.4 + 0.6*tm.g), inside*0.85);
+    // Tier view: interaction tiles (T3) over the spectral sea (T0); the scheduler adds its map here.
+    vec3 tf = tileField(q);
+    col = mix(col*0.35, tierColor(3.0), sat(abs(tf.x)*6.0 + length(tf.yz)*4.0));
   }
   else if (uDebug == 7) col = vec3(shoreW, floorHit ? 0.6 : 0.0, luma(trans));
   else if (uDebug == 8) col = dbgRefl;

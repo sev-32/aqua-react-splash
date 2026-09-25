@@ -42,6 +42,43 @@ export interface Autopilot {
   clockwise: boolean;
 }
 
+/**
+ * Kinematic script — the pool's hand-driven sphere: the body follows a prescribed
+ * path and the water reacts (capacity source, splash), with no buoyancy feedback.
+ *   tow    constant speed through the surface (bow wave, Kelvin wake)
+ *   bob    vertical oscillation at the waterline (ring waves)
+ *   plunge rest → pushed under → held → yanked out (crown, sheet and drain on exit)
+ */
+export interface BodyScript {
+  kind: 'tow' | 'bob' | 'plunge';
+  origin: Vec3;
+  dir: [number, number];
+  speed: number;
+  amp: number;
+  period: number;
+}
+
+const ease = (x: number) => { const t = Math.min(Math.max(x, 0), 1); return t * t * (3 - 2 * t); };
+
+/** Scripted position and velocity at body age t (velocity by central difference). */
+export function scriptPose(s: BodyScript, t: number): { pos: Vec3; vel: Vec3 } {
+  const at = (u: number): Vec3 => {
+    const o = s.origin;
+    if (s.kind === 'tow') return [o[0] + s.dir[0] * s.speed * u, o[1], o[2] + s.dir[1] * s.speed * u];
+    if (s.kind === 'bob') return [o[0], o[1] + s.amp * Math.sin((2 * Math.PI * u) / s.period), o[2]];
+    // plunge: 1 s at rest, down over 0.3·P, hold 0.3·P, out over 0.12·P to well above the surface
+    const P = s.period;
+    let y = o[1];
+    if (u > 1) y -= s.amp * ease((u - 1) / (0.3 * P));
+    const out = 1 + 0.6 * P;
+    if (u > out) y += (s.amp * 2.4) * ease((u - out) / (0.12 * P));
+    return [o[0], y, o[2]];
+  };
+  const e = 1 / 240;
+  const a = at(t - e), b = at(t + e);
+  return { pos: at(t), vel: [(b[0] - a[0]) / (2 * e), (b[1] - a[1]) / (2 * e), (b[2] - a[2]) / (2 * e)] };
+}
+
 export interface Body {
   id: number;
   label: string;
@@ -65,6 +102,8 @@ export interface Body {
   color: Vec3;
   alive: boolean;
   fixed: boolean;
+  /** Kinematic script (null = free rigid body). */
+  script: BodyScript | null;
 }
 
 let nextId = 1;
@@ -146,6 +185,7 @@ export function createBody(opts: {
     color: opts.color ?? [0.8, 0.8, 0.8],
     alive: true,
     fixed: !!opts.fixed,
+    script: null,
   };
 }
 

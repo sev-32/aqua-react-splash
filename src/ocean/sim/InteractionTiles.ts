@@ -44,6 +44,10 @@ export interface InteractionTile {
   id: number;
   origin: [number, number];     // world (m), multiple of dx
   size: number;
+  /** Cell size (m): fine tiles for small objects (spheres, rocks), coarse for hulls. */
+  dx: number;
+  /** Still-water depth for the dispersion relation (m), from the seabed under the tile. */
+  depth: number;
   state: PingPong;              // RG32F (η, φ)
   aux: PingPong;                // RGBA32F
   release: PingPong;            // MRT 2 × RGBA32F
@@ -122,10 +126,15 @@ export class InteractionTiles {
     return this.cfg.n * this.cfg.dx;
   }
 
-  private allocate(center: [number, number], reason: string, now: number): InteractionTile {
+  /** Seabed depth query (positive down) for per-tile dispersion; defaults to the config depth. */
+  depthAt: ((x: number, z: number) => number) | null = null;
+
+  private allocate(center: [number, number], reason: string, now: number, dxOverride?: number): InteractionTile {
     const gl = this.gl;
-    const { n, dx } = this.cfg;
+    const n = this.cfg.n;
+    const dx = dxOverride ?? this.cfg.dx;
     const size = n * dx;
+    const d = this.depthAt ? this.depthAt(center[0], center[1]) : this.cfg.depth;
     const snap = (v: number) => Math.round((v - size / 2) / dx) * dx;
     const f32 = FMT.rgba32f(gl), rg = FMT.rg32f(gl);
     const used = new Set(this.tiles.map((x) => x.layer));
@@ -137,6 +146,8 @@ export class InteractionTiles {
       id: tileIds++,
       origin: [snap(center[0]), snap(center[1])],
       size,
+      dx,
+      depth: Math.min(Math.max(d, 0.5), this.cfg.depth),
       state: new PingPong(mk(rg)),
       aux: new PingPong(mk(f32)),
       release: new PingPong(mk(f32, 2)),
@@ -178,12 +189,16 @@ export class InteractionTiles {
   }
 
   /** Ensure a tile covers `center` (JIT promotion). Returns null when the budget is exhausted. */
-  ensure(center: [number, number], reason: string, now: number): InteractionTile | null {
-    const existing = this.tileAt(center[0], center[1], this.tileSize * 0.18);
+  ensure(center: [number, number], reason: string, now: number, dx?: number): InteractionTile | null {
+    const want = dx ?? this.cfg.dx;
+    const existing = this.tiles.find((t) => !t.retiring && Math.abs(t.dx - want) < 1e-6
+      && center[0] >= t.origin[0] + t.size * 0.18 && center[1] >= t.origin[1] + t.size * 0.18
+      && center[0] < t.origin[0] + t.size * 0.82 && center[1] < t.origin[1] + t.size * 0.82)
+      ?? this.tileAt(center[0], center[1], this.tileSize * 0.18);
     if (existing) { existing.lastActive = now; return existing; }
     const live = this.tiles.filter((t) => !t.retiring);
     if (live.length >= Math.min(this.maxTiles, InteractionTiles.LAYERS) || this.tiles.length >= InteractionTiles.LAYERS) return null;
-    return this.allocate(center, reason, now);
+    return this.allocate(center, reason, now, want);
   }
 
   addImpact(x: number, z: number, r: number, dEta: number, dFoam = 0, dPhi = 0, now = 0) {
@@ -196,7 +211,8 @@ export class InteractionTiles {
 
   /** Integer-cell recentring toward a target centre (keeps followed bodies inside). */
   private recenter(t: InteractionTile, target: [number, number]) {
-    const { dx, n } = this.cfg;
+    const n = this.cfg.n;
+    const dx = t.dx;
     const cx = t.origin[0] + t.size / 2, cz = t.origin[1] + t.size / 2;
     const ddx = target[0] - cx, ddz = target[1] - cz;
     const thresh = t.size * 0.16;
@@ -277,7 +293,7 @@ export class InteractionTiles {
         offs[c * 2 + 1] = pmod(t.origin[1], L);
       }
       const ps = this.pSource.use();
-      ps.set('uN', n).set('uDx', cfg.dx).set('uCascadeCount', ocean.cascades).set('uSizes', sizes).set('uCascOffset', offs)
+      ps.set('uN', n).set('uDx', t.dx).set('uCascadeCount', ocean.cascades).set('uSizes', sizes).set('uCascOffset', offs)
         .set('uBodyCount', near.length).set('uBodyPos', bp).set('uBodyAx', ba).set('uBodyDims', bd).set('uSourceGain', cfg.sourceGain)
         .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture).tex('uImpacts', this.impactsTarget.texture);
       ps.tex('uDispArr', ocean.dispArray);
@@ -300,7 +316,7 @@ export class InteractionTiles {
           w = 1 - w;
         }
       }
-      this.pEvolve.use().set('uN', n).set('uDx', cfg.dx).set('uDt', dt).set('uDepth', cfg.depth)
+      this.pEvolve.use().set('uN', n).set('uDx', t.dx).set('uDt', dt).set('uDepth', t.depth)
         .set('uDamping', cfg.damping).set('uViscosity', cfg.viscosity).tex('uSpec', src);
       t.spec[w].bind();
       this.quad.draw();
@@ -321,8 +337,7 @@ export class InteractionTiles {
       t.state.swap();
 
       // 3. Limiter + sponge + foam (+ release accumulation).
-      this.pLimit.use().set('uN', n).set('uDx', cfg.dx).set('uDt', dt).set('uMaxSlope', cfg.maxSlope).set('uRelax', cfg.relax)
-        .set('uWCrit', 1.3 * Math.sqrt(9.81 * Math.max(cfg.dx, 0.5)))
+      this.pLimit.use().set('uN', n).set('uDx', t.dx).set('uDt', dt).set('uMaxSlope', cfg.maxSlope).set('uRelax', cfg.relax)
         .set('uLimiter', cfg.limiter ? 1 : 0).set('uSponge', n * 0.1).set('uFoamLife', cfg.foamLife).set('uOrigin', t.origin)
         .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture)
         .tex('uRelA', t.release.read.textures[0]).tex('uRelB', t.release.read.textures[1]);
@@ -332,7 +347,7 @@ export class InteractionTiles {
       t.release.swap();
 
       // 4. Output for rendering.
-      this.pOutput.use().set('uN', n).set('uDx', cfg.dx).set('uFade', t.fade)
+      this.pOutput.use().set('uN', n).set('uDx', t.dx).set('uFade', t.fade)
         .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture);
       t.output.bind();
       this.quad.draw();

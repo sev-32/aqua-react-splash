@@ -123,7 +123,8 @@ void main(){
  * Aerial perspective of the planet's surface (Nimbus atmosphere): for each view ray that
  * meets the sphere, in-scattered radiance and transmittance between the camera and the
  * surface. Low resolution — it varies smoothly across the screen — and valid at any
- * altitude, from the deck to orbit. MRT: 0 = in-scatter, 1 = transmittance.
+ * altitude, from the deck to orbit. One texture: in-scatter + green transmittance
+ * (red/blue follow from the Rayleigh/Mie extinction ratios — see aerialRatios()).
  */
 const AERIAL_FS = /* glsl */ `#version 300 es
 precision highp float;
@@ -134,8 +135,7 @@ ${SKY_UNIFORMS}
 uniform vec3 uSunDir;
 uniform float uSkyBright, uRayleigh, uMie, uMieG;
 in vec2 vUv;
-layout(location=0) out vec4 oIn;
-layout(location=1) out vec4 oT;
+layout(location=0) out vec4 oAP;       // rgb in-scatter, a transmittance (green; others by extinction ratio)
 uniform mat4 uInvViewProj;
 void main(){
   vec4 p = uInvViewProj*vec4(vUv*2.0 - 1.0, 1.0, 1.0);
@@ -146,8 +146,7 @@ void main(){
   float tHit = g.x > 0.0 ? g.x : max(-dot(ro, rd), 0.0);
   vec3 T;
   vec3 L = atmosphere(ro, rd, uSunDir, max(tHit, 1.0), uRayleigh, uMie, uMieG, uSkyBright, T);
-  oIn = vec4(L, 1.0);
-  oT = vec4(T, 1.0);
+  oAP = vec4(L, T.g);
 }`;
 
 /** Temporal resolve (Nimbus resolve.frag): rotation-exact reprojection + YCoCg variance clip, on both layers. */
@@ -566,6 +565,13 @@ export class Sky {
     return full || this.sinceIrradiance > 24;
   }
 
+  /** τ_c/τ_green of clear air for the current haze: T_c = T_g^ratio_c (ozone neglected). */
+  aerialRatios(): Vec3 {
+    const bM = 21e-6 * 1.1 * this.params.turbidity * (this.weather?.haze ?? 1);
+    const g = 13.5e-6 + bM;
+    return [(5.8e-6 + bM) / g, 1, (33.1e-6 + bM) / g];
+  }
+
   private prevCam: Vec3 | null = null;
   /** History is direction-reprojected (rotation-exact); a translation jump invalidates it. */
   private cameraJumped(cam: Vec3): boolean {
@@ -610,8 +616,7 @@ export class Sky {
     // Aerial perspective at the same low resolution as the sky march.
     if (!this.aerial || this.aerial.width !== w || this.aerial.height !== h) {
       this.aerial?.dispose();
-      const tex = () => createTexture(gl, w, h, { ...FMT.rgba16f(gl), filter: gl.LINEAR });
-      this.aerial = new Target(gl, w, h, [tex(), tex()]);
+      this.aerial = new Target(gl, w, h, [createTexture(gl, w, h, { ...FMT.rgba16f(gl), filter: gl.LINEAR })]);
     }
     const pa = this.progAerial.use();
     this.setCloudUniforms(pa, v.camPos);

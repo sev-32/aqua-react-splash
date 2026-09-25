@@ -103,8 +103,8 @@ export interface SurfaceFrame {
   wind: WindWaves | null;
   /** HDR target the sea is shaded into (depth-tested against the opaque scene). */
   hdr: Target;
-  /** Nimbus aerial perspective for this view (in-scatter, transmittance). */
-  aerial: { inscatter: WebGLTexture; transmittance: WebGLTexture } | null;
+  /** Nimbus aerial perspective for this view (rgb in-scatter, a green transmittance) + extinction ratios. */
+  aerial: { texture: WebGLTexture; ratios: Vec3 } | null;
 }
 
 const GRID_MARGIN = 1.25;
@@ -162,6 +162,11 @@ export class OceanSurface {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
     this.gridIndexCount = idx.length;
+  }
+
+  /** Sea surface positions of the last frame (camera-relative, a = covered) — for soft contacts. */
+  get positions(): WebGLTexture | null {
+    return this.gbuf?.textures[0] ?? null;
   }
 
   get triangles() {
@@ -242,6 +247,13 @@ export class OceanSurface {
       } else p.set('uTerrainOn', 0).tex('uTFine', this.dummy).tex('uTCoarse', this.dummy);
     };
 
+    const tileRects = new Float32Array(MAX_TILES * 4);
+    const tileCount = Math.min(f.tiles.length, MAX_TILES);
+    for (let t = 0; t < tileCount; t++) {
+      const tb = f.tiles[t];
+      tileRects.set([tb.rect[0] - f.cam[0], tb.rect[1] - f.cam[2], tb.rect[2], tb.rect[3]], t * 4);
+    }
+
     // ── pass 1: surface G-buffer ──
     gbuf.bind();
     gl.clearColor(0, 0, 0, 0);
@@ -257,13 +269,7 @@ export class OceanSurface {
         .set('uFarDist', S.surfaceFarDistance).set('uGeoLodBias', S.geoLodBias).set('uSigHeightV', hs).set('uSigHeight', hs)
         .set('uBelow', below ? 1 : 0).set('uTime', f.time).set('uRain', f.rain).set('uNormalSharpen', S.normalSharpen)
         .set('uFoamGain', f.optics.foamGain).set('uFoamLife', ocean.foam.life).tex('uFoamArr', ocean.foamArray);
-      const rects = new Float32Array(MAX_TILES * 4);
-      const nTiles = Math.min(f.tiles.length, MAX_TILES);
-      for (let t = 0; t < nTiles; t++) {
-        const tb = f.tiles[t];
-        rects.set([tb.rect[0] - f.cam[0], tb.rect[1] - f.cam[2], tb.rect[2], tb.rect[3]], t * 4);
-      }
-      g.set('uTileCount', nTiles).set('uTileRect', rects).tex('uTileArr', f.tileArray ?? this.dummyArray);
+      g.set('uTileCount', tileCount).set('uTileRect', tileRects).tex('uTileArr', f.tileArray ?? this.dummyArray);
       if (f.shore) {
         g.set('uShoreRect', [f.shore.rect[0] - f.cam[0], f.shore.rect[1] - f.cam[2], f.shore.rect[2], f.shore.fade])
           .tex('uShoreSurf', f.shore.surf).tex('uShoreAux', f.shore.aux).tex('uShoreExtra', f.shore.extra);
@@ -316,11 +322,9 @@ export class OceanSurface {
       const WD = (w.constructor as typeof WindWaves).WIND_DOMAIN;
       p.tex('uWind', w.windTex.texture).set('uWindOff', [pmod(f.cam[0], WD), pmod(f.cam[2], WD)]).set('uWindDomain', WD).set('uWindRough', w.params.opticalRoughness);
     } else p.tex('uWind', this.dummyF32).set('uWindOff', [0, 0]).set('uWindDomain', 512).set('uWindRough', 0);
-    if (f.tierMap) {
-      p.tex('uTierMap', f.tierMap.texture).set('uTierRect', [f.tierMap.rect[0] - f.cam[0], f.tierMap.rect[1] - f.cam[2], f.tierMap.rect[2], 1]);
-    } else p.tex('uTierMap', this.dummy).set('uTierRect', [0, 0, 1, 0]);
-    if (f.aerial) p.set('uHasAerial', 1).tex('uAerialIn', f.aerial.inscatter).tex('uAerialT', f.aerial.transmittance);
-    else p.set('uHasAerial', 0).tex('uAerialIn', this.dummy).tex('uAerialT', this.dummy);
+    p.set('uTileCount', tileCount).set('uTileRect', tileRects).tex('uTileArr', f.tileArray ?? this.dummyArray);
+    if (f.aerial) p.set('uHasAerial', 1).tex('uAerial', f.aerial.texture).set('uAerialK', f.aerial.ratios);
+    else p.set('uHasAerial', 0).tex('uAerial', this.dummy).set('uAerialK', [1, 1, 1]);
     if (f.scene) p.set('uHasScene', 1).tex('uSceneColor', f.scene.color).tex('uSceneDepth', f.scene.depth);
     else p.set('uHasScene', 0).tex('uSceneColor', this.dummy).tex('uSceneDepth', this.dummy);
     gl.enable(gl.DEPTH_TEST);

@@ -153,6 +153,17 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 <Slider label="Loop period (0 = off)" value={s.loopPeriod} min={0} max={120} step={1} digits={0} unit=" s" onChange={(v) => { s.loopPeriod = v; engine.markSeaDirty(); rerender(); }} />
               </Section>
 
+              <Section title="Interaction lab">
+                <p className="text-[10px] leading-snug text-white/50">
+                  Glassy calm over a clear 5 m sand shelf; the pool's sphere, driven like the pool's.
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['drop', 'tow', 'bob', 'plunge', 'rock'] as const).map((sc) => (
+                    <Chip key={sc} onClick={() => { oceanActions.lab(engine, sc); rerender(); }}>{sc === 'plunge' ? 'plunge + yank' : sc}</Chip>
+                  ))}
+                </div>
+              </Section>
+
               <Section title="Interaction">
                 <div className="grid grid-cols-2 gap-1.5">
                   <Chip onClick={() => oceanActions.spawnBoat(engine)}>+ Boat</Chip>

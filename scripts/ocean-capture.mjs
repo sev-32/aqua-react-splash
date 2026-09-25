@@ -75,6 +75,8 @@ for (const shot of shots) {
   receipt.shots.push({ name: shot.name, file, ms: Date.now() - t0, ...result });
   console.log(`${shot.name}: gl=${result.gl} ${Date.now() - t0}ms Hs=${result.telemetry?.hs?.toFixed?.(2)} tris=${result.telemetry?.triangles}`);
 }
+receipt.samplerWarnings = await page.evaluate(() => window.__THALASSA_SAMPLER_WARNINGS__ ?? []);
+if (receipt.samplerWarnings.length) console.log('sampler warnings:', receipt.samplerWarnings);
 fs.writeFileSync(path.join(out, 'receipt.json'), JSON.stringify(receipt, null, 2));
 if (consoleErrors.length) console.log('console errors:', consoleErrors.slice(0, 10));
 await browser.close();

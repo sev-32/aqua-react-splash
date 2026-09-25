@@ -5,7 +5,13 @@
 import type { GL } from './context';
 
 export class AsyncReader {
+  /**
+   * Captures/tests: read synchronously so a frame's releases are acted on the next frame,
+   * exactly as on a GPU (software rasterisers otherwise signal fences many frames late).
+   */
+  static sync = false;
   private pbo: WebGLBuffer;
+  private syncReady = false;
   private fence: WebGLSync | null = null;
   readonly data: Float32Array;
   private pending = false;
@@ -28,6 +34,19 @@ export class AsyncReader {
   request(fbo: WebGLFramebuffer) {
     if (this.pending) return false;
     const gl = this.gl;
+    if (AsyncReader.sync) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      const px = this.width * this.height * 4;
+      for (let a = 0; a < this.attachments; a++) {
+        gl.readBuffer(gl.COLOR_ATTACHMENT0 + a);
+        gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.FLOAT, this.data, a * px);
+      }
+      gl.readBuffer(gl.COLOR_ATTACHMENT0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.pending = true;
+      this.syncReady = true;
+      return true;
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
     const bytes = this.width * this.height * 16;
@@ -46,6 +65,7 @@ export class AsyncReader {
 
   /** Returns true when new data landed in `data`. */
   poll(): boolean {
+    if (this.syncReady) { this.syncReady = false; this.pending = false; this.version++; return true; }
     if (!this.pending || !this.fence) return false;
     const gl = this.gl;
     const st = gl.clientWaitSync(this.fence, 0, 0);

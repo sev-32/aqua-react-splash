@@ -4,7 +4,7 @@
  *
  * Textures (N×N, real space unless noted):
  *   state   RG32F    (η, φ)                         ← FFT'd each step
- *   aux     RGBA32F  (hullDisp, foam, air, ηprev)
+ *   aux     RGBA32F  (hullDisp, foam, ∂η/∂t of the last step, ηprev)
  *   release RGBA32F×2 (V, V·w, V·ux, V·uz) + (V·x, V·z, V·η, events)  — extensive sums
  *   impacts RGBA16F  (Δη, Δfoam, Δφ, -) additive splats (clicks, spray re-entry)
  */
@@ -157,7 +157,6 @@ uniform sampler2D uRelB;
 uniform float uDt;
 uniform float uMaxSlope;
 uniform float uRelax;
-uniform float uWCrit;       // fastest coherent surface rise (m/s) before water detaches
 uniform int uLimiter;
 uniform float uSponge;       // width in cells
 uniform float uFoamLife;
@@ -176,17 +175,26 @@ void main(){
   float e0 = st.x;
   float lo = min(min(eta(c + ivec2(1,0)), eta(c - ivec2(1,0))), min(eta(c + ivec2(0,1)), eta(c - ivec2(0,1))));
   float released = 0.0;
-  float w = (e0 - aux.w)/max(uDt, 1e-4);                 // vertical surface velocity
-  if (uLimiter == 1){
+  float w = (e0 - aux.w)/max(uDt, 1e-4);                 // vertical surface velocity (this step)
+  float wPrev = aux.z;                                    // … and the step before
+  float acc = (w - wPrev)/max(uDt, 1e-4);
+  // Columns a body occupies are not a free surface: the water there is flowing around the
+  // hull (the bow wave outside it carries the excess), so nothing detaches from inside.
+  bool underBody = aux.x > 0.02;
+  if (uLimiter == 1 && !underBody){
     // (1) Shape: a crest steeper than the envelope cannot be a single-valued surface.
     float ex = e0 - lo - uMaxSlope*uDx;
     if (ex > 0.0){
       released = ex*uRelax;
     }
-    // (2) Motion: a surface rising faster than gravity can hold it together throws
-    //     water off (impacts, bow sheets). The excess rise leaves as a jet.
-    if (w > uWCrit && e0 > 0.0){
-      released += min((w - uWCrit)*uDt*uRelax*0.6, e0);
+    // (2) Ballistic separation: a rising surface can decelerate no faster than gravity
+    //     pulls its water back. Where the heightfield turns faster than that (a < −g:
+    //     a wave steeper than A·k = 1, a column stopping under an impact jet), the water
+    //     keeps going on its own — that excess leaves as a jet at the speed it had.
+    //     No resolution- or artist-dependent threshold: g is the only scale.
+    if (acc < -9.81 && wPrev > 0.0 && e0 > 0.0){
+      float dv = (-acc - 9.81)*uDt;
+      released += min(dv*uDt*uRelax, e0);
     }
     released = min(released, max(e0 - lo, 0.0) + max(e0, 0.0));
     st.x -= released;
@@ -195,21 +203,23 @@ void main(){
   if (released > 0.0){
     float V = released*uDx*uDx;
     vec2 xz = uOrigin + (vec2(c) + 0.5)*uDx;
-    ra += vec4(V, V*max(w, 0.0), V*u.x, V*u.y);
+    ra += vec4(V, V*max(wPrev, 0.0), V*u.x, V*u.y);
     rb += vec4(V*xz.x, V*xz.y, V*e0, 1.0);
   }
   // Foam: born where the surface was forced past its envelope and where hulls churn it.
   float churn = smoothstep(0.02, 0.2, aux.x)*smoothstep(0.4, 2.5, length(u));
   // Bounded birth: a release whitens toward saturation instead of stacking to solid white.
-  aux.y = aux.y*exp(-uDt/max(uFoamLife, 0.1)) + (1.0 - aux.y)*(1.0 - exp(-released*1.6)) + churn*uDt*0.35;
-  aux.z = aux.z*exp(-uDt/0.9) + (1.0 - aux.z)*(1.0 - exp(-released*3.0));
-  aux.y = clamp(aux.y, 0.0, 1.0); aux.z = clamp(aux.z, 0.0, 1.0);
+  // Released water is airborne: the surface keeps only the bubbles it entrained on leaving
+  // (a patchy trace), the bulk of the foam comes back with the re-entry splats.
+  aux.y = aux.y*exp(-uDt/max(uFoamLife, 0.1)) + (1.0 - aux.y)*(1.0 - exp(-released*0.5)) + churn*uDt*0.35;
+  aux.y = clamp(aux.y, 0.0, 1.0);
   // Absorbing sponge: waves leave the tile instead of wrapping (FFT periodicity).
   float edge = float(min(min(c.x, uN - 1 - c.x), min(c.y, uN - 1 - c.y)));
   float sp = 1.0 - smoothstep(0.0, uSponge, edge);
   float k = exp(-sp*sp*6.0*uDt);
   st *= k;
   aux.y *= mix(1.0, k, 0.5);
+  aux.z = (st.x - aux.w)/max(uDt, 1e-4);   // surface velocity after limiting → next step's wPrev
   aux.w = st.x;
   outState = vec4(st, 0.0, 0.0);
   outAux = aux;
@@ -218,7 +228,11 @@ void main(){
 }
 `;
 
-/** 4. Render-facing output: (η, ∂η/∂x, ∂η/∂z, foam) with linear filtering. */
+/**
+ * 4. Render-facing output: (η, ∂η/∂x, ∂η/∂z, foam) with linear filtering. Under a body the
+ * surface is drawn beneath the hull: the displaced water that the capacity source put in
+ * those columns is on its way outward, and must not cover the hull's dry side.
+ */
 export const TILE_OUTPUT_FS = /* glsl */ `#version 300 es
 precision highp float;
 precision highp int;
@@ -227,13 +241,17 @@ uniform sampler2D uState;
 uniform sampler2D uAux;
 uniform float uFade;
 out vec4 outField;
-float eta(ivec2 c){ c = clamp(c, ivec2(0), ivec2(uN - 1)); return texelFetch(uState, c, 0).x; }
+float eta(ivec2 c){
+  c = clamp(c, ivec2(0), ivec2(uN - 1));
+  float occ = texelFetch(uAux, c, 0).x;
+  return texelFetch(uState, c, 0).x - (occ > 0.02 ? occ + 0.05 : 0.0);
+}
 void main(){
   ivec2 c = ivec2(gl_FragCoord.xy);
   float e = eta(c);
   vec2 g = vec2(eta(c + ivec2(1,0)) - eta(c - ivec2(1,0)), eta(c + ivec2(0,1)) - eta(c - ivec2(0,1)))/(2.0*uDx);
   vec4 aux = texelFetch(uAux, c, 0);
-  outField = vec4(e, g, clamp(aux.y*0.6 + aux.z*0.3, 0.0, 1.5))*uFade;
+  outField = vec4(e, g, clamp(aux.y*0.75, 0.0, 1.5))*uFade;
 }
 `;
 

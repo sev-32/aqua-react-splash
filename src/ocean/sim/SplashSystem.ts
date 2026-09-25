@@ -31,7 +31,9 @@ export interface SplashDrawFrame {
   scatter: Vec3;
   backscatter: Vec3;
   ior: number;
-  hdr: Target;                 // frame colour + depth texture
+  hdr: Target;
+  /** Sea G-buffer positions (camera-relative) for soft contact, if the sea was drawn. */
+  seaPos?: WebGLTexture | null;                 // frame colour + depth texture
   mode: 'fluid' | 'points';
 }
 
@@ -194,7 +196,8 @@ export class SplashSystem {
       this.pShade.use().tex('uDepth', fl.depth.texture).tex('uThick', fl.thick.texture).tex('uScene', fl.scene.texture)
         .tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uInvViewProj', f.invViewProj).set('uTexel', [1 / w, 1 / h])
         .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uAbsorb', f.absorb)
-        .set('uScatter', f.scatter).set('uBackscatter', f.backscatter).set('uIor', f.ior);
+        .set('uScatter', f.scatter).set('uBackscatter', f.backscatter).set('uIor', f.ior)
+        .set('uHasSea', f.seaPos ? 1 : 0).tex('uSeaPos', f.seaPos ?? fl.depth.texture);
       this.quad.draw();
     }
     // Fine spray and mist as soft lit parcels (also the whole splash in points mode).

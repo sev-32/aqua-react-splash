@@ -3,7 +3,7 @@
  * (boats, rocks, buoys) and rendering.
  */
 import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/OceanEngine';
-import { createBody, stepBody, type Body } from '../physics/bodies';
+import { createBody, stepBody, scriptPose, type Body, type BodyScript } from '../physics/bodies';
 import { BodiesRenderer } from '../render/bodiesRender';
 import type { Vec3 } from '../math/mat4';
 
@@ -64,6 +64,13 @@ export class BodiesModule implements EngineModule {
     }
   }
 
+  /** The pool's sphere, at `at` (sea-level y), optionally driven by a script. */
+  spawnSphere(at: Vec3, radius = 0.6, script: Omit<BodyScript, 'origin'> | null = null, density = 700) {
+    const b = createBody({ label: 'sphere', density, pos: [...at] as Vec3, shape: { kind: 'sphere', radius }, color: [0.86, 0.84, 0.8] });
+    if (script) b.script = { ...script, origin: [...at] as Vec3 };
+    return this.add(b);
+  }
+
   clear() {
     this.bodies.length = 0;
   }
@@ -72,7 +79,14 @@ export class BodiesModule implements EngineModule {
     this.entries.length = 0;
     this.acc = Math.min(this.acc + dt, this.step * 12);
     while (this.acc >= this.step) {
-      for (const b of this.bodies) if (b.alive) stepBody(b, engine.water, this.step);
+      for (const b of this.bodies) {
+        if (!b.alive) continue;
+        stepBody(b, engine.water, this.step);           // (immersion stats; integration overridden below if scripted)
+        if (b.script) {
+          const k = scriptPose(b.script, b.age);
+          b.pos = k.pos; b.vel = k.vel; b.angVel = [0, 0, 0];
+        }
+      }
       this.acc -= this.step;
     }
     for (const b of this.bodies) {

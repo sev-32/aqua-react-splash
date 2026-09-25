@@ -31,11 +31,16 @@ export class InteractionModule implements EngineModule {
       foamLife: 6,
     });
     engine.heightProviders.push((x, z, h) => h + this.tiles.sampleHeight(x, z));
+    // A sphere of ~1 m needs ~8 cells across it; capture/low: 32 m tiles, medium+: 64 m.
+    this.fineDx = 0.25;
   }
 
+  /** Cell size of fine tiles (small bodies: the pool's sphere, rocks, buoys). */
+  readonly fineDx: number;
+
   /** JIT promotion hook (called by the scheduler, or directly when no scheduler is installed). */
-  requestTile(center: [number, number], reason: string, followId?: number) {
-    const t = this.tiles.ensure(center, reason, this.engine.time);
+  requestTile(center: [number, number], reason: string, followId?: number, fine = false) {
+    const t = this.tiles.ensure(center, reason, this.engine.time, fine ? this.fineDx : undefined);
     if (t && followId !== undefined && !t.followIds.includes(followId)) t.followIds.push(followId);
     return t;
   }

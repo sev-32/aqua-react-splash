@@ -20,6 +20,8 @@ export const oceanActions = {
   clearBodies: (e: OceanEngine) => run('clearBodies', e),
   goToShore: (e: OceanEngine, view?: 'surf' | 'beach' | 'aerial') => run('goToShore', e, view),
   frameBody: (e: OceanEngine, arg?: unknown) => run('frameBody', e, arg),
+  /** Interaction lab (glassy shelf + the pool's sphere): 'drop' | 'tow' | 'bob' | 'plunge' | 'rock'. */
+  lab: (e: OceanEngine, arg?: unknown) => run('lab', e, arg),
   /** Dispatch a click on the sea according to the current click mode. */
   click(e: OceanEngine, at: Vec3) {
     if (this.clickMode === 'rock') this.dropRock(e, at);

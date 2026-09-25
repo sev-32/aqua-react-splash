@@ -1,4 +1,3 @@
-import { WATER_OPTICS_GLSL } from '../render/waterOptics';
 /**
  * GLSL for drawing the T4 MLS-MPM splash (particles are simulated on the CPU in
  * sim/oceanMpm.ts and uploaded each frame into three RGBA32F textures):
@@ -37,7 +36,7 @@ void main(){
   gl_Position = clip;
   gl_PointSize = clamp(r*uViewportH*uProjY/max(clip.w, 0.05), 1.0, 96.0);
   float fadeIn = smoothstep(0.0, 0.06, M.y), fadeOut = smoothstep(0.0, 0.25, P.w);
-  vData = vec4(fadeIn*fadeOut, length(V.xyz), clamp(M.y/1.5, 0.0, 1.0), V.w);
+  vData = vec4(fadeIn*fadeOut, length(V.xyz), clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
 }`;
 
@@ -122,9 +121,9 @@ void main(){
   if (r2 > 1.0) discard;
   if (occluded(length(vRel))) discard;
   float t = sqrt(1.0 - r2)*uThickGain*vData.x;
-  // Splash water is aerated: jets glassy only at their fastest core, sheets whitening with
-  // speed and shear, everything still carrying entrained air.
-  float aer = 0.45 + 0.5*smoothstep(3.0, 10.0, vData.y)*(1.0 - 0.6*vData.z);
+  // The pool's splash was clear water: coherent sheets and jets stay glassy. Air is only
+  // entrained where the fluid is tearing apart (low MPM density) and in violent shear.
+  float aer = 0.75*(1.0 - vData.w) + 0.25*smoothstep(8.0, 16.0, vData.y);
   o = vec4(t, t*aer, 1.0, 1.0);
 }`;
 
@@ -168,11 +167,12 @@ precision highp float;
 in vec2 vUv;
 out vec4 o;
 uniform sampler2D uDepth, uThick, uScene, uEnv;
+uniform sampler2D uSeaPos;      // sea G-buffer (camera-relative position, a = valid): soft contact
+uniform int uHasSea;
 uniform mat4 uInvViewProj;
 uniform vec2 uTexel;
 uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
 uniform float uEnvLevels, uIor;
-${WATER_OPTICS_GLSL}
 #ifndef PI
 #define PI 3.14159265358979
 #endif
@@ -181,37 +181,83 @@ vec3 viewPos(vec2 uv, float dist){
   vec4 p = uInvViewProj*vec4(uv*2.0 - 1.0, 1.0, 1.0);
   return normalize(p.xyz/p.w)*dist;
 }
+// ── the sea's optics (render/oceanShaders.ts), so a splash is the same water ──
+float fresnelDielectric(float ci, float ei, float et){
+  float c = clamp(ci, 0.0, 1.0);
+  float st = ei/et*sqrt(max(0.0, 1.0 - c*c)); if (st >= 1.0) return 1.0;
+  float ct = sqrt(max(0.0, 1.0 - st*st));
+  float rs = (et*c - ei*ct)/max(et*c + ei*ct, 1e-6), rp = (ei*c - et*ct)/max(ei*c + et*ct, 1e-6);
+  return 0.5*(rs*rs + rp*rp);
+}
+vec3 envLod(vec3 d, float lod){ return textureLod(uEnv, dirToEquirect(d), clamp(lod, 0.0, uEnvLevels - 1.0)).rgb; }
+float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+/** Upward: the Nimbus sky. Downward: the sea around the splash (its own colour, from the frame) + the sky mirrored at grazing. */
+vec3 skyOrSea(vec3 r, float lod, vec3 sea){
+  if (r.y >= 0.0) return envLod(r, lod);
+  return mix(sea, envLod(vec3(r.x, -r.y, r.z), lod), fresnelDielectric(-r.y, 1.0, uIor));
+}
+/** Fluid depth at uv from the nearest valid half-res texel (bilinear across the empty sentinel would invent geometry). */
+float fluidDepth(vec2 uv){
+  vec2 hp = uv/uTexel - 0.5;
+  ivec2 c = ivec2(floor(hp));
+  vec2 f = fract(hp);
+  float z = 6e4, best = 1e9;
+  for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++){
+    float zz = texelFetch(uDepth, c + ivec2(i, j), 0).x;
+    float w = length(vec2(float(i), float(j)) - f);
+    if (zz < 5e4 && w < best){ best = w; z = zz; }
+  }
+  return z;
+}
+float hgW(float mu, float g){ float g2 = g*g; return (1.0 - g2)/(4.0*PI*pow(max(1.0 + g2 - 2.0*g*mu, 1e-4), 1.5)); }
+/** Single scattering of sun + sky through L metres of the sheet (POSEIDON phase, g = 0.74). */
+vec3 sheetColumn(vec3 trd, float L, out vec3 T){
+  vec3 sigT = uAbsorb + uScatter;
+  float Bg = (1.0 - 0.74)/(2.0*0.74)*((1.0 + 0.74)/sqrt(1.0 + 0.74*0.74) - 1.0);
+  vec3 src = uScatter*(hgW(dot(trd, uSunDir), 0.74)*uSunE*1.265 + uSkyE*0.934/0.8*Bg/(2.0*PI));
+  T = exp(-sigT*L);
+  return src*(1.0 - T)/max(sigT, vec3(1e-5));
+}
 void main(){
-  float z = texture(uDepth, vUv).x;
   vec3 th = texture(uThick, vUv).rgb;
-  if (z > 5e4 || th.b < 0.05) discard;
+  float z = fluidDepth(vUv);
+  if (z > 5e4 || th.b < 0.02) discard;
   vec3 P = viewPos(vUv, z);
-  float zx1 = texture(uDepth, vUv + vec2(uTexel.x, 0.0)).x, zx0 = texture(uDepth, vUv - vec2(uTexel.x, 0.0)).x;
-  float zy1 = texture(uDepth, vUv + vec2(0.0, uTexel.y)).x, zy0 = texture(uDepth, vUv - vec2(0.0, uTexel.y)).x;
+  float zx1 = fluidDepth(vUv + vec2(uTexel.x, 0.0)), zx0 = fluidDepth(vUv - vec2(uTexel.x, 0.0));
+  float zy1 = fluidDepth(vUv + vec2(0.0, uTexel.y)), zy0 = fluidDepth(vUv - vec2(0.0, uTexel.y));
   vec3 dx = abs(zx1 - z) < abs(z - zx0) && zx1 < 5e4 ? viewPos(vUv + vec2(uTexel.x, 0.0), zx1) - P : P - viewPos(vUv - vec2(uTexel.x, 0.0), zx0);
   vec3 dy = abs(zy1 - z) < abs(z - zy0) && zy1 < 5e4 ? viewPos(vUv + vec2(0.0, uTexel.y), zy1) - P : P - viewPos(vUv - vec2(0.0, uTexel.y), zy0);
   vec3 N = normalize(cross(dy, dx));
   vec3 V = normalize(-P);
   if (dot(N, V) < 0.0) N = -N;
-  float cosI = max(dot(N, V), 0.0);
-  float F = 0.02 + 0.6*pow(1.0 - cosI, 5.0);   // soft rims: the smoothed sheet is not a clean interface
+  float F = fresnelDielectric(max(dot(N, V), 0.0), 1.0, uIor);
   vec3 R = reflect(-V, N);
-  vec3 refl = textureLod(uEnv, dirToEquirect(normalize(vec3(R.x, abs(R.y), R.z))), 1.0).rgb;
   float thick = th.r;
+  // What lies behind the sheet (the sea, already shaded) seen through it, slightly refracted.
   vec2 off = N.xy*0.03*clamp(thick, 0.0, 1.0);
   vec3 behind = texture(uScene, vUv + off).rgb;
-  // The same water column the sea uses, over the sheet's thickness.
+  // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
+  vec3 refl = skyOrSea(R, 1.5, texture(uScene, vUv).rgb);
+  vec3 H = normalize(V + uSunDir);
+  float a2 = 0.012;
+  float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
+  refl += uSunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 trd = refract(-V, N, 1.0/uIor);
   if (dot(trd, trd) < 1e-6) trd = -N;
-  float Fsun = 0.02 + 0.98*pow(1.0 - max(dot(N, uSunDir), 0.0), 5.0);
   vec3 Tc;
-  vec3 column = waterColumn(normalize(vec3(trd.x, -abs(trd.y), trd.z)), thick*2.0, uSunE, uSkyE, Fsun, Tc);
+  // A crown or sheet is centimetres thick; the smoothed parcel thickness measures how much
+  // water is there, not the path light takes through it — a thin film of it.
+  vec3 column = sheetColumn(normalize(trd), min(thick, 1.5)*0.12, Tc);
   vec3 water = mix(behind*Tc + column, refl, F);
-  water += uSunE*pow(max(dot(R, uSunDir), 0.0), 400.0)*2.0;
-  // Aerated sheet → white water.
+  // Aerated water → white water (bubbles scatter all colours).
   float aer = clamp(th.g/max(thick, 1e-4), 0.0, 1.0);
   vec3 white = 0.85*(uSunE*(0.4 + 0.6*max(dot(N, uSunDir), 0.0)) + uSkyE)/PI;
   vec3 col = mix(water, white, smoothstep(0.3, 0.85, aer));
   float alpha = smoothstep(0.01, 0.09, thick);
+  // Soft contact: where the sheet meets the sea it becomes the sea (no cut line).
+  if (uHasSea == 1){
+    vec4 sp = texture(uSeaPos, vUv);
+    if (sp.a > 0.5) alpha *= smoothstep(0.0, 0.35, length(sp.xyz) - z);
+  }
   o = vec4(col, alpha);
 }`;
