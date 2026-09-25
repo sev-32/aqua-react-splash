@@ -76,7 +76,7 @@ export class SplashSystem {
    * Pack live particles (+ ligament samples, as in the pool's tendrils) for the GPU.
    * P: position, 1 · V: velocity, droplet radius (spray < 1.2 mm) · M: volume, age, kind, seed.
    */
-  upload(Pp: MpmParticles, bonds: SplashConnectivity | null, restDensity = 3) {
+  upload(Pp: MpmParticles, bonds: SplashConnectivity | null) {
     const { P, V, M } = this;
     let n = 0;
     const put = (x: number, y: number, z: number, vx: number, vy: number, vz: number, rd: number, vol: number, age: number, kind: number, seed: number) => {
@@ -92,8 +92,9 @@ export class SplashSystem {
       if (!(f & FLAG_ALIVE)) continue;
       const fast = Math.hypot(Pp.vx[i], Pp.vy[i], Pp.vz[i]) > 6;
       const rd = f & FLAG_FOAM ? (fast ? 6e-4 : 9e-4) : 3e-3;
-      // kind > 0: local fluid density / rest (sheets stay thick, isolated drops shrink); kind < 0: ligament.
-      put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd, Pp.vol[i], Pp.life[i], Math.max(0.05, Pp.density[i] / restDensity), Pp.seed[i]);
+      // kind > 0: connectivity, half the neighbour count (sheets and jets stay whole, isolated
+      // drops shrink); kind < 0: ligament.
+      put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd, Pp.vol[i], Pp.life[i], Math.max(0.05, Pp.neighbors[i] / 2), Pp.seed[i]);
     }
     if (bonds) {
       const { samples, thinPower } = bonds.p;
@@ -176,7 +177,7 @@ export class SplashSystem {
       gl.blendFunc(gl.ONE, gl.ONE);
       const pt = this.pThick.use();
       this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6);
-      pt.set('uSprayOnly', 0).set('uThickGain', 0.35);
+      pt.set('uSprayOnly', 0).set('uThickGain', 1);
       occ(pt);
       gl.drawArrays(gl.POINTS, 0, count);
       gl.disable(gl.BLEND);

@@ -137,23 +137,18 @@ export class SplashModule implements EngineModule {
       if (!(jet > 0)) { st.pending = 0; continue; }
       st.pending += jet * dt;
       if (st.pending < minV) continue;
-      // Launch velocity (radial vr, vertical vy). Entry: Wagner's jet along the surface
-      // tangent t = (h, a)/R — fast and flat while the waterline races out (ȧ = hU/a), upright
-      // at the equator, held slightly outward once the flow separates — plus the body's own
-      // normal velocity there, so the water leaves the surface instead of being struck by it.
-      // Exit: the mantle rises with the body and converges beneath it.
+      // Launch velocity (radial vr, vertical vy). Entry: the curtain leaves at the entry
+      // speed (stagnation pressure ½ρU² turned into sheet speed) along the waterline tangent,
+      // elevation atan(a/h): flat at first touch, upright at the equator. Wagner's flatter
+      // skirt at first touch is fast but a film — it holds almost none of the volume — so the
+      // curtain is launched no flatter than 45°, and no further inward than 80° once the flow
+      // has separated past the equator. Exit: the mantle rises with the body and converges.
       let vr = -0.1 * -U, vy = 0.85 * -U, ring = geo.a + 0.5 * dx;
       if (!exit) {
-        vr = 0.4 * U; vy = U;
-        if (b.shape.kind === 'sphere') {
-          const R = b.shape.radius ?? 1;
-          const h = Math.max(-R, Math.min(R, b.pos[1] - sea.height));
-          const jet = U * Math.min(Math.max((2 * h) / geo.a, 1), 2.5);
-          const tx = Math.max(h / R, 0.2), ty = geo.a / R, tl = Math.hypot(tx, ty);
-          const push = Math.max((U * h) / R, 0);
-          vr = (jet * tx) / tl + (push * geo.a) / R;
-          vy = (jet * ty) / tl - (push * h) / R;
-        }
+        const R = b.shape.kind === 'sphere' ? b.shape.radius ?? 1 : geo.a;
+        const h = Math.max(-R, Math.min(R, b.pos[1] - sea.height));
+        const th = Math.min(Math.max(Math.atan2(geo.a, h), Math.PI / 4), (80 * Math.PI) / 180);
+        vr = U * Math.cos(th); vy = U * Math.sin(th);
       }
       if (b.shape.kind === 'sphere') {
         // Just outside the collider at the launch height, so the solver sees water leaving it.
@@ -225,7 +220,7 @@ export class SplashModule implements EngineModule {
 
     // 4. Ligaments + upload for drawing.
     this.ligaments.update(this.mpm.particles, dt);
-    this.renderer.upload(this.mpm.particles, engine.settings.spray.render === 'fluid' ? this.ligaments : null, this.mpm.cfg.restDensity);
+    this.renderer.upload(this.mpm.particles, engine.settings.spray.render === 'fluid' ? this.ligaments : null);
   }
 
   /** Reaction of the splash on bodies (grid units → N), as the pool's sphere feedback. */

@@ -109,12 +109,16 @@ export interface EngineSettings {
 export const DEBUG_VIEWS: { id: number; label: string }[] = [
   { id: 0, label: 'Beauty' },
   { id: 1, label: 'Normals' },
-  { id: 2, label: 'CDLOD levels' },
+  { id: 2, label: 'Shading lanes (near / mid / far / horizon)' },
   { id: 3, label: 'Roughness (unresolved slope σ)' },
   { id: 4, label: 'Foam mass / air / age' },
   { id: 5, label: 'Jacobian (folds)' },
-  { id: 6, label: 'Scheduler tiers' },
-  { id: 7, label: 'Shore field' },
+  { id: 6, label: 'Interaction tiles' },
+  { id: 7, label: 'Shore / floor hit / transmittance' },
+  { id: 8, label: 'Reflection' },
+  { id: 9, label: 'Transmission ×10' },
+  { id: 10, label: 'Fresnel' },
+  { id: 11, label: 'Refraction receiver (march hit / scene / depth)' },
 ];
 
 export function opticsFor(type: WaterType, base?: Partial<WaterOptics>): WaterOptics {

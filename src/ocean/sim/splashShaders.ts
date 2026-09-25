@@ -17,11 +17,13 @@ uniform vec3 uCam;               // camera position relative to the splash origi
 uniform float uViewportH, uProjY;
 uniform float uSizeGain;
 uniform float uSprayOnly;        // 1: only fine spray (droplets < 1.2 mm) — the sheet goes to the fluid pass
-out vec4 vData;                  // x: alpha, y: speed, z: age01, w: droplet radius
+out vec4 vData;                  // x: alpha, y: speed, z: age01, w: coherence
 out vec3 vRel;
+out vec2 vSplat;                 // world radius of the parcel (m), water volume it carries (m³)
 void main(){
   ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
   vec4 P = texelFetch(uP, c, 0);
+  vSplat = vec2(1.0, 0.0);
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
   if (uSprayOnly > 0.5 && V.w > 0.0012){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
@@ -38,6 +40,7 @@ void main(){
   float fadeIn = smoothstep(0.0, 0.06, M.y), fadeOut = smoothstep(0.0, 0.25, P.w);
   vData = vec4(fadeIn*fadeOut, length(V.xyz), clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
+  vSplat = vec2(max(r, 1e-4), max(M.x, 0.0));
 }`;
 
 export const SPLASH_POINT_FS = /* glsl */ `#version 300 es
@@ -96,6 +99,7 @@ export const FLUID_DEPTH_FS = /* glsl */ `#version 300 es
 precision highp float;
 in vec4 vData;
 in vec3 vRel;
+in vec2 vSplat;
 layout(location=0) out vec4 oDepth;   // x: view distance (min via blending MIN), y: -, z: aeration
 uniform float uThickGain;
 ${OCCLUDE_GLSL}
@@ -105,14 +109,17 @@ void main(){
   if (r2 > 1.0) discard;
   float dist = length(vRel);
   if (occluded(dist)) discard;
-  oDepth = vec4(dist - sqrt(1.0 - r2)*0.3, 0.0, 0.0, 1.0);
+  // The parcel's own front surface: a sphere of its render radius (a fixed bulge larger than
+  // the parcel made every particle a bump, and the sun glinted off each one).
+  oDepth = vec4(dist - sqrt(1.0 - r2)*vSplat.x, 0.0, 0.0, 1.0);
 }`;
 
 export const FLUID_THICK_FS = /* glsl */ `#version 300 es
 precision highp float;
 in vec4 vData;
 in vec3 vRel;
-out vec4 o;                            // r: thickness (m), g: aeration·thickness, b: count
+in vec2 vSplat;
+out vec4 o;                            // r: water path (m), g: aeration·path, b: count
 uniform float uThickGain;
 ${OCCLUDE_GLSL}
 void main(){
@@ -120,7 +127,10 @@ void main(){
   float r2 = dot(d, d);
   if (r2 > 1.0) discard;
   if (occluded(length(vRel))) discard;
-  float t = sqrt(1.0 - r2)*uThickGain*vData.x;
+  // Volume-conserving splat: the profile 1.5·√(1−ρ²)·V/(πr²) integrates to the parcel's
+  // volume V over its disc, so overlapping splats sum to the water's path along the view
+  // ray — a 4 cm crown wall reads 4 cm face-on and more at grazing incidence.
+  float t = 1.5*sqrt(1.0 - r2)*vSplat.y/(3.14159265*vSplat.x*vSplat.x)*uThickGain*vData.x;
   // The pool's splash was clear water: coherent sheets and jets stay glassy. Air is only
   // entrained where the fluid is tearing apart (low MPM density) and in violent shear.
   float aer = 0.75*(1.0 - vData.w) + 0.25*smoothstep(8.0, 16.0, vData.y);
@@ -233,8 +243,9 @@ void main(){
   float F = fresnelDielectric(max(dot(N, V), 0.0), 1.0, uIor);
   vec3 R = reflect(-V, N);
   float thick = th.r;
-  // What lies behind the sheet (the sea, already shaded) seen through it, slightly refracted.
-  vec2 off = N.xy*0.03*clamp(thick, 0.0, 1.0);
+  // What lies behind the sheet (the sea, already shaded) seen through it, refracted: the
+  // lateral shift of a ray through a water path L is ~L·(1 − 1/n), projected to the screen.
+  vec2 off = N.xy*(1.0 - 1.0/uIor)*min(thick, 1.0)/max(z, 0.5)*0.9;
   vec3 behind = texture(uScene, vUv + off).rgb;
   // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
   vec3 refl = skyOrSea(R, 1.5, texture(uScene, vUv).rgb);
@@ -245,15 +256,16 @@ void main(){
   vec3 trd = refract(-V, N, 1.0/uIor);
   if (dot(trd, trd) < 1e-6) trd = -N;
   vec3 Tc;
-  // A crown or sheet is centimetres thick; the smoothed parcel thickness measures how much
-  // water is there, not the path light takes through it — a thin film of it.
-  vec3 column = sheetColumn(normalize(trd), min(thick, 1.5)*0.12, Tc);
+  // The thickness buffer is the water path along the view ray (volume-conserving splats).
+  vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), Tc);
   vec3 water = mix(behind*Tc + column, refl, F);
   // Aerated water → white water (bubbles scatter all colours).
   float aer = clamp(th.g/max(thick, 1e-4), 0.0, 1.0);
   vec3 white = 0.85*(uSunE*(0.4 + 0.6*max(dot(N, uSunDir), 0.0)) + uSkyE)/PI;
   vec3 col = mix(water, white, smoothstep(0.3, 0.85, aer));
-  float alpha = smoothstep(0.01, 0.09, thick);
+  // Coverage: wherever there is a film there is an interface; its see-through-ness is the
+  // Fresnel/Beer optics above, not alpha. Only the last millimetres feather the edge.
+  float alpha = smoothstep(0.0005, 0.004, thick);
   // Soft contact: where the sheet meets the sea it becomes the sea (no cut line).
   if (uHasSea == 1){
     vec4 sp = texture(uSeaPos, vUv);

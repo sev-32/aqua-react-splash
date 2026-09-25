@@ -74,6 +74,12 @@ export class MpmParticles {
   cyx: Float32Array; cyy: Float32Array; cyz: Float32Array;
   czx: Float32Array; czy: Float32Array; czz: Float32Array;
   density: Float32Array;
+  /**
+   * Kernel-weighted count of particles around this one: ≈0.2 alone, ≳2 inside a sheet or jet
+   * sampled at the emission spacing. Connectivity, not water fraction — a 4 cm crown sheet
+   * fills an eighth of a 32 cm cell yet is one continuous film.
+   */
+  neighbors: Float32Array;
   life: Float32Array;
   /** Seconds spent below the sea surface (settles within ~0.1 s, the pool's merge). */
   wet: Float32Array;
@@ -89,7 +95,7 @@ export class MpmParticles {
     this.cxx = f(); this.cxy = f(); this.cxz = f();
     this.cyx = f(); this.cyy = f(); this.cyz = f();
     this.czx = f(); this.czy = f(); this.czz = f();
-    this.density = f(); this.life = f(); this.seed = f(); this.wet = f();
+    this.density = f(); this.neighbors = f(); this.life = f(); this.seed = f(); this.wet = f();
     this.vol = new Float64Array(capacity);
     this.flags = new Uint8Array(capacity);
   }
@@ -98,7 +104,7 @@ export class MpmParticles {
 /** A dense grid with a touched list (the pool's sparse-activity trick), positioned in the world. */
 class SplashVolume {
   readonly n: number;
-  mx: Float32Array; my: Float32Array; mz: Float32Array; mass: Float32Array;
+  mx: Float32Array; my: Float32Array; mz: Float32Array; mass: Float32Array; count: Float32Array;
   active: Int32Array; touched: Uint8Array;
   activeCount = 0;
   /** World position of grid cell (0,0,0)'s corner. */
@@ -110,7 +116,7 @@ class SplashVolume {
   constructor(readonly cfg: MpmConfig) {
     this.n = cfg.nx * cfg.ny * cfg.nz;
     this.mx = new Float32Array(this.n); this.my = new Float32Array(this.n);
-    this.mz = new Float32Array(this.n); this.mass = new Float32Array(this.n);
+    this.mz = new Float32Array(this.n); this.mass = new Float32Array(this.n); this.count = new Float32Array(this.n);
     this.active = new Int32Array(this.n); this.touched = new Uint8Array(this.n);
     this.surf = new Float32Array(cfg.nx * cfg.nz);
   }
@@ -130,7 +136,7 @@ class SplashVolume {
   clear() {
     for (let a = 0; a < this.activeCount; a++) {
       const i = this.active[a];
-      this.mx[i] = 0; this.my[i] = 0; this.mz[i] = 0; this.mass[i] = 0; this.touched[i] = 0;
+      this.mx[i] = 0; this.my[i] = 0; this.mz[i] = 0; this.mass[i] = 0; this.count[i] = 0; this.touched[i] = 0;
     }
     this.activeCount = 0;
   }
@@ -210,6 +216,7 @@ export class OceanMpm {
     P.vx[i] = vx; P.vy[i] = vy; P.vz[i] = vz;
     P.cxx[i] = 0; P.cxy[i] = 0; P.cxz[i] = 0; P.cyx[i] = 0; P.cyy[i] = 0; P.cyz[i] = 0; P.czx[i] = 0; P.czy[i] = 0; P.czz[i] = 0;
     P.density[i] = this.cfg.restDensity;
+    P.neighbors[i] = 2;   // born inside its release: coherent until the solver says otherwise
     P.life[i] = 0;
     P.wet[i] = 0;
     P.vol[i] = vol;
@@ -257,14 +264,17 @@ export class OceanMpm {
     for (let i = 0; i < n; i++) {
       const a = i * GOLDEN_ANGLE + (this.rand() - 0.5) * 0.3;
       const nx = Math.cos(a), nz = Math.sin(a);
-      const foam = this.rand() < 0.4;
+      // Wind-torn breaking crests carry fine spray from the start; water a body throws off
+      // is clear, and turns white only where it breaks up (connectivity) or lands (foam).
+      const foam = kind === 'impact' && this.rand() < 0.4;
       const j = 0.8 + 0.4 * this.rand();
       if (crownOnly && r.vr !== undefined) {
-        // Entry jet: leaves the waterline ring along the body's surface — outward at vr,
-        // upward at vy (the tangent there), carried along with the body's drift.
+        // Body curtain: clear water leaving the waterline ring — outward at vr, upward at vy,
+        // carried along with the body's drift. Not aerated: it only turns to spray where the
+        // solver tears it apart.
         const ring = spread * (1 + 0.08 * this.rand());
         this.spawn(r.x + nx * ring, r.y + 0.02 + this.rand() * 0.04, r.z + nz * ring,
-          nx * r.vr * j + r.vx * 0.3, r.vy * j, nz * r.vr * j + r.vz * 0.3, vp, foam);
+          nx * r.vr * j + r.vx * 0.3, r.vy * j, nz * r.vr * j + r.vz * 0.3, vp, false);
       } else if (kind === 'impact' || crownOnly) {
         if (!crownOnly && i % 4 === 0) {
           // Central Worthington jet (pool spawnImpact): narrow, fast, near-vertical.
@@ -369,9 +379,10 @@ export class OceanMpm {
           const j = cj + oy - 1, cdy = j + 0.5 - gy, wxy = wx[ox] * wy[oy];
           for (let oz = 0; oz < 3; oz++) {
             const k = ck + oz - 1, cdz = k + 0.5 - gz;
-            const m = wxy * wz[oz] * mp;
+            const wgt = wxy * wz[oz], m = wgt * mp;
             const idx = v.idx(i, j, k);
             v.mass[idx] += m;
+            v.count[idx] += wgt;
             v.mx[idx] += m * (pvx + cxx * cdx + cxy * cdy + cxz * cdz);
             v.my[idx] += m * (pvy + cyx * cdx + cyy * cdy + cyz * cdz);
             v.mz[idx] += m * (pvz + czx * cdx + czy * cdy + czz * cdz);
@@ -392,13 +403,18 @@ export class OceanMpm {
       if (!this.inStencil(gx, gy, gz)) continue;
       const ci = Math.floor(gx), cj = Math.floor(gy), ck = Math.floor(gz);
       const wx = weights(gx - (ci + 0.5)), wy = weights(gy - (cj + 0.5)), wz = weights(gz - (ck + 0.5));
-      let density = 0;
+      let density = 0, nb = 0;
       for (let ox = 0; ox < 3; ox++) for (let oy = 0; oy < 3; oy++) {
         const wxy = wx[ox] * wy[oy];
-        for (let oz = 0; oz < 3; oz++) density += v.mass[v.idx(ci + ox - 1, cj + oy - 1, ck + oz - 1)] * wxy * wz[oz];
+        for (let oz = 0; oz < 3; oz++) {
+          const idx = v.idx(ci + ox - 1, cj + oy - 1, ck + oz - 1), w = wxy * wz[oz];
+          density += v.mass[idx] * w;
+          nb += v.count[idx] * w;
+        }
       }
       if (density <= 1e-6) continue;
       P.density[p] = density;
+      P.neighbors[p] = nb;
       const volume = (P.vol[p] * mpv) / density;
       const pressure = Math.max(0, stiffness * (density / restDensity - 1));
       const cxx = P.cxx[p], cxy = P.cxy[p], cxz = P.cxz[p], cyx = P.cyx[p], cyy = P.cyy[p], cyz = P.cyz[p], czx = P.czx[p], czy = P.czy[p], czz = P.czz[p];

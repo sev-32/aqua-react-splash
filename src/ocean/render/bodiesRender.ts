@@ -38,6 +38,7 @@ uniform float uCamY;
 uniform float uWaterline;     // world water height at the body (m)
 uniform vec3 uAbsorb;
 uniform float uRough;
+uniform float uPorous;        // 1: rock (water fills the pores and darkens it); 0: paint, gelcoat
 uniform float uFogDensity;
 uniform sampler2D uCloudShadow; uniform vec4 uCloudRect;   // camera-relative xz min, size, strength
 void main(){
@@ -51,7 +52,9 @@ void main(){
   if (dot(n, V) < 0.0) n = -n;   // generated meshes: light both faces consistently
   float worldY = vRel.y + uCamY;
   float wet = smoothstep(0.08, -0.12, worldY - uWaterline);
-  vec3 albedo = vColor*mix(1.0, 0.62, wet);
+  // Wet darkening is a porous-surface effect (Lekner & Dorf): water in the pores lowers the
+  // index contrast and traps light. A painted ball or a hull only turns glossier.
+  vec3 albedo = vColor*mix(1.0, 0.62, wet*uPorous);
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 H = normalize(V + uSunDir);
   float spec = pow(max(dot(n, H), 0.0), mix(24.0, 160.0, wet))*mix(0.08, 0.35, wet);
@@ -252,7 +255,7 @@ export class BodiesRenderer {
       if (!b.alive) continue;
       const { mesh, scale } = this.meshFor(b);
       p.set('uRot', quatToMat3(b.rot)).set('uRel', [b.pos[0] - f.cam[0], b.pos[1] - f.cam[1], b.pos[2] - f.cam[2]])
-        .set('uScale', scale).set('uWaterline', f.waterAt(b.pos[0], b.pos[2]));
+        .set('uScale', scale).set('uWaterline', f.waterAt(b.pos[0], b.pos[2])).set('uPorous', b.label === 'rock' ? 1 : 0);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
     }

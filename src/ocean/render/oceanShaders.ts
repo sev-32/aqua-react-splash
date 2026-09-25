@@ -731,7 +731,7 @@ void main(){
   gSeaBody = vec3(0.015, 0.063, 0.081)*gLight;   // POSEIDON far-lane body at its reference light
 
   vec3 col = vec3(0.0);
-  vec3 dbgRefl = vec3(0.0), dbgTrans = vec3(0.0); float dbgF = 0.0;
+  vec3 dbgRefl = vec3(0.0), dbgTrans = vec3(0.0), dbgScene = vec3(0.0); float dbgF = 0.0;
   float pathLen = 0.0, caustic = 0.0; vec3 inscatter = vec3(0.0), trans = vec3(1.0); bool floorHit = false;
   vec4 mom = vec4(0.0);
   if (!below){
@@ -754,24 +754,74 @@ void main(){
         float gap = max(sp.y - floorRel(q), 0.01);
         floorHit = traceFloor(ro, trd, uMaxFloorTrace, tF, fp);
         pathLen = floorHit ? tF : min(uMaxFloorTrace, gap/max(-trd.y, 0.025));
-        // Occluders under the surface (hulls, sunk rocks) from the scene depth.
+        // What the refracted ray meets in the scene (seabed terrain, submerged hulls, a sunk
+        // ball): march it through the scene depth — the first surface it passes behind is what
+        // this pixel sees through the water, refined by bisection.
         vec3 sceneRcv = vec3(-1.0);
         if (uHasScene == 1){
-          vec3 target = floorHit ? fp : ro + trd*pathLen;
-          vec3 cv = viewOf(target);
-          vec2 suv = cv.xy*0.5 + 0.5;
-          if (all(greaterThan(suv, vec2(0.0))) && all(lessThan(suv, vec2(1.0)))){
-            float zS = texture(uSceneDepth, suv).r;
-            if (zS < 1.0){
-              float sceneLin = linDepth(zS), targetLin = linDepth(cv.z*0.5 + 0.5), surfLin = linDepth(viewOf(sp).z*0.5 + 0.5);
-              if (sceneLin > surfLin + 0.05 && sceneLin < targetLin*1.02 + 0.3){
-                // The scene surface lies on (or in front of) the refracted path: it is the receiver.
-                pathLen = min(pathLen, pathLen*(sceneLin - surfLin)/max(targetLin - surfLin, 1e-3));
-                sceneRcv = texture(uSceneColor, suv).rgb;
-                floorHit = true;
+          vec3 cs = viewOf(sp);
+          float surfLin = linDepth(cs.z*0.5 + 0.5);
+          vec2 uv0 = cs.xy*0.5 + 0.5;
+          const int NS = 16;
+          float tPrev = 0.0;
+          bool hit = false, hidden = false;
+          for (int k = 1; k <= NS; k++){
+            float t = pathLen*float(k)/float(NS);
+            vec3 ck = viewOf(ro + trd*t);
+            vec2 uk = ck.xy*0.5 + 0.5;
+            if (any(lessThan(uk, vec2(0.0))) || any(greaterThan(uk, vec2(1.0)))) break;
+            float zS = texture(uSceneDepth, uk).r;
+            float sLin = linDepth(zS), rLin = linDepth(ck.z*0.5 + 0.5);
+            float slack = 0.02*rLin + 0.3;
+            // A body in front of this water pixel hides the sample: it is not what we see.
+            if (zS < 1.0 && sLin <= surfLin + 0.05){ hidden = true; tPrev = t; continue; }
+            if (zS < 1.0 && hidden && sLin < rLin + slack){
+              // The crossing happened behind the foreground body: take the first visible
+              // sample past it (the same seabed, a step further on).
+              sceneRcv = texture(uSceneColor, uk).rgb;
+              floorHit = true; hit = true;
+              break;
+            }
+            // Passed behind a scene surface that is itself under the water.
+            // (Behind by less than a step plus a body's thickness: a ray that grazes a ball's cap
+            // between two samples still finds it.)
+            if (zS < 1.0 && sLin < rLin + slack && rLin - sLin < pathLen/float(NS) + slack + 0.6){
+              float t0 = tPrev, t1 = t;
+              for (int b = 0; b < 4; b++){
+                float tm = 0.5*(t0 + t1);
+                vec3 cm = viewOf(ro + trd*tm);
+                float zm = texture(uSceneDepth, cm.xy*0.5 + 0.5).r;
+                float sm = linDepth(zm), rm = linDepth(cm.z*0.5 + 0.5);
+                if (zm < 1.0 && sm > surfLin + 0.05 && sm < rm + 0.02*rm + 0.05) t1 = tm; else t0 = tm;
+              }
+              vec3 ch = viewOf(ro + trd*t1);
+              sceneRcv = texture(uSceneColor, ch.xy*0.5 + 0.5).rgb;
+              pathLen = t1;
+              floorHit = true; hit = true;
+              break;
+            }
+            tPrev = t;
+          }
+          // The path's end hidden by a body in front of this water: step back toward the
+          // unrefracted view for an unoccluded sample of the same seabed (no body-shaped
+          // ghost stamped on the floor).
+          if (!hit){
+            // (A colour proxy only: the traced path still sets the attenuation.)
+            vec3 cv = viewOf(ro + trd*pathLen);
+            vec2 suv = cv.xy*0.5 + 0.5;
+            float z0 = texture(uSceneDepth, clamp(suv, vec2(0.0), vec2(1.0))).r;
+            if (hidden || (z0 < 1.0 && linDepth(z0) <= surfLin + 0.05)){
+              for (int k = 1; k <= 4; k++){
+                vec2 u = mix(suv, uv0, float(k)/4.0);
+                float zS = texture(uSceneDepth, u).r;
+                if (zS >= 1.0) break;
+                if (linDepth(zS) <= surfLin + 0.05) continue;
+                sceneRcv = texture(uSceneColor, u).rgb; floorHit = true;
+                break;
               }
             }
           }
+          dbgScene = vec3(hit ? 1.0 : 0.0, sceneRcv.x >= 0.0 ? 1.0 : 0.0, surfLin/30.0);
         }
         float beam;
         inscatter = integrateVolume(ro, trd, pathLen, trans, beam);
@@ -849,6 +899,7 @@ void main(){
   else if (uDebug == 8) col = dbgRefl;
   else if (uDebug == 9) col = dbgTrans*10.0;
   else if (uDebug == 10) col = vec3(dbgF);
+  else if (uDebug == 11) col = dbgScene;
   vec4 clip = uViewProj*vec4(sp, 1.0);
   gl_FragDepth = clamp(clip.z/clip.w*0.5 + 0.5, 0.0, 0.999999);
   outColor = vec4(max(col, vec3(0.0)), 1.0);
