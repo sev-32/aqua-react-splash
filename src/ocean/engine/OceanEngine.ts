@@ -15,6 +15,7 @@ import { SpectralOcean } from '../ocean/SpectralOcean';
 import { Sky } from '../render/sky';
 import { seaMorphForWind, seaWindDirAt, relaxSeaMorph, weatherLabel } from '../atmos/weather';
 import { OceanSurface, type SurfaceFrame, type TileBinding, type ShoreBinding } from '../render/OceanSurface';
+import { WindWaves } from '../ocean/windWaves';
 import { Post } from '../render/post';
 import { Camera, FlyController, type CameraPose } from './camera';
 import { defaultSettings, QUALITY, WATER_TYPES, opticsFor, type EngineSettings, type QualityName } from './settings';
@@ -70,6 +71,8 @@ export class OceanEngine {
   ocean: SpectralOcean;
   sky: Sky;
   surface: OceanSurface;
+  /** POSEIDON wind field + micro waves, driven by the weather. */
+  wind: WindWaves;
   post: Post;
   controller: FlyController | null = null;
   modules: EngineModule[] = [];
@@ -108,7 +111,8 @@ export class OceanEngine {
     this.timers = new GpuTimers(gl, caps.timer);
     this.ocean = new SpectralOcean(gl, caps, { n: q.fftN, sizes: q.cascadeSizes, seed: opts.seed ?? 20260925, mirrorSize: q.mirrorN });
     this.sky = new Sky(gl, q.sky);
-    this.surface = new OceanSurface(gl, q.cdlod);
+    this.surface = new OceanSurface(gl, q.grid);
+    this.wind = new WindWaves(gl, q.windN, q.windN);
     this.post = new Post(gl);
     this.camera.setPose({ position: [0, 7, 0], yawDeg: 40, pitchDeg: -7, fovDeg: 55 });
     this.applySea(true);
@@ -286,6 +290,7 @@ export class OceanEngine {
 
     this.timers.begin('spectral');
     this.ocean.update(this.time, dt);
+    this.wind.update(s.weather, this.time, dt);
     this.timers.end();
     if (this.ocean.mirror.ready) this.ocean.mirror.evaluate(this.time);
 
@@ -295,6 +300,7 @@ export class OceanEngine {
     const post = this.post;
     this.timers.begin('clouds');
     this.sky.renderView({
+      pixelAngle: (2 * Math.tan((this.camera.fov * Math.PI) / 360)) / post.height,
       invViewProj: this.camera.invViewProj, viewProj: this.camera.viewProj, width: post.width, height: post.height,
       camPos: this.camera.position, frameIndex: this.frameIndex,
     });
@@ -321,26 +327,33 @@ export class OceanEngine {
     }
     const frame: SurfaceFrame = {
       viewProj: this.camera.viewProj,
-      planes: this.camera.planes,
+      invViewProj: this.camera.invViewProj,
       cam: this.camera.position,
       time: this.time,
       env: this.sky.texture,
       envLevels: this.sky.levels,
+      envWidth: this.sky.size[0],
       sunDir: this.sky.sunDir,
       sunE: this.sky.sunRadiance,
       skyE: this.skyE,
       optics: s.optics,
+      surface: s.surface,
       debug: s.debug,
-      earthRadius: s.earthCurvature ? 6.371e6 : 0,
+      earthRadius: s.earthCurvature ? 6.36e6 : 0,
       tiles,
       tileArray,
       shore,
       tierMap: this.tierMap,
       terrain: this.terrainBinding,
       scene: this.sceneBinding,
-      geoLodBias: s.geoLodBias,
+      near: this.camera.near,
+      far: this.camera.far,
       cloud: this.cloudShadow,
       rain: s.weather.precipitation,
+      haze: s.weather.haze,
+      wind: this.wind,
+      hdr: post.hdr,
+      aerial: this.sky.aerial ? { inscatter: this.sky.aerial.textures[0], transmittance: this.sky.aerial.textures[1] } : null,
     };
     post.hdr.bind();
     this.timers.begin('surface');
@@ -365,14 +378,13 @@ export class OceanEngine {
       a.frames = 0;
       a.t0 = now;
       const st = this.ocean.stats;
-      const sel = this.surface.lastSelection;
       const t: EngineTelemetry = {
         ...this.emptyTelemetry(),
         fps: a.fps,
         frameMs: 1000 / Math.max(a.fps, 1e-3),
         cpuMs,
         triangles: this.surface.triangles,
-        nodes: (sel?.fullCount ?? 0) + (sel?.halfCount ?? 0),
+        nodes: 0,
         gpu: Object.fromEntries(this.timers.ms),
         hs: st?.hs ?? 0,
         tp: st?.tp ?? 0,
@@ -408,6 +420,7 @@ export class OceanEngine {
     this.ocean.dispose();
     this.sky.dispose();
     this.surface.dispose();
+    this.wind.dispose();
     this.post.dispose();
     this.sceneTarget?.dispose();
   }

@@ -177,6 +177,28 @@ void initClouds(){ cloudBottom = Rp + uCloudBase; cloudTop = Rp + uCloudBase + u
 
 struct Dens { float d; float h; float edge; };
 
+/**
+ * Projected-footprint LOD (Nimbus A11.16 ladder): metres per pixel at the sample. Native
+ * detail to 140 m/px, then eight overlapping ramps down to a filtered coarse field by
+ * ~1.9 km/px — so the deck seen from orbit is the same clouds, prefiltered, not speckle.
+ */
+uniform float uPixelAngle;          // radians per output pixel (view) / per env texel (bake)
+float gPixelM = 1.0;
+float cloudLodScalar(float pixelM){
+  float q = 0.0;
+  q += 0.06*smoothstep(140.0, 220.0, pixelM);
+  q += 0.08*smoothstep(220.0, 320.0, pixelM);
+  q += 0.10*smoothstep(320.0, 450.0, pixelM);
+  q += 0.12*smoothstep(450.0, 620.0, pixelM);
+  q += 0.14*smoothstep(620.0, 840.0, pixelM);
+  q += 0.16*smoothstep(840.0, 1120.0, pixelM);
+  q += 0.16*smoothstep(1120.0, 1460.0, pixelM);
+  q += 0.18*smoothstep(1460.0, 1900.0, pixelM);
+  return clamp(q, 0.0, 1.0);
+}
+/** Mip level of a noise atlas with \`texM\` metres per texel at the current footprint. */
+float noiseLod(float texM){ return max(log2(max(gPixelM, 1.0)/texM), 0.0); }
+
 /** Weather coverage (Nimbus "classic" field, advected by the steering wind). */
 float weatherCoverage(vec2 xz){
   float m = fbm2((xz + uWindOffset*0.8)*0.00004 + 13.0);
@@ -210,7 +232,9 @@ Dens cloudField(vec3 p, bool cheap){
   vec3 drift = vec3(uWindOffset.x, uCloudTime*0.35, uWindOffset.y);
   // Storm cells are wider than fair-weather cumulus (5–10 km vs 1–2 km).
   float cellM = mix(4096.0, 8192.0, smoothstep(0.6, 1.0, uCloudType));
-  vec4 s = textureLod(uShape, (cs + drift)*(1.0/cellM), 0.0);
+  float lodQ = cloudLodScalar(gPixelM);
+  float shapeTexM = cellM/float(textureSize(uShape, 0).x);
+  vec4 s = textureLod(uShape, (cs + drift)*(1.0/cellM), noiseLod(shapeTexM));
   float lowFBM = s.g*0.625 + s.b*0.25 + s.a*0.125;
   float base = sat(remap(s.r, lowFBM - 1.0, 1.0, 0.0, 1.0));
   // Per-turret ceilings: each thermal tops out at its own buoyancy limit; the base stays flat.
@@ -223,20 +247,20 @@ Dens cloudField(vec3 p, bool cheap){
   float d = sat(remap(base, 1.0 - cov, 1.0, 0.0, 1.0))*heightProfile(h, hT);
   if (d <= 0.001) return o;
   // Convective meso-structure from the atlas at 3.3× frequency (billows / cauliflower).
-  vec4 b = textureLod(uShape, (cs + drift*1.2)*(1.0/1240.0) + vec3(0.37, h*0.42, 0.11), 0.0);
-  float billow = b.g*0.5 + b.b*0.3 + b.a*0.2;
+  vec4 b = textureLod(uShape, (cs + drift*1.2)*(1.0/1240.0) + vec3(0.37, h*0.42, 0.11), noiseLod(1240.0/float(textureSize(uShape, 0).x)));
+  float billow = mix(b.g*0.5 + b.b*0.3 + b.a*0.2, 0.5, lodQ);
   float nearTop = smoothstep(0.34, 0.98, hT);
-  if (!cheap){
+  if (!cheap && lodQ < 0.98){
     float anatomy = mix(0.55, 1.35, smoothstep(0.30, 0.72, billow));
     d = sat(d*mix(1.0, anatomy, BILLOW*0.9));
     float topSigned = (billow - 0.5)*2.4*nearTop*TOPBILLOW;
     topSigned = min(topSigned, 0.0) + max(topSigned, 0.0)*smoothstep(0.105, 0.40, d);
     d = sat(d + topSigned);
     // Edge erosion by the detail atlas (billowy near the base, wispy near the top).
-    vec3 dt = textureLod(uDetailTex, (cs + drift*1.4)*(1.0/340.0), 0.0).rgb;
+    vec3 dt = textureLod(uDetailTex, (cs + drift*1.4)*(1.0/340.0), noiseLod(340.0/float(textureSize(uDetailTex, 0).x))).rgb;
     float dfbm = dt.r*0.625 + dt.g*0.25 + dt.b*0.125;
     float mod = mix(dfbm, 1.0 - dfbm, sat(h*4.0));
-    d = sat(remap(d, mod*DETAIL*0.6, 1.0, 0.0, 1.0));
+    d = sat(remap(d, mod*DETAIL*0.6*(1.0 - lodQ), 1.0, 0.0, 1.0));
   } else {
     d = sat(d + (billow - 0.535)*nearTop*TOPBILLOW*1.08);
   }
@@ -340,7 +364,10 @@ vec4 marchClouds(vec3 ro, vec3 rd, float tLimit, float jitter, int steps, int li
   for (int i = 0; i < 256; i++){
     if (i >= steps*2 || t > tEnd || T < 0.01) break;
     vec3 p = ro + rd*t;
-    float ds = max(minDs, t*k);
+    // Geometric step, but never fewer than \`steps\` samples across the shell (orbit: the
+    // shell is a thin slab far away — distance-proportional steps would skip it).
+    float ds = max(minDs, min(t*k, span/float(steps)));
+    gPixelM = t*uPixelAngle;
     Dens d = cloudField(p, false);
     if (d.d > 0.004){
       if (empty > 0){ t -= ds*0.5; empty = 0; p = ro + rd*t; d = cloudField(p, false); }

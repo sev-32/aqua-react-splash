@@ -6,7 +6,7 @@ import { DEFAULT_SEA_CONTROLS, type SeaStateControls } from '../spectrum/seaStat
 import { DEFAULT_SKY, type SkyParams, type SkyQuality } from '../render/sky';
 import { DEFAULT_WEATHER, type WeatherParams } from '../atmos/weather';
 import { DEFAULT_POST, type PostParams } from '../render/post';
-import type { WaterOptics } from '../render/OceanSurface';
+import { DEFAULT_SURFACE, type WaterOptics, type SurfaceParams } from '../render/OceanSurface';
 import type { CdlodConfig } from '../render/cdlod';
 import type { FoamParams } from '../ocean/SpectralOcean';
 
@@ -24,6 +24,11 @@ export interface QualityTier {
   shoreN: number;
   sprayCapacity: number;
   sky: SkyQuality;
+  /** Projected-grid vertices (columns, rows) of the sea surface (POSEIDON: 512 × 427). */
+  grid: [number, number];
+  /** Single-scattering steps along the refracted ray (POSEIDON: 14, capture 5). */
+  volumeSteps: number;
+  windN: number;
 }
 
 const cd = (leafSize: number, patchQuads: number, levels: number, coverage = 42000): CdlodConfig => ({
@@ -35,11 +40,11 @@ const sky = (envWidth: number, cloudScale: number, cloudSteps: number, lightStep
 });
 
 export const QUALITY: Record<QualityName, QualityTier> = {
-  capture: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 1, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 4096, sky: sky(512, 0.3, 48, 4, 28, 4, 128, 64) },
-  low: { fftN: 128, cascadeSizes: [1379, 263, 17.9], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 0.75, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 8192, sky: sky(512, 0.25, 36, 4, 20, 8, 128, 64) },
-  medium: { fftN: 256, cascadeSizes: [1379, 263, 17.9], mirrorN: 64, skyWidth: 1024, cdlod: cd(8, 32, 13), renderScale: 1, maxDpr: 1.25, tileN: 256, shoreN: 384, sprayCapacity: 16384, sky: sky(1024, 0.33, 56, 5, 28, 8, 256, 128) },
-  high: { fftN: 256, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 1024, cdlod: cd(6, 48, 14), renderScale: 1, maxDpr: 1.5, tileN: 256, shoreN: 512, sprayCapacity: 32768, sky: sky(1024, 0.5, 72, 6, 32, 8, 256, 128) },
-  ultra: { fftN: 512, cascadeSizes: [1379, 263, 41.3, 6.1], mirrorN: 64, skyWidth: 2048, cdlod: cd(4, 64, 15), renderScale: 1, maxDpr: 2, tileN: 512, shoreN: 512, sprayCapacity: 65536, sky: sky(2048, 0.5, 112, 6, 40, 8, 512, 128) },
+  capture: { grid: [320, 267], volumeSteps: 6, windN: 128, fftN: 256, cascadeSizes: [1400, 280, 18], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 1, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 4096, sky: sky(512, 0.3, 48, 4, 28, 4, 128, 64) },
+  low: { grid: [256, 213], volumeSteps: 6, windN: 128, fftN: 128, cascadeSizes: [1400, 280, 18], mirrorN: 32, skyWidth: 512, cdlod: cd(8, 16, 13), renderScale: 0.75, maxDpr: 1, tileN: 128, shoreN: 256, sprayCapacity: 8192, sky: sky(512, 0.25, 36, 4, 20, 8, 128, 64) },
+  medium: { grid: [384, 320], volumeSteps: 10, windN: 256, fftN: 256, cascadeSizes: [1400, 280, 18], mirrorN: 64, skyWidth: 1024, cdlod: cd(8, 32, 13), renderScale: 1, maxDpr: 1.25, tileN: 256, shoreN: 384, sprayCapacity: 16384, sky: sky(1024, 0.33, 56, 5, 28, 8, 256, 128) },
+  high: { grid: [512, 427], volumeSteps: 14, windN: 256, fftN: 256, cascadeSizes: [1400, 280, 18], mirrorN: 64, skyWidth: 1024, cdlod: cd(6, 48, 14), renderScale: 1, maxDpr: 1.5, tileN: 256, shoreN: 512, sprayCapacity: 32768, sky: sky(1024, 0.5, 72, 6, 32, 8, 256, 128) },
+  ultra: { grid: [768, 640], volumeSteps: 16, windN: 256, fftN: 512, cascadeSizes: [1400, 280, 18], mirrorN: 64, skyWidth: 2048, cdlod: cd(4, 64, 15), renderScale: 1, maxDpr: 2, tileN: 512, shoreN: 512, sprayCapacity: 65536, sky: sky(2048, 0.5, 112, 6, 40, 8, 512, 128) },
 };
 
 export interface WaterType {
@@ -57,6 +62,8 @@ export interface WaterType {
  * Colour then emerges from Gordon's reflectance model — nothing is painted.
  */
 export const WATER_TYPES: WaterType[] = [
+  { id: 'steel', label: 'Open ocean (POSEIDON steel-teal)', note: 'POSEIDON R9 defaults: σa (0.20, 0.055, 0.021), σs (0.005, 0.032, 0.055)·0.72 — a lit, translucent steel-teal body.',
+    absorb: [0.20, 0.055, 0.021], backscatter: [0.0009, 0.0021, 0.0034], scatter: [0.0036, 0.023, 0.040] },
   { id: 'oceanic', label: 'Open ocean (Jerlov I)', note: 'Oligotrophic blue water: almost no particles, deep navy body, violet-blue glow.',
     absorb: [0.34, 0.058, 0.018], backscatter: [0.0010, 0.0017, 0.0030], scatter: [0.03, 0.035, 0.045] },
   { id: 'tropical', label: 'Tropical lagoon', note: 'Carbonate sand particles backscatter strongly over clear water: electric cyan.',
@@ -80,6 +87,8 @@ export interface EngineSettings {
   post: PostParams;
   waterType: string;
   optics: WaterOptics;
+  /** POSEIDON surface parameters (volume, receivers, lanes, glitter). */
+  surface: SurfaceParams;
   foam: FoamParams;
   earthCurvature: boolean;
   geoLodBias: number;
@@ -116,9 +125,11 @@ export function opticsFor(type: WaterType, base?: Partial<WaterOptics>): WaterOp
     ior: 1.333,
     sss: 0.9,
     glitter: 1.0,
-    roughnessGain: 1.0,
+    // POSEIDON ran roughnessGain 1.5 on a LUT holding half the modal slope variance.
+    roughnessGain: 0.75,
     fogDensity: 1 / 26000,
-    foamGain: 1.0,
+    // Whitecaps kept subtle (POSEIDON shipped them off) until they reach Foam Foundry quality.
+    foamGain: 0.4,
     foamDetailDist: 900,
     ...base,
   };
@@ -134,8 +145,9 @@ export function defaultSettings(quality: QualityName = 'high'): EngineSettings {
     sky: { ...DEFAULT_SKY },
     weather: { ...DEFAULT_WEATHER },
     post: { ...DEFAULT_POST },
-    waterType: 'oceanic',
+    waterType: 'steel',
     optics: opticsFor(WATER_TYPES[0]),
+    surface: { ...DEFAULT_SURFACE, volumeSteps: QUALITY[quality].volumeSteps },
     foam: { foldStart: 0.5, foldFull: 1.0, birth: 3, life: 7, airLife: 1.4, spread: 0.6, coverage: 1, calibrate: true },
     earthCurvature: true,
     geoLodBias: 0.35,

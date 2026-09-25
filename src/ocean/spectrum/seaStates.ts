@@ -130,10 +130,14 @@ export interface SeaStateControls {
   spread: number;       // >1 = broader (short-crested), <1 = long-crested
   choppiness: number;   // multiplier on the state's λ
   depth: number;        // global dispersion/TMA depth (m)
+  /** Close-chop family gain (POSEIDON seaChopScale). */
+  chop?: number;
+  /** Crossing secondary-system gain (POSEIDON seaCrossSeaScale). */
+  crossSea?: number;
 }
 
 export const DEFAULT_SEA_CONTROLS: SeaStateControls = {
-  morph: 3, energy: 1, swell: 1, windSea: 1, directionOffsetDeg: 0, spread: 1, choppiness: 1, depth: 1500,
+  morph: 3, energy: 1, swell: 1, windSea: 1, directionOffsetDeg: 0, spread: 1, choppiness: 1, depth: 1500, chop: 1, crossSea: 1,
 };
 
 /** Resolve the two neighbouring library states and blend weight for a morph position. */

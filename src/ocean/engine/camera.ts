@@ -53,6 +53,9 @@ export class Camera {
     // Near plane scales gently with altitude so depth precision follows the view.
     const alt = Math.abs(this.position[1]);
     this.near = clamp(alt * 0.02, 0.05, 5);
+    // Far plane reaches the planet's horizon (and the limb from orbit).
+    const horizon = Math.sqrt(2 * 6.36e6 * alt + alt * alt);
+    this.far = Math.max(300000, horizon * 1.3 + 20000);
     this.view = viewFromBasis(this.forward);
     this.proj = perspective((this.fov * Math.PI) / 180, aspect, this.near, this.far);
     this.viewProj = mul4(this.proj, this.view);

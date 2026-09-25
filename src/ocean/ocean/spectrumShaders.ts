@@ -117,6 +117,58 @@ void main(){
 }
 `;
 
+/**
+ * Cascade-family spectrum (POSEIDON R6.4/R7 look authority). One lobe per
+ * primary/secondary system; cascade c's family lives in uFam*[c]. CPU twin:
+ * spectrum/families.ts familyEnergy().
+ */
+export const FAMILY_GLSL = /* glsl */ `
+uniform vec4 uFam0[${MAX_CASCADES}];  // A, windSpeed, dir.x, dir.z
+uniform vec4 uFam1[${MAX_CASCADES}];  // alignment, kp, peakEnhancement, bandwidth
+uniform vec4 uFam2[${MAX_CASCADES}];  // floor, secondary A, secondary dir.x, dir.z
+uniform vec4 uFam3[${MAX_CASCADES}];  // secondary alignment, kp, bandwidth, -
+float famPeak(float k, float kp, float bw){ float x = log(max(k, 1e-6)/max(kp, 1e-6)); return exp(-0.5*x*x/max(bw*bw, 0.0025)); }
+float famDir(vec2 kh, vec2 d, float a, float f){ return max(f, pow(max(dot(kh, d), 0.0), max(a, 0.01))); }
+float famLobe(vec2 k, float A, float ws, vec2 d, float al, float kp, float pe, float bw, float fl){
+  float k2 = dot(k, k);
+  if (k2 < 1e-12 || A <= 0.0) return 0.0;
+  float kl = sqrt(k2), L = max(ws*ws/G, 0.1);
+  float base = (A/(k2*k2))*exp(-1.0/max(k2*L*L, 1e-8))*0.5;
+  return max(base*exp(-k2*0.00016)*(1.0 + pe*famPeak(kl, kp, bw))*famDir(k/kl, d, al, fl), 0.0);
+}
+float familyEnergy(int c, vec2 k){
+  vec4 a = uFam0[c], b = uFam1[c], s = uFam2[c], t = uFam3[c];
+  float e = famLobe(k, a.x, a.y, a.zw, b.x, b.y, b.z, b.w, s.x);
+  if (s.y > 0.0) e += famLobe(k, s.y, a.y, s.zw, t.x, t.y, b.z*0.75, t.z, s.x*0.7);
+  return e;
+}
+`;
+
+/** h0 for the family spectrum: amplitude √(2·energy) on unit-variance complex noise (POSEIDON's draw variance). */
+export const H0_FAMILY_FS = /* glsl */ `#version 300 es
+precision highp float;
+precision highp int;
+#define G 9.81
+#define PI 3.14159265358979
+${FAMILY_GLSL}
+${ATLAS_COMMON}
+uniform sampler2D uNoise;
+out vec4 outH0;
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  int c = p.x / uN, ix = p.x - c*uN, iz = p.y;
+  if (!inBand(c, ix, iz)){ outH0 = vec4(0.0); return; }
+  vec2 k = modeK(c, ix, iz);
+  float ap = sqrt(2.0*familyEnergy(c, k));
+  // conj(h0(−k)): the −k mode's own band test (bands are radial, so it shares ours)
+  float am = sqrt(2.0*familyEnergy(c, -k));
+  int mx = (uN - ix) % uN, mz = (uN - iz) % uN;
+  vec2 np = texelFetch(uNoise, ivec2(c*uN + ix, iz), 0).rg;
+  vec2 nm = texelFetch(uNoise, ivec2(c*uN + mx, mz), 0).rg;
+  outH0 = vec4(np*ap, nm.x*am, -nm.y*am);
+}
+`;
+
 /** Time evolution + packing of 8 real fields into 4 complex slots (2 MRT). */
 export const EVOLVE_FS = /* glsl */ `#version 300 es
 precision highp float;
@@ -194,13 +246,14 @@ uniform sampler2D uSrcA;
 uniform sampler2D uSrcB;
 uniform int uN;
 uniform int uCascade;
-uniform float uChop;
+uniform float uChopC[${MAX_CASCADES}];   // λ per cascade (family crop)
 layout(location=0) out vec4 outDisp;   // λDx, h, λDz, λDxz
 layout(location=1) out vec4 outDeriv;  // Sx, Sz, λDxx, λDzz
 void main(){
   ivec2 p = ivec2(gl_FragCoord.xy);
   ivec2 q = ivec2(uCascade*uN + p.x, p.y);
   vec4 a = texelFetch(uSrcA, q, 0), b = texelFetch(uSrcB, q, 0);
+  float uChop = uChopC[uCascade];
   outDisp = vec4(a.x*uChop, a.y, a.z*uChop, a.w*uChop);
   outDeriv = vec4(b.x, b.y, b.z*uChop, b.w*uChop);
 }

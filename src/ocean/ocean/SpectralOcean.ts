@@ -9,13 +9,12 @@
  * LUT (CPU polar integral) and the CPU spectral mirror (deterministic twin).
  */
 import { Program, Target, LayerTarget, Quad, FULLSCREEN_VS, createTexture, createTextureArray, FMT, type GL, type GLCaps } from '../gl/context';
-import { H0_FS, EVOLVE_FS, FFT_FS, RESOLVE_FS, FOAM_FS, MAX_SYSTEMS, MAX_CASCADES } from './spectrumShaders';
+import { H0_FAMILY_FS, EVOLVE_FS, FFT_FS, RESOLVE_FS, FOAM_FS, MAX_CASCADES } from './spectrumShaders';
 import {
-  makeLayout, generateNoiseAtlas, spreadingNormLUT, makeSpectrumModel, computeSpectralStats,
-  SPREAD_LUT_SIZE, SLOPE_LUT_SIZE, type CascadeLayout, type SpectralStats, type SpectrumModel,
+  makeLayout, generateNoiseAtlas, SLOPE_LUT_SIZE, type CascadeLayout, type SpectralStats,
 } from '../spectrum/cascades';
-import { prepareSystem, type WaveSystem } from '../spectrum/physics';
-import { SEA_STATES, adjustSystems, seaStateBracket, type SeaStateControls } from '../spectrum/seaStates';
+import { SEA_STATES, seaStateBracket, type SeaStateControls } from '../spectrum/seaStates';
+import { FAMILY_LIBRARY, makeFamilyModel, familyStats, type FamilyModel } from '../spectrum/families';
 import { SpectralMirror } from '../spectrum/mirror';
 
 export interface SpectralOceanOptions {
@@ -52,7 +51,7 @@ export class SpectralOcean {
   private quad: Quad;
   private progH0: Program; private progEvolve: Program; private progFft: Program;
   private progResolve: Program; private progFoam: Program;
-  private noiseTex: WebGLTexture; private spreadLutTex: WebGLTexture;
+  private noiseTex: WebGLTexture;
   private h0: Target;
   private work: [Target, Target];
   /** Cascade products as texture arrays (layer = cascade) — 3 sampler units total. */
@@ -68,7 +67,8 @@ export class SpectralOcean {
 
   // State
   stats: SpectralStats | null = null;
-  model: SpectrumModel | null = null;
+  model: FamilyModel | null = null;
+  /** Largest per-cascade λ (bounds for LOD selection). */
   choppiness = 1;
   depth = 1500;
   loopPeriod = 0;
@@ -95,7 +95,7 @@ export class SpectralOcean {
     this.mirror = new SpectralMirror(opts.mirrorSize);
     this.quad = new Quad(gl);
 
-    this.progH0 = new Program(gl, 'ocean.h0', FULLSCREEN_VS, H0_FS);
+    this.progH0 = new Program(gl, 'ocean.h0', FULLSCREEN_VS, H0_FAMILY_FS);
     this.progEvolve = new Program(gl, 'ocean.evolve', FULLSCREEN_VS, EVOLVE_FS);
     this.progFft = new Program(gl, 'ocean.fft', FULLSCREEN_VS, FFT_FS);
     this.progResolve = new Program(gl, 'ocean.resolve', FULLSCREEN_VS, RESOLVE_FS);
@@ -103,7 +103,6 @@ export class SpectralOcean {
 
     const W = n * this.cascades;
     this.noiseTex = createTexture(gl, W, n, { ...FMT.rg32f(gl), data: generateNoiseAtlas(opts.seed, this.layout) });
-    this.spreadLutTex = createTexture(gl, SPREAD_LUT_SIZE, 1, { ...FMT.r32f(gl), data: spreadingNormLUT() });
     this.slopeLutTex = createTexture(gl, SLOPE_LUT_SIZE, 1, { ...FMT.rgba32f(gl), data: new Float32Array(SLOPE_LUT_SIZE * 4) });
 
     const f32 = FMT.rgba32f(gl);
@@ -181,14 +180,12 @@ export class SpectralOcean {
     return this.foamArrays[this.foamPing];
   }
 
-  /** Apply a sea state (library morph + user controls). Returns true when the spectrum changed. */
+  /** Apply a sea state (library morph + user controls). */
   setSea(controls: SeaStateControls, opts: { loopPeriod?: number; rebuildStats?: boolean } = {}) {
     const { a, b, t } = seaStateBracket(controls.morph);
-    const sysA = adjustSystems(a, controls);
-    const sysB = adjustSystems(b, controls);
+    const lo = SEA_STATES.indexOf(a), hi = SEA_STATES.indexOf(b);
     this.depth = controls.depth;
     this.loopPeriod = opts.loopPeriod ?? this.loopPeriod;
-    this.choppiness = (a.choppiness + (b.choppiness - a.choppiness) * t) * controls.choppiness;
     const lerpAng = (x: number, y: number) => x + ((((y - x + 540) % 360) - 180) * t);
     this.wind = {
       speed: a.wind.speed + (b.wind.speed - a.wind.speed) * t,
@@ -196,17 +193,18 @@ export class SpectralOcean {
     };
     this.wind.speed *= Math.sqrt(Math.max(controls.energy * controls.windSea, 0.01));
     this.whitecaps = (a.whitecaps + (b.whitecaps - a.whitecaps) * t) * Math.max(controls.windSea, 0);
-    this.model = makeSpectrumModel(sysA, sysB, t, this.depth);
-    // Circular mean of system directions weighted by each system's variance m0 ≈ αg²/(5ωp⁴).
+    this.model = makeFamilyModel(FAMILY_LIBRARY[lo], FAMILY_LIBRARY[hi], t, {
+      energy: controls.energy, swell: controls.swell, windSea: controls.windSea, chop: controls.chop ?? 1,
+      windSpeed: 1, directionOffsetDeg: controls.directionOffsetDeg, spread: controls.spread, crossSea: controls.crossSea ?? 1,
+    }, this.depth, controls.choppiness);
+    // Cascade bands follow the state (they overlap, as authored).
+    this.model.cascades.forEach((f, c) => { this.layout.kLo[c] = f.kMin; this.layout.kHi[c] = f.kMax; });
+    this.choppiness = Math.max(...this.model.cascades.map((f) => f.chop));
+    // Mean propagation direction ≈ strength-weighted family direction (refined by the stats pass).
     let sx = 0, sz = 0;
-    const acc = (list: typeof this.model.a, w: number) => list.forEach((e) => {
-      const m0 = (e.alphaG2 / (5 * Math.pow(e.wp, 4))) * w;
-      sx += Math.cos(e.dirRad) * m0; sz += Math.sin(e.dirRad) * m0;
-    });
-    acc(this.model.a, 1 - t);
-    acc(this.model.b, t);
+    for (const f of this.model.cascades) { const w = f.A * f.size * f.size; sx += f.dir[0] * w; sz += f.dir[1] * w; }
     this.meanWaveDirDeg = (Math.atan2(sz, sx) * 180) / Math.PI;
-    this.generateH0(sysA, sysB, t);
+    this.generateH0();
     if (opts.rebuildStats !== false) this.rebuildCpuProducts();
     this.generation++;
   }
@@ -215,34 +213,43 @@ export class SpectralOcean {
   rebuildCpuProducts() {
     if (!this.model) return;
     const gl = this.gl;
-    this.stats = computeSpectralStats(this.model, this.layout, this.wind);
+    const fs = familyStats(this.model, this.layout, SLOPE_LUT_SIZE);
+    this.stats = {
+      slopeLut: fs.slopeLut, logKMin: fs.logKMin, logKMax: fs.logKMax, m0: fs.m0, hs: fs.hs, tp: fs.tp,
+      peakWavelength: fs.peakWavelength, tail: { xx: 0, zz: 0, xz: 0 }, cascadeEnergy: fs.cascadeEnergy,
+    };
+    this.meanWaveDirDeg = fs.meanDirDeg;
     gl.bindTexture(gl.TEXTURE_2D, this.slopeLutTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SLOPE_LUT_SIZE, 1, gl.RGBA, gl.FLOAT, this.stats.slopeLut);
-    this.mirror.rebuild(this.model, this.layout, this.seed, this.layout.sizes.map(() => this.choppiness), this.loopPeriod);
+    this.mirror.rebuildFamilies(this.model, this.layout, this.seed, this.loopPeriod);
   }
 
-  private generateH0(sysA: WaveSystem[], sysB: WaveSystem[], t: number) {
+  private generateH0() {
     const gl = this.gl;
-    const all: { s: WaveSystem; w: number }[] = [];
-    if (t < 1) sysA.forEach((s) => all.push({ s, w: 1 - t }));
-    if (t > 0) sysB.forEach((s) => all.push({ s, w: t }));
-    const used = all.slice(0, MAX_SYSTEMS);
-    const s0 = new Float32Array(MAX_SYSTEMS * 4), s1 = new Float32Array(MAX_SYSTEMS * 4), s2 = new Float32Array(MAX_SYSTEMS * 4);
-    used.forEach(({ s, w }, i) => {
-      const e = prepareSystem(s);
-      s0.set([e.alphaG2 * w, e.wp, e.gamma, e.dirRad], i * 4);
-      s1.set([e.spread, e.elongation, e.floor, e.kind === 'wind' ? 1 : 0], i * 4);
-      s2.set([e.u10, 0, 0, 0], i * 4);
+    const m = this.model!;
+    const f0 = new Float32Array(MAX_CASCADES * 4), f1 = new Float32Array(MAX_CASCADES * 4);
+    const f2 = new Float32Array(MAX_CASCADES * 4), f3 = new Float32Array(MAX_CASCADES * 4);
+    m.cascades.forEach((f, c) => {
+      f0.set([f.A, f.ws, f.dir[0], f.dir[1]], c * 4);
+      f1.set([f.alignment, f.kp, f.pe, f.bw], c * 4);
+      f2.set([f.floor, f.secA, f.secDir[0], f.secDir[1]], c * 4);
+      f3.set([f.secAlignment, f.secKp, f.secBw, 0], c * 4);
     });
     const p = this.progH0.use();
     this.setAtlasUniforms(p);
-    p.set('uDepth', this.depth).set('uSysCount', used.length).set('uSys0', s0).set('uSys1', s1).set('uSys2', s2);
-    p.tex('uNoise', this.noiseTex).tex('uSpreadLut', this.spreadLutTex);
+    p.set('uFam0', f0).set('uFam1', f1).set('uFam2', f2).set('uFam3', f3).tex('uNoise', this.noiseTex);
     this.h0.bind();
     gl.disable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
     this.quad.draw();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /** Per-cascade λ for the resolve pass. */
+  private chopUniform() {
+    const out = new Float32Array(MAX_CASCADES);
+    this.model?.cascades.forEach((f, c) => { out[c] = f.chop; });
+    return out;
   }
 
   private setAtlasUniforms(p: Program) {
@@ -301,7 +308,7 @@ export class SpectralOcean {
     }
     const src = this.synthesize(time);
     const pr = this.progResolve.use();
-    pr.set('uN', n).set('uChop', this.choppiness)
+    pr.set('uN', n).set('uChopC', this.chopUniform())
       .tex('uSrcA', this.work[src].textures[0]).tex('uSrcB', this.work[src].textures[1]);
     for (let c = 0; c < this.cascades; c++) {
       pr.set('uCascade', c);
@@ -320,7 +327,7 @@ export class SpectralOcean {
 
     // 3. Resolve each cascade + mips.
     const pr = this.progResolve.use();
-    pr.set('uN', n).set('uChop', this.choppiness)
+    pr.set('uN', n).set('uChopC', this.chopUniform())
       .tex('uSrcA', this.work[src].textures[0]).tex('uSrcB', this.work[src].textures[1]);
     for (let c = 0; c < this.cascades; c++) {
       pr.set('uCascade', c);
@@ -388,7 +395,6 @@ export class SpectralOcean {
     this.foamTargets.forEach((p) => p.forEach((t) => t.dispose()));
     [this.dispArray, this.derivArray, ...this.foamArrays].forEach((t) => gl.deleteTexture(t));
     gl.deleteTexture(this.noiseTex);
-    gl.deleteTexture(this.spreadLutTex);
     gl.deleteTexture(this.slopeLutTex);
   }
 }

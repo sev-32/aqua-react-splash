@@ -27,8 +27,10 @@ export interface SplashDrawFrame {
   absorb: Vec3;
   fogDensity: number;
   haze: Vec3;
-  /** Sea upwelling reflectance (Gordon R, per channel) so the sheet is the same water. */
-  body: Vec3;
+  /** The sea's inherent optical properties, so the sheet is the same water. */
+  scatter: Vec3;
+  backscatter: Vec3;
+  ior: number;
   hdr: Target;                 // frame colour + depth texture
   mode: 'fluid' | 'points';
 }
@@ -191,7 +193,8 @@ export class SplashSystem {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       this.pShade.use().tex('uDepth', fl.depth.texture).tex('uThick', fl.thick.texture).tex('uScene', fl.scene.texture)
         .tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uInvViewProj', f.invViewProj).set('uTexel', [1 / w, 1 / h])
-        .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uAbsorb', f.absorb).set('uBody', f.body);
+        .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uAbsorb', f.absorb)
+        .set('uScatter', f.scatter).set('uBackscatter', f.backscatter).set('uIor', f.ior);
       this.quad.draw();
     }
     // Fine spray and mist as soft lit parcels (also the whole splash in points mode).

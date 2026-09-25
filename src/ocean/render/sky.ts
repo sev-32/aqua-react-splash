@@ -47,11 +47,16 @@ uniform float uCloudsOn;
  */
 const SKY_RADIANCE_GLSL = /* glsl */ `
 vec3 camPlanet(){ return vec3(uCamWorld.x, Rp + max(uCamWorld.y, 1.5), uCamWorld.z); }
+/** True when the ray meets the planet (sea/terrain covers it; the sky is only its limb above). */
+bool hitsPlanet(vec3 ro, vec3 rd){ vec2 g = raySphere(ro, rd, Rp); return g.x > 0.0; }
 vec3 skyAtmos(vec3 rd){
-  vec3 dir = rd.y < 0.0 ? normalize(vec3(rd.x, 0.0015, rd.z)) : rd;
+  vec3 ro = camPlanet();
+  bool ground = hitsPlanet(ro, rd);
+  // Rays into the planet see the haze of the tangent ray (surfaces cover them anyway).
+  vec3 dir = ground ? normalize(vec3(rd.x, max(rd.y, 0.0) + 0.0015, rd.z)) : rd;
   vec3 T;
-  vec3 col = atmosphere(camPlanet(), dir, uSunDir, 1e9, uRayleigh, uMie, uMieG, uSkyBright, T);
-  return rd.y < 0.0 ? col*0.92 : col;
+  vec3 col = atmosphere(ro, dir, uSunDir, 1e9, uRayleigh, uMie, uMieG, uSkyBright, T);
+  return ground ? col*0.92 : col;
 }
 vec4 cloudLayer(vec3 rd, float jitter, int steps, int lightSteps, out float cloudDist){
   cloudDist = -1.0;
@@ -67,7 +72,7 @@ vec4 cloudLayer(vec3 rd, float jitter, int steps, int lightSteps, out float clou
 vec4 skyRadiance(vec3 rd, float jitter, int steps, int lightSteps){
   float cd;
   vec3 sky = skyAtmos(rd);
-  if (rd.y < 0.0) return vec4(sky, 1.0);
+  if (rd.y < 0.0 && hitsPlanet(camPlanet(), rd)) return vec4(sky, 1.0);
   vec4 c = cloudLayer(rd, jitter, steps, lightSteps, cd);
   return vec4(max(sky*c.a + c.rgb, vec3(0.0)), c.a);
 }
@@ -112,6 +117,37 @@ void main(){
   float cd;
   oCloud = cloudLayer(rd, ign(gl_FragCoord.xy, uFrame), uSteps, uLightSteps, cd);
   oSky = vec4(skyAtmos(rd), cd < 0.0 ? -1.0 : cd*0.001);   // km: half floats overflow past 65 km
+}`;
+
+/**
+ * Aerial perspective of the planet's surface (Nimbus atmosphere): for each view ray that
+ * meets the sphere, in-scattered radiance and transmittance between the camera and the
+ * surface. Low resolution — it varies smoothly across the screen — and valid at any
+ * altitude, from the deck to orbit. MRT: 0 = in-scatter, 1 = transmittance.
+ */
+const AERIAL_FS = /* glsl */ `#version 300 es
+precision highp float;
+precision highp int;
+${SKY_COMMON_GLSL}
+${NIMBUS_COMMON_GLSL}
+${SKY_UNIFORMS}
+uniform vec3 uSunDir;
+uniform float uSkyBright, uRayleigh, uMie, uMieG;
+in vec2 vUv;
+layout(location=0) out vec4 oIn;
+layout(location=1) out vec4 oT;
+uniform mat4 uInvViewProj;
+void main(){
+  vec4 p = uInvViewProj*vec4(vUv*2.0 - 1.0, 1.0, 1.0);
+  vec3 rd = normalize(p.xyz/p.w);
+  vec3 ro = vec3(uCamWorld.x, Rp + max(uCamWorld.y, 1.5), uCamWorld.z);
+  vec2 g = raySphere(ro, rd, Rp);
+  // Rays that graze past the limb still get the path to the tangent point (smooth at the edge).
+  float tHit = g.x > 0.0 ? g.x : max(-dot(ro, rd), 0.0);
+  vec3 T;
+  vec3 L = atmosphere(ro, rd, uSunDir, max(tHit, 1.0), uRayleigh, uMie, uMieG, uSkyBright, T);
+  oIn = vec4(L, 1.0);
+  oT = vec4(T, 1.0);
 }`;
 
 /** Temporal resolve (Nimbus resolve.frag): rotation-exact reprojection + YCoCg variance clip, on both layers. */
@@ -186,6 +222,7 @@ uniform vec3 uSunDir;
 uniform vec3 uSunRadiance;
 uniform float uSunAngularRadius;
 uniform float uHasView;
+uniform float uCamAlt;
 ${BSPLINE_GLSL}
 void main(){
   vec4 p = uInvViewProj*vec4(vUv*2.0 - 1.0, 1.0, 1.0);
@@ -193,8 +230,13 @@ void main(){
   // Below the horizon: the same haze the sea and terrain fog toward (clouds below the
   // camera are composited over the surface by the overlay pass).
   vec3 haze = textureLod(uEnv, dirToEquirect(normalize(vec3(rd.x, 0.035, rd.z))), 3.0).rgb;
-  if (uHasView < 0.5){ outColor = vec4(rd.y < 0.0 ? haze : textureLod(uEnv, dirToEquirect(rd), 0.0).rgb, 1.0); return; }
-  if (rd.y < 0.0){ outColor = vec4(haze, 1.0); return; }
+  // Below the planet's limb (not merely below the local horizontal — from altitude the
+  // atmosphere's limb lies below it).
+  float alt = max(uCamAlt, 1.5);
+  float sinDip = sqrt(max(1.0 - pow(6360000.0/(6360000.0 + alt), 2.0), 0.0));
+  bool ground = rd.y < -sinDip;
+  if (uHasView < 0.5){ outColor = vec4(ground ? haze : textureLod(uEnv, dirToEquirect(rd), 0.0).rgb, 1.0); return; }
+  if (ground){ outColor = vec4(haze, 1.0); return; }
   vec4 cl = textureBSpline(uCloud, vUv);
   vec3 sky = textureBSpline(uSkyTex, vUv).rgb;
   vec3 col = sky*cl.a + cl.rgb;
@@ -274,7 +316,8 @@ export interface SkyParams {
 export const DEFAULT_SKY: SkyParams = {
   sunAzimuthDeg: 208,
   sunElevationDeg: 24,
-  sunIntensity: 22,
+  // Nimbus "sky energy" (its default): the atmosphere integral, cloud light and exposure are calibrated to it.
+  sunIntensity: 4.85,
   turbidity: 1.0,
   clouds: true,
 };
@@ -340,6 +383,8 @@ export function nimbusLighting(elevDeg: number, energy: number) {
 }
 
 export interface SkyView {
+  /** Radians per output pixel (vertical). */
+  pixelAngle: number;
   invViewProj: Float32Array;
   viewProj: Float32Array;
   width: number;
@@ -359,7 +404,10 @@ export class Sky {
   shadow: { texture: WebGLTexture; rect: [number, number, number]; strength: number } | null = null;
   windOffset: [number, number] = [0, 0];
   private progEnv: Program; private progMarch: Program; private progResolve: Program;
-  private progBg: Program; private progShadow: Program; private progOverlay: Program;
+  private progBg: Program; private progShadow: Program; private progOverlay: Program; private progAerial: Program;
+  /** Aerial perspective of the sea for the current view (in-scatter, transmittance). */
+  aerial: Target | null = null;
+  private camAlt = 0;
   private quad: Quad;
   private shape: WebGLTexture; private detail: WebGLTexture;
   private march: Target | null = null;
@@ -390,6 +438,7 @@ export class Sky {
     this.progBg = new Program(gl, 'sky.background', FULLSCREEN_VS, BACKGROUND_FS);
     this.progOverlay = new Program(gl, 'sky.overlay', FULLSCREEN_VS, OVERLAY_FS);
     this.progShadow = new Program(gl, 'sky.shadow', FULLSCREEN_VS, SHADOW_FS);
+    this.progAerial = new Program(gl, 'sky.aerial', FULLSCREEN_VS, AERIAL_FS);
     this.quad = new Quad(gl);
     this.shape = this.bakeNoise(q.noiseN, 0);
     this.detail = this.bakeNoise(Math.max(16, q.noiseN / 4), 1);
@@ -424,6 +473,11 @@ export class Sky {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.deleteFramebuffer(fbo);
     prog.dispose();
+    // Mips for the footprint LOD (clouds far away sample prefiltered noise).
+    gl.bindTexture(gl.TEXTURE_3D, t);
+    gl.generateMipmap(gl.TEXTURE_3D);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.bindTexture(gl.TEXTURE_3D, null);
     return t;
   }
 
@@ -456,7 +510,9 @@ export class Sky {
     this.windOffset[1] += Math.sin(wd) * steer * dt;
     this.sunDir = sunDirection(p.sunAzimuthDeg, p.sunElevationDeg);
     const T = sunTransmittance(this.sunDir, p.turbidity * weather.haze);
-    const k = p.sunIntensity * 0.55;
+    // Surface sun in POSEIDON/Nimbus units: at POSEIDON's reference sun (51° up) the
+    // sun's luminance equals the glitter sun it was tuned with (6.2, 5.1, 3.8 → 5.24).
+    const k = p.sunIntensity * 1.353;
     this.sunRadiance = [T[0] * k, T[1] * k * 0.98, T[2] * k * 0.94];
 
     gl.disable(gl.DEPTH_TEST);
@@ -467,8 +523,11 @@ export class Sky {
     const full = key !== this.envKey;
     this.envKey = key;
     const pe = this.progEnv.use();
-    this.setCloudUniforms(pe, camPos);
-    pe.set('uSteps', this.q.envSteps);
+    // Reflections, ambient and haze belong to the sea surface: bake the sky as seen from
+    // sea level below the camera, whatever the camera's altitude.
+    this.setCloudUniforms(pe, [camPos[0], Math.min(camPos[1], 2), camPos[2]]);
+    this.camAlt = camPos[1];
+    pe.set('uSteps', this.q.envSteps).set('uPixelAngle', (2 * Math.PI) / this.size[0]);
     this.env.bind();
     const H = this.size[1];
     if (!full) {
@@ -506,6 +565,16 @@ export class Sky {
     return full || this.sinceIrradiance > 24;
   }
 
+  private prevCam: Vec3 | null = null;
+  /** History is direction-reprojected (rotation-exact); a translation jump invalidates it. */
+  private cameraJumped(cam: Vec3): boolean {
+    const p = this.prevCam;
+    this.prevCam = [cam[0], cam[1], cam[2]];
+    if (!p) return true;
+    const d = Math.hypot(cam[0] - p[0], cam[1] - p[1], cam[2] - p[2]);
+    return d > Math.max(60, 0.02 * Math.max(Math.abs(cam[1]), Math.abs(p[1])));
+  }
+
   /** Low-resolution jittered march of the cloud layer + clear sky, temporally resolved. */
   renderView(v: SkyView) {
     const gl = this.gl;
@@ -523,7 +592,7 @@ export class Sky {
     gl.disable(gl.BLEND);
     const pm = this.progMarch.use();
     this.setCloudUniforms(pm, v.camPos);
-    pm.set('uInvViewProj', v.invViewProj).set('uFrame', v.frameIndex % 64)
+    pm.set('uInvViewProj', v.invViewProj).set('uFrame', v.frameIndex % 64).set('uPixelAngle', v.pixelAngle / this.q.cloudScale)
       .set('uSteps', this.q.cloudSteps).set('uLightSteps', this.q.lightSteps);
     this.march.bind();
     this.quad.draw();
@@ -532,11 +601,22 @@ export class Sky {
     pr.tex('uCurr0', this.march.textures[0]).tex('uCurr1', this.march.textures[1])
       .tex('uHist0', src.textures[0]).tex('uHist1', src.textures[1])
       .set('uInvViewProj', v.invViewProj).set('uPrevViewProj', this.prevViewProj ?? v.viewProj)
-      .set('uTexel', [1 / w, 1 / h]).set('uBlend', this.prevViewProj ? 0.88 : 0);
+      .set('uTexel', [1 / w, 1 / h]).set('uBlend', this.prevViewProj && !this.cameraJumped(v.camPos) ? 0.88 : 0);
     dst.bind();
     this.quad.draw();
     this.histPing = 1 - this.histPing;
     this.prevViewProj = new Float32Array(v.viewProj);
+    // Aerial perspective at the same low resolution as the sky march.
+    if (!this.aerial || this.aerial.width !== w || this.aerial.height !== h) {
+      this.aerial?.dispose();
+      const tex = () => createTexture(gl, w, h, { ...FMT.rgba16f(gl), filter: gl.LINEAR });
+      this.aerial = new Target(gl, w, h, [tex(), tex()]);
+    }
+    const pa = this.progAerial.use();
+    this.setCloudUniforms(pa, v.camPos);
+    pa.set('uInvViewProj', v.invViewProj);
+    this.aerial.bind();
+    this.quad.draw();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
@@ -571,7 +651,7 @@ export class Sky {
     pb.set('uInvViewProj', invViewProj).set('uSunDir', this.sunDir).set('uSunRadiance', this.sunRadiance.map((v) => v * 900))
       .set('uSunAngularRadius', 0.0046).tex('uEnv', this.env.texture).set('uHasView', view ? 1 : 0)
       .tex('uCloud', view?.textures[0] ?? this.env.texture).tex('uSkyTex', view?.textures[1] ?? this.env.texture)
-      .set('uSkySize', this.march ? [this.march.width, this.march.height] : [1, 1]);
+      .set('uSkySize', this.march ? [this.march.width, this.march.height] : [1, 1]).set('uCamAlt', this.camAlt);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     this.quad.draw();
@@ -606,7 +686,8 @@ export class Sky {
     this.march?.dispose();
     this.hist?.forEach((t) => t.dispose());
     this.shadowTarget.dispose();
-    [this.progEnv, this.progMarch, this.progResolve, this.progBg, this.progShadow, this.progOverlay].forEach((p) => p.dispose());
+    this.aerial?.dispose();
+    [this.progEnv, this.progMarch, this.progResolve, this.progBg, this.progShadow, this.progOverlay, this.progAerial].forEach((p) => p.dispose());
     gl.deleteTexture(this.shape);
     gl.deleteTexture(this.detail);
   }

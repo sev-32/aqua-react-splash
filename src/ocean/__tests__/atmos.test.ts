@@ -40,9 +40,10 @@ describe('weather → sea coupling', () => {
     const w = applyWeatherMorph(DEFAULT_WEATHER, 5.5);
     expect(w.morph).toBe(5.5);
     expect(w.precipitation).toBeGreaterThan(0.7);
+    // Between the moderate (34.8°) and fresh (39°) wind-sea families.
     const d = seaWindDirAt(3.5);
-    expect(d).toBeGreaterThan(38);
-    expect(d).toBeLessThan(40);
+    expect(d).toBeGreaterThan(34.8);
+    expect(d).toBeLessThan(39);
   });
 });
 

@@ -136,15 +136,13 @@ export class SplashModule implements EngineModule {
     const cam = engine.camera;
     const L = engine.skyE;
     const o = s.optics;
-    const u = o.backscatter.map((b, i) => b / (o.absorb[i] + b));
-    const body = u.map((x) => 0.0949 * x + 0.0794 * x * x) as [number, number, number];
     this.renderer.draw({
       viewProj: cam.viewProj, invViewProj: cam.invViewProj, cam: cam.position,
       viewportH: engine.post.height, projY: cam.proj[5],
       sunDir: engine.sky.sunDir, sunE: engine.sky.sunRadiance, skyE: L,
       env: engine.sky.texture, envLevels: engine.sky.levels, absorb: s.optics.absorb,
       fogDensity: s.optics.fogDensity * (1 + 5 * s.weather.precipitation),
-      haze: [L[0] * 0.3, L[1] * 0.32, L[2] * 0.36], body,
+      haze: [L[0] * 0.3, L[1] * 0.32, L[2] * 0.36], scatter: o.scatter, backscatter: o.backscatter, ior: o.ior,
       hdr: engine.post.hdr, mode: s.spray.render,
     });
   }

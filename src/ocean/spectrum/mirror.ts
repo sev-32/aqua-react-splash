@@ -9,8 +9,12 @@
  * for authoritative buoyancy (law W7).
  */
 import { fft2d } from './cpuFft';
-import { modeH0, type CascadeLayout, type SpectrumModel } from './cascades';
+import { modeH0, modeNoise, type CascadeLayout, type SpectrumModel } from './cascades';
 import { dispersion } from './physics';
+import { familyAmplitude, type FamilyModel } from './families';
+
+/** h0 of mode (ix, iz) of cascade c — the CPU twin of whichever GPU h0 pass is live. */
+export type ModeH0 = (c: number, ix: number, iz: number) => [number, number];
 
 export interface SurfaceSample {
   height: number;
@@ -55,9 +59,28 @@ export class SpectralMirror {
 
   /** Rebuild mode amplitudes for a new spectrum (same cost profile as a sea-state change). */
   rebuild(model: SpectrumModel, layout: CascadeLayout, seed: number, choppiness: number[], loopPeriod = 0) {
+    this.rebuildModes((c, ix, iz) => modeH0(model, layout, seed, c, ix, iz), layout, model.depth, choppiness, loopPeriod);
+  }
+
+  /** Twin of the family (POSEIDON) h0 pass: same noise atlas, same energy function, per-cascade crop. */
+  rebuildFamilies(model: FamilyModel, layout: CascadeLayout, seed: number, loopPeriod = 0) {
+    const n = layout.n;
+    const h0: ModeH0 = (c, ix, iz) => {
+      if (ix === n / 2 || iz === n / 2 || (ix === 0 && iz === 0)) return [0, 0];
+      const dk = (2 * Math.PI) / layout.sizes[c];
+      const kx = (ix < n / 2 ? ix : ix - n) * dk, kz = (iz < n / 2 ? iz : iz - n) * dk;
+      const a = familyAmplitude(model.cascades[c], kx, kz);
+      if (a <= 0) return [0, 0];
+      const [xr, xi] = modeNoise(seed, c, ix, iz);
+      return [xr * a, xi * a];
+    };
+    this.rebuildModes(h0, layout, model.depth, model.cascades.map((f) => f.chop), loopPeriod);
+  }
+
+  rebuildModes(modeH0At: ModeH0, layout: CascadeLayout, depth: number, choppiness: number[], loopPeriod = 0) {
     const M = this.m, N = layout.n;
     this.chop = choppiness.slice();
-    this.depth = model.depth;
+    this.depth = depth;
     this.loopPeriod = loopPeriod;
     this.cascades = layout.sizes.map((L, c) => {
       const n2 = M * M;
@@ -76,13 +99,13 @@ export class SpectralMirror {
           if (fx === -M / 2 || fz === -M / 2) continue; // mirror Nyquist: keep Hermitian
           const ix = (fx + N) % N, iz = (fz + N) % N;
           const mx = (N - ix) % N, mz = (N - iz) % N;
-          const [ar, ai] = modeH0(model, layout, seed, c, ix, iz);
-          const [br, bi] = modeH0(model, layout, seed, c, mx, mz);
+          const [ar, ai] = modeH0At(c, ix, iz);
+          const [br, bi] = modeH0At(c, mx, mz);
           const o = jz * M + jx;
           cm.h0re[o] = ar; cm.h0im[o] = ai;
           cm.hmre[o] = br; cm.hmim[o] = -bi; // conj(h0(-k))
           cm.kx[o] = fx * dk; cm.kz[o] = fz * dk;
-          let w = dispersion(Math.hypot(fx * dk, fz * dk), model.depth);
+          let w = dispersion(Math.hypot(fx * dk, fz * dk), depth);
           if (loopPeriod > 0) { const w0 = (2 * Math.PI) / loopPeriod; w = Math.max(Math.round(w / w0), 1) * w0; }
           cm.omega[o] = w;
         }

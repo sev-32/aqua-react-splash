@@ -71,7 +71,7 @@ for (const shot of shots) {
     return { gl: api.glError(), telemetry: api.telemetry() };
   }, shot);
   const file = path.join(out, `${shot.name}.png`);
-  await page.screenshot({ path: file });
+  await page.screenshot({ path: file, timeout: 600000 });
   receipt.shots.push({ name: shot.name, file, ms: Date.now() - t0, ...result });
   console.log(`${shot.name}: gl=${result.gl} ${Date.now() - t0}ms Hs=${result.telemetry?.hs?.toFixed?.(2)} tris=${result.telemetry?.triangles}`);
 }

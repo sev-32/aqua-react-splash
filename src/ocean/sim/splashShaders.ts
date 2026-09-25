@@ -1,3 +1,4 @@
+import { WATER_OPTICS_GLSL } from '../render/waterOptics';
 /**
  * GLSL for drawing the T4 MLS-MPM splash (particles are simulated on the CPU in
  * sim/oceanMpm.ts and uploaded each frame into three RGBA32F textures):
@@ -169,8 +170,9 @@ out vec4 o;
 uniform sampler2D uDepth, uThick, uScene, uEnv;
 uniform mat4 uInvViewProj;
 uniform vec2 uTexel;
-uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uBody;
-uniform float uEnvLevels;
+uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
+uniform float uEnvLevels, uIor;
+${WATER_OPTICS_GLSL}
 #ifndef PI
 #define PI 3.14159265358979
 #endif
@@ -198,9 +200,13 @@ void main(){
   float thick = th.r;
   vec2 off = N.xy*0.03*clamp(thick, 0.0, 1.0);
   vec3 behind = texture(uScene, vUv + off).rgb;
-  vec3 T = exp(-uAbsorb*thick*2.0);
-  vec3 body = (uSkyE*0.93 + uSunE*max(uSunDir.y, 0.0))*uBody/PI;   // the sea's own upwelling colour
-  vec3 water = mix(behind*T + body*(1.0 - T), refl, F);
+  // The same water column the sea uses, over the sheet's thickness.
+  vec3 trd = refract(-V, N, 1.0/uIor);
+  if (dot(trd, trd) < 1e-6) trd = -N;
+  float Fsun = 0.02 + 0.98*pow(1.0 - max(dot(N, uSunDir), 0.0), 5.0);
+  vec3 Tc;
+  vec3 column = waterColumn(normalize(vec3(trd.x, -abs(trd.y), trd.z)), thick*2.0, uSunE, uSkyE, Fsun, Tc);
+  vec3 water = mix(behind*Tc + column, refl, F);
   water += uSunE*pow(max(dot(R, uSunDir), 0.0), 400.0)*2.0;
   // Aerated sheet → white water.
   float aer = clamp(th.g/max(thick, 1e-4), 0.0, 1.0);

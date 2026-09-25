@@ -8,6 +8,7 @@
  * wind direction steers it.
  */
 import { SEA_STATES } from '../spectrum/seaStates';
+import { FAMILY_LIBRARY } from '../spectrum/families';
 import { clamp, lerpAngleDeg } from '../math/scalar';
 
 export interface WeatherParams {
@@ -91,7 +92,8 @@ export function applyWeatherMorph(w: WeatherParams, morph: number): WeatherParam
 
 /** Wind speed of the library's wind-sea at each sea morph index (monotone). */
 const SEA_U10 = SEA_STATES.map((s) => s.systems.find((x) => x.kind === 'wind')?.windSpeed ?? 0);
-const SEA_WIND_DIR = SEA_STATES.map((s) => s.systems.find((x) => x.kind === 'wind')?.directionDeg ?? 0);
+/** Direction of each state's wind-sea family (the spectral authority the renderer draws). */
+const SEA_WIND_DIR = FAMILY_LIBRARY.map((f) => f[1].directionDeg);
 
 /** Sea-library morph whose wind-sea U10 equals `u10` (piecewise-linear inverse). */
 export function seaMorphForWind(u10: number): number {

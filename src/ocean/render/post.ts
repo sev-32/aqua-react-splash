@@ -53,7 +53,7 @@ export interface PostParams {
   saturation: number;
 }
 
-export const DEFAULT_POST: PostParams = { exposure: 0.95, bloom: 0.3, bloomThreshold: 4, saturation: 1.02 };
+export const DEFAULT_POST: PostParams = { exposure: 1.0, bloom: 0.3, bloomThreshold: 4, saturation: 1.02 };
 
 export class Post {
   hdr!: Target;
