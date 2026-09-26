@@ -59,11 +59,12 @@ void main(){
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 H = normalize(V + uSunDir);
   float spec = pow(max(dot(n, H), 0.0), mix(24.0, 160.0, wet))*mix(0.08, 0.35, wet);
-  // Ambient irradiance (as radiance ×π⁻¹): the sky dome above, the sea below. A face tilted
-  // n.y sees (1 + n.y)/2 of the sky's irradiance and (1 − n.y)/2 of the sea's upwelling —
-  // the prefiltered env bled its bare-planet lower half into the horizon and left the shaded
-  // side of a ball navy where the lagoon around it lights it cyan.
-  vec3 amb = (uSkyE*(1.0 + n.y)*0.5 + uUpwell*PI*(1.0 - n.y)*0.5)/PI;
+  // Ambient (radiance): the sky above, the sea below, by the share of each a face sees,
+  // (1 ± n.y)/2. The sky part is the prefiltered sky toward the face (the horizon band a wall
+  // sees is several times brighter than the zenith) but held above the horizon, so the blur
+  // cannot pull in the env's bare-planet half; the sea part is what the water sends up.
+  vec3 skyL = textureLod(uEnv, dirToEquirect(normalize(vec3(n.x, max(n.y, 0.0) + 0.35, n.z))), uEnvLevels - 3.0).rgb;
+  vec3 amb = skyL*(1.0 + n.y)*0.5 + uUpwell*(1.0 - n.y)*0.5;
   // Under the waterline only DOWNWELLING light reaches the hull (Beer–Lambert with depth);
   // the view path through the water is the water shader's job (it refracts this frame).
   float depth = max(uWaterline - worldY, 0.0);

@@ -186,6 +186,9 @@ export class SplashModule implements EngineModule {
   }
 
   update(engine: OceanEngine, time: number, dt: number) {
+    // Wind at spray height (log profile, z₀ ≈ 0.2 mm: U(2 m) ≈ 0.85·U10), toward windDirDeg.
+    const w = engine.settings.weather, wd = (w.windDirDeg * Math.PI) / 180;
+    this.mpm.wind = [Math.cos(wd) * 0.85 * w.windSpeed, Math.sin(wd) * 0.85 * w.windSpeed];
     this.entrySplash(time, dt);
     const tiles = this.interaction.tiles;
     const shoreField = this.shore.field;

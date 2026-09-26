@@ -160,6 +160,8 @@ export class OceanMpm {
   readonly particles: MpmParticles;
   readonly volumes: SplashVolume[] = [];
   settleEvents: SettleEvent[] = [];
+  /** Wind at spray height (m/s, x/z): atomization and spray drag act on the velocity relative to the air. */
+  wind: [number, number] = [0, 0];
   /** Ledger (m³). */
   readonly stats = { emitted: 0, settled: 0, lost: 0, alive: 0, airborne: 0 };
   private rng = 0x6d2b79f5;
@@ -347,15 +349,17 @@ export class OceanMpm {
     // Atomization is irreversible: a parcel that has met air faster than the Weber break-up
     // speed of a centimetre sheet (ρₐv²δ/σ ≈ 12 → v ≈ 10 m/s) is spray from then on — and
     // spray feels the air: millimetre drops fall at vt ≈ 7 m/s, so quadratic drag
-    // g·|v|v/vt² brakes them (implicit, stable at any dt). Coherent sheets barely notice air.
-    const vAtom2 = 10 * 10, kDrag = 9.81 / (7 * 7);
+    // g·|v_rel|v_rel/vt² pulls them toward the wind (implicit, stable at any dt): spray streams
+    // downwind. Both act on the velocity relative to the air. Coherent sheets barely notice it.
+    const vAtom2 = 10 * 10, kDrag = 9.81 / (7 * 7), [wx, wz] = this.wind;
     for (let p = 0; p < P.count; p++) {
       if (!(P.flags[p] & FLAG_ALIVE)) continue;
-      const s2 = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p];
+      const rx = P.vx[p] - wx, ry = P.vy[p], rz = P.vz[p] - wz;
+      const s2 = rx * rx + ry * ry + rz * rz;
       if (s2 > vAtom2) P.flags[p] |= FLAG_FOAM;
       if (P.flags[p] & FLAG_FOAM) {
         const f = 1 / (1 + safeDt * kDrag * Math.sqrt(s2));
-        P.vx[p] *= f; P.vy[p] *= f; P.vz[p] *= f;
+        P.vx[p] = wx + rx * f; P.vy[p] = ry * f; P.vz[p] = wz + rz * f;
       }
     }
     // Ledger view.
