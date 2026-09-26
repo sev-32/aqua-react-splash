@@ -6,6 +6,66 @@
  *   M: water volume the sample carries (m³), age (s), kind (0 particle, 1 ligament), seed
  */
 
+
+/**
+ * Splash self-shadowing (opacity shadow map): the optical depth of the splash's drops and
+ * bubbles accumulated from the sun in four slices; a point reads what lies between it and the
+ * sun and receives the diffusion-limited sun, 2/(2 + (1 − g)τ) — soft, as in a cloud.
+ */
+export const OSM_GLSL = /* glsl */ `
+uniform sampler2D uOsm; uniform int uHasOsm;
+uniform vec3 uOsmC, uOsmU, uOsmV, uOsmD; uniform vec4 uOsmExt;   // centre, basis, (half-extent, -, d0, d1)
+float osmSun(vec3 pw){
+  if (uHasOsm == 0) return 1.0;
+  vec3 q = pw - uOsmC;
+  vec2 uv = vec2(dot(q, uOsmU), dot(q, uOsmV))/uOsmExt.x*0.5 + 0.5;
+  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 1.0;
+  float x = 4.0*clamp((uOsmExt.w - dot(q, uOsmD))/max(uOsmExt.w - uOsmExt.z, 1e-3), 0.0, 1.0);
+  vec4 t = textureLod(uOsm, uv, 0.0);
+  float tau = x < 1.0 ? t.x*x : x < 2.0 ? mix(t.x, t.y, x - 1.0) : x < 3.0 ? mix(t.y, t.z, x - 2.0) : mix(t.z, t.w, x - 3.0);
+  return 2.0/(2.0 + 0.15*tau);
+}
+`;
+
+/** Opacity shadow map: every scattering parcel splatted from the sun, τ into four cumulative slices. */
+export const SPLASH_OSM_VS = /* glsl */ `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D uP, uV, uM;
+uniform int uW;
+uniform vec3 uOsmC, uOsmU, uOsmV, uOsmD; uniform vec4 uOsmExt; uniform float uOsmSize;
+out float vTau; out float vS;
+void main(){
+  ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
+  vec4 P = texelFetch(uP, c, 0);
+  vTau = 0.0; vS = 0.0;
+  if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
+  bool spray = V.w <= 0.0012;
+  float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
+  float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
+  // Scattering cross-section (m²): drops 1.5V/r_d; aerated water ≈ 300 m⁻¹·V; clear water ~0.
+  float sig = spray ? 1.5*M.x/V.w : 300.0*M.x*aer;
+  float R = spray && coh < 0.5 ? min(max(1.2*pow(max(M.x, 1e-7), 1.0/3.0), 0.12) + 0.5*M.y, 3.0)
+                               : 1.6*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
+  vec3 q = P.xyz - uOsmC;
+  gl_Position = vec4(dot(q, uOsmU)/uOsmExt.x, dot(q, uOsmV)/uOsmExt.x, 0.0, 1.0);
+  gl_PointSize = clamp(R/uOsmExt.x*uOsmSize, 1.0, 64.0);
+  vTau = sig/(3.14159*R*R);
+  vS = clamp((uOsmExt.w - dot(q, uOsmD))/max(uOsmExt.w - uOsmExt.z, 1e-3), 0.0, 1.0);
+}`;
+export const SPLASH_OSM_FS = /* glsl */ `#version 300 es
+precision highp float;
+in float vTau; in float vS;
+out vec4 o;
+void main(){
+  vec2 d = gl_PointCoord*2.0 - 1.0;
+  float r2 = dot(d, d);
+  if (r2 > 1.0 || vTau <= 0.0) discard;
+  // Column τ through the parcel here, counted in every slice boundary it lies in front of.
+  o = 4.07*vTau*exp(-4.0*r2)*clamp((vec4(0.25, 0.5, 0.75, 1.0) - vS)*8.0 + 0.5, 0.0, 1.0);
+}`;
+
 /** Whitewater points: soft, lit parcels of spray. */
 export const SPLASH_POINT_VS = /* glsl */ `#version 300 es
 precision highp float;
@@ -18,6 +78,8 @@ uniform float uViewportH, uProjY;
 uniform float uSizeGain;
 uniform float uSprayOnly;        // 1: only atomized spray (droplets < 1.2 mm) — the sheet goes to the fluid pass
 uniform float uSheetOnly;        // 1: only coherent water (the fluid passes) — spray is a cloud, not a surface
+${OSM_GLSL}
+out float vSun;                  // sun reaching this parcel through the rest of the splash
 out vec4 vData;                  // x: alpha, y: aeration (1 = spray cloud), z: age01, w: coherence
 out vec3 vRel;
 out vec2 vSplat;                 // sheet: world radius (m), water volume (m³) · spray: cloud radius (m), mean optical depth
@@ -25,6 +87,7 @@ void main(){
   ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
   vec4 P = texelFetch(uP, c, 0);
   vSplat = vec2(1.0, 0.0);
+  vSun = 1.0;
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
   // Atomized water that still has neighbours is white water — an aerated body with a surface
@@ -58,6 +121,7 @@ void main(){
   vData = vec4(fadeIn*fadeOut, aer, clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
   vSplat = cloud ? vec2(r, tau) : vec2(max(r, 1e-4), max(M.x, 0.0));
+  vSun = cloud ? osmSun(P.xyz) : 1.0;
 }`;
 
 export const SPLASH_POINT_FS = /* glsl */ `#version 300 es
@@ -65,6 +129,7 @@ precision highp float;
 in vec4 vData;
 in vec3 vRel;
 in vec2 vSplat;
+in float vSun;
 out vec4 o;
 uniform vec3 uSunDir, uSunE, uSkyE;
 uniform float uFogDensity;
@@ -94,7 +159,7 @@ void main(){
     float tau = 4.07*vSplat.y*exp(-4.0*r2);
     float ts = 0.15*tau, R = ts/(2.0 + ts), Td = max(2.0/(2.0 + ts) - exp(-tau), 0.0);
     float w = 0.5 + 0.5*dot(V, uSunDir);
-    vec3 L = (uSunE*(R*w + Td*(1.0 - w)) + uSkyE*(R + Td)*0.5)/3.14159;
+    vec3 L = (uSunE*vSun*(R*w + Td*(1.0 - w)) + uSkyE*(R + Td)*0.5)/3.14159;
     float a = (1.0 - exp(-tau))*vData.x;
     float fog = exp(-length(vRel)*uFogDensity);
     o = vec4(mix(uHaze*a, L*vData.x, fog), a);
@@ -215,6 +280,8 @@ uniform mat4 uInvViewProj;
 uniform vec2 uTexel;
 uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
 uniform float uEnvLevels, uIor;
+uniform vec3 uCamW;              // camera world position (the self-shadow map is in world space)
+${OSM_GLSL}
 #ifndef PI
 #define PI 3.14159265358979
 #endif
@@ -253,10 +320,10 @@ float fluidDepth(vec2 uv){
 }
 float hgW(float mu, float g){ float g2 = g*g; return (1.0 - g2)/(4.0*PI*pow(max(1.0 + g2 - 2.0*g*mu, 1e-4), 1.5)); }
 /** Single scattering of sun + sky through L metres of the sheet (POSEIDON phase, g = 0.74). */
-vec3 sheetColumn(vec3 trd, float L, out vec3 T){
+vec3 sheetColumn(vec3 trd, float L, vec3 sunE, out vec3 T){
   vec3 sigT = uAbsorb + uScatter;
   float Bg = (1.0 - 0.74)/(2.0*0.74)*((1.0 + 0.74)/sqrt(1.0 + 0.74*0.74) - 1.0);
-  vec3 src = uScatter*(hgW(dot(trd, uSunDir), 0.74)*uSunE*1.265 + uSkyE*0.934/0.8*Bg/(2.0*PI));
+  vec3 src = uScatter*(hgW(dot(trd, uSunDir), 0.74)*sunE*1.265 + uSkyE*0.934/0.8*Bg/(2.0*PI));
   T = exp(-sigT*L);
   return src*(1.0 - T)/max(sigT, vec3(1e-5));
 }
@@ -284,6 +351,8 @@ void main(){
   vec3 N = normalize(cross(dy, dx));
   vec3 V = normalize(-P);
   if (dot(N, V) < 0.0) N = -N;
+  // Sun reaching this point of the sheet through the splash in front of it.
+  vec3 sunE = uSunE*osmSun(P + uCamW);
   float F1 = fresnelDielectric(max(dot(N, V), 0.0), 1.0, uIor);
   // A thin sheet reflects at both faces (incoherent film: 2R/(1+R)); a thick jet at one.
   float F = mix(2.0*F1/(1.0 + F1), F1, smoothstep(0.05, 0.25, th.r));
@@ -298,12 +367,12 @@ void main(){
   vec3 H = normalize(V + uSunDir);
   float a2 = 0.012;
   float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
-  refl += uSunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
+  refl += sunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 trd = refract(-V, N, 1.0/uIor);
   if (dot(trd, trd) < 1e-6) trd = -N;
   vec3 Tc;
   // The thickness buffer is the water path along the view ray (volume-conserving splats).
-  vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), Tc);
+  vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), sunE, Tc);
   vec3 water = mix(behind*Tc + column, refl, F);
   // Aerated water → white water: bubbles and drops (σ ≈ 1.5φ/r ≈ 300 m⁻¹) scatter all colours.
   // Two-stream through its path (g ≈ 0.85): the face toward the sun reflects R, the far face
@@ -312,7 +381,7 @@ void main(){
   float tauW = 300.0*th.g;
   float ts = 0.15*tauW, Rw = ts/(2.0 + ts), Tw = max(2.0/(2.0 + ts) - exp(-tauW), 0.0);
   float ws = 0.5 + 0.5*dot(N, uSunDir);
-  vec3 white = (uSunE*(Rw*ws + Tw*(1.0 - ws)) + uSkyE*(Rw + Tw)*0.5)/PI + behind*exp(-tauW);
+  vec3 white = (sunE*(Rw*ws + Tw*(1.0 - ws)) + uSkyE*(Rw + Tw)*0.5)/PI + behind*exp(-tauW);
   vec3 col = mix(water, white, smoothstep(0.3, 0.85, aer));
   // Coverage: wherever there is a film there is an interface; its see-through-ness is the
   // Fresnel/Beer optics above, not alpha. Only the last millimetres feather the edge.
