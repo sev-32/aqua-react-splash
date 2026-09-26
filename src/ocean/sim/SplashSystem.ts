@@ -124,9 +124,9 @@ export class SplashSystem {
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
-  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number) {
+  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number, sheetOnly = 0) {
     p.set('uW', W).set('uViewProj', f.viewProj).set('uCam', f.cam).set('uViewportH', f.viewportH).set('uProjY', f.projY)
-      .set('uSizeGain', sizeGain).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
+      .set('uSizeGain', sizeGain).set('uSheetOnly', sheetOnly).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
   }
 
   private ensureFluid(w: number, h: number) {
@@ -168,7 +168,7 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendEquation(gl.MIN);
       const pd = this.pDepth.use();
-      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6);
+      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6, 1);
       pd.set('uSprayOnly', 0);
       occ(pd);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -178,7 +178,7 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendFunc(gl.ONE, gl.ONE);
       const pt = this.pThick.use();
-      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6);
+      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6, 1);
       pt.set('uSprayOnly', 0).set('uThickGain', 1);
       occ(pt);
       gl.drawArrays(gl.POINTS, 0, count);

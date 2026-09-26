@@ -88,7 +88,7 @@ export class SplashModule implements EngineModule {
   }
 
   /** Per body: volume below the undisturbed sea last frame, and jet volume not yet emitted. */
-  private displaced = new Map<number, { V: number; pending: number }>();
+  private displaced = new Map<number, { V: number; pending: number; mouth: [number, number] | null; last: [number, number, number] | null }>();
 
   /**
    * Froude-limited entry and exit: the crown is the displacement that waves cannot carry.
@@ -114,43 +114,72 @@ export class SplashModule implements EngineModule {
       alive.add(b.id);
       const geo = displacedBelow(b, level);
       const st = this.displaced.get(b.id);
-      if (!st) { this.displaced.set(b.id, { V: geo.volume, pending: 0 }); continue; }
-      const Q = dt > 0 ? (geo.volume - st.V) / dt : 0;
+      if (!st) { this.displaced.set(b.id, { V: geo.volume, pending: 0, mouth: null, last: null }); continue; }
+      let Q = dt > 0 ? (geo.volume - st.V) / dt : 0;
       st.V = geo.volume;
       const sea = mirror.sample(b.pos[0], b.pos[2]);
       const U = sea.vy - b.vel[1];              // downward speed relative to the sea surface
+      // Open cavity: a body that goes in faster than its waves (U > √(gR)) drags an air cavity
+      // behind it, and the cavity's expanding mouth keeps displacing water, πR²·U, while the
+      // body travels its first 2R below the surface — about 1.5 body volumes more, pushed up
+      // from the mouth ring. This keeps the curtain fed and rooted in the water after the body
+      // itself is under (a splash dwarfs the body that made it).
+      const Rb = b.shape.kind === 'sphere' ? b.shape.radius ?? 1 : Math.max(geo.a, 0.3);
+      const top = sea.height - (b.pos[1] + (b.shape.kind === 'sphere' ? Rb : 0));
+      let cavity = false;
+      if (st.mouth && top > 0 && top < 2 * Rb && U > Math.sqrt(9.81 * Rb) && Q < 0.05 * Math.PI * Rb * Rb * U) {
+        Q = Math.PI * Rb * Rb * U; cavity = true;
+      }
+      if (Q > 0 && U > Math.sqrt(9.81 * Rb) && !st.mouth) st.mouth = [b.pos[0], b.pos[2]];
+      if (top >= 2 * Rb || U <= 0) st.mouth = null;
+      const geoA = cavity ? Rb : geo.a;
       // Leaving is the mirror image: the water moving with the body (a sphere's added mass,
       // half its displacement) follows it up where the hole it leaves fills slower than it
       // rises — the mantle that clings, converges beneath it into a column, and drains.
       const exit = Q < 0;
-      const jet = exit ? 0.5 * entryJetFlux(-Q, -U, geo.a) : entryJetFlux(Q, U, geo.a);
+      const jet = exit ? 0.5 * entryJetFlux(-Q, -U, geoA) : entryJetFlux(Q, U, geoA);
       if (!(jet > 0)) { st.pending = 0; continue; }
       st.pending += jet * dt;
       if (st.pending < minV) continue;
-      // Launch velocity (radial vr, vertical vy). Entry: the curtain leaves at the entry
-      // speed (stagnation pressure ½ρU² turned into sheet speed) along the waterline tangent,
-      // elevation atan(a/h): flat at first touch, upright at the equator. Wagner's flatter
-      // skirt at first touch is fast but a film — it holds almost none of the volume — so the
-      // curtain is launched no flatter than 45°, and no further inward than 80° once the flow
-      // has separated past the equator. Exit: the mantle rises with the body and converges.
-      let vr = -0.1 * -U, vy = 0.85 * -U, ring = geo.a + 0.5 * dx;
-      if (!exit) {
+      // Launch velocity (radial vr, vertical vy). Entry: the curtain leaves along the waterline
+      // tangent, elevation atan(a/h) — flat at first touch, upright at the equator — at the
+      // contact line's pace, 2ȧ = 2hU/a (Wagner): the thin early tip fast, the bulk (thrown
+      // near the equator, where a ≈ R and most of the flux passes) slow, so the curtain is one
+      // sheet stretched from the waterline up rather than a ring flung off whole. Floors: the
+      // flatter early skirt is a film holding almost no volume (≥45°); past the equator the
+      // flow has separated (≤80°) and the cavity wall still pushes out at ~0.3U.
+      // Exit: the mantle rises with the body and converges beneath it.
+      let vr = -0.1 * -U, vy = 0.85 * -U, ring = geoA + 0.5 * dx;
+      if (cavity) {
+        // The mouth wall pushes the surface layer up and out: steep and slow, the curtain's root.
+        const th = (75 * Math.PI) / 180, v = 0.35 * U;
+        vr = v * Math.cos(th); vy = v * Math.sin(th);
+      } else if (!exit) {
         const R = b.shape.kind === 'sphere' ? b.shape.radius ?? 1 : geo.a;
         const h = Math.max(-R, Math.min(R, b.pos[1] - sea.height));
         const th = Math.min(Math.max(Math.atan2(geo.a, h), Math.PI / 4), (80 * Math.PI) / 180);
-        vr = U * Math.cos(th); vy = U * Math.sin(th);
+        const v = U * Math.min(Math.max((2 * h) / Math.max(geo.a, 1e-3), 0.3), 2);
+        vr = v * Math.cos(th); vy = v * Math.sin(th);
       }
-      if (b.shape.kind === 'sphere') {
+      if (b.shape.kind === 'sphere' && !cavity) {
         // Just outside the collider at the launch height, so the solver sees water leaving it.
         const R = b.shape.radius ?? 1, dy = sea.height + 0.04 - b.pos[1];
         ring = Math.max(ring, Math.sqrt(Math.max((R + 0.5 * dx) ** 2 - dy * dy, 0)));
       }
       const V = st.pending;
-      const t = tiles.tileAt(b.pos[0], b.pos[2]);
-      const rr = Math.max(geo.a, 2 * (t?.dx ?? dx));
-      if (!tiles.addImpact(b.pos[0], b.pos[2], rr, -splatHeightForVolume(V, rr), 0, 0, time, true)) { st.pending = 0; continue; }
+      const [ex, ez] = cavity && st.mouth ? st.mouth : [b.pos[0], b.pos[2]];
+      const t = tiles.tileAt(ex, ez);
+      const rr = Math.max(geoA, 2 * (t?.dx ?? dx));
+      if (!tiles.addImpact(ex, ez, rr, -splatHeightForVolume(V, rr), 0, 0, time, true)) { st.pending = 0; continue; }
       const share = Math.max(8, Math.min(Math.floor(this.mpm.cfg.capacity / 6), Math.round(V / minV) * 8));
-      this.mpm.emitRelease({ x: b.pos[0], z: b.pos[2], y: sea.height, volume: V, vx: b.vel[0], vz: b.vel[2], vy, vr }, 'crown', ring, time, share);
+      // The sheet is born at the contact line in air shear ~U: past the Weber break-up speed of
+      // a centimetre sheet (~10 m/s) the whole curtain leaves atomized — a rock's white wall —
+      // below it clear, the ball's glassy crown.
+      // Continuous emission across the frame from the previous frame's launch (if it emitted).
+      const prev = st.last && time - st.last[2] < 1.5 * dt ? st.last : null;
+      this.mpm.emitRelease({ x: ex, z: ez, y: sea.height, volume: V, vx: cavity ? 0 : b.vel[0], vz: cavity ? 0 : b.vel[2], vy, vr,
+        vr0: prev?.[0], vy0: prev?.[1], span: dt, aerated: Math.abs(U) > 10 }, 'crown', ring, time, share);
+      st.last = [vr, vy, time];
       st.pending = 0;
     }
     for (const id of this.displaced.keys()) if (!alive.has(id)) this.displaced.delete(id);

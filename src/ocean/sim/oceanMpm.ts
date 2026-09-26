@@ -244,7 +244,9 @@ export class OceanMpm {
    * follows: 'impact' = crown ring + central Worthington jet (limiter jets from
    * impacts), 'sheet' = forward-thrown sheet (breaking lips, bow sheets).
    */
-  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number; vr?: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
+  emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number; vr?: number; aerated?: boolean;
+    /** Sub-frame emission: launch (vr0, vy0) at the start of the last `span` s, (vr, vy) at its end. */
+    vr0?: number; vy0?: number; span?: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
     const V = r.volume;
     if (!(V > 0)) return;
     this.stats.emitted += V;
@@ -269,12 +271,18 @@ export class OceanMpm {
       const foam = kind === 'impact' && this.rand() < 0.4;
       const j = 0.8 + 0.4 * this.rand();
       if (crownOnly && r.vr !== undefined) {
-        // Body curtain: clear water leaving the waterline ring — outward at vr, upward at vy,
-        // carried along with the body's drift. Not aerated: it only turns to spray where the
-        // solver tears it apart.
+        // Body curtain leaving the waterline ring — outward at vr, upward at vy, carried with
+        // the body's drift. Clear water unless the impact itself atomized it (r.aerated).
+        // Each parcel left at its own instant within the frame: launch interpolated from the
+        // frame's start, position already advanced along its flight — a continuous curtain,
+        // not one ring per frame.
         const ring = spread * (1 + 0.08 * this.rand());
-        this.spawn(r.x + nx * ring, r.y + 0.02 + this.rand() * 0.04, r.z + nz * ring,
-          nx * r.vr * j + r.vx * 0.3, r.vy * j, nz * r.vr * j + r.vz * 0.3, vp, false);
+        const u = this.rand(), age = (1 - u) * (r.span ?? 0);
+        const vrr = (r.vr0 !== undefined ? r.vr0 + (r.vr - r.vr0) * u : r.vr) * j;
+        const vyy = (r.vy0 !== undefined ? r.vy0 + (r.vy - r.vy0) * u : r.vy) * j;
+        const rad = ring + vrr * age, hx0 = r.vx * 0.3, hz0 = r.vz * 0.3;
+        this.spawn(r.x + nx * rad + hx0 * age, r.y + 0.02 + this.rand() * 0.04 + vyy * age - 4.905 * age * age, r.z + nz * rad + hz0 * age,
+          nx * vrr + hx0, vyy - 9.81 * age, nz * vrr + hz0, vp, !!r.aerated);
       } else if (kind === 'impact' || crownOnly) {
         if (!crownOnly && i % 4 === 0) {
           // Central Worthington jet (pool spawnImpact): narrow, fast, near-vertical.
@@ -336,6 +344,20 @@ export class OceanMpm {
     }
     // Colliders summed the force of every substep: the frame's mean force is 1/sub of that.
     for (const c of colliders) { c.fx /= sub; c.fy /= sub; c.fz /= sub; }
+    // Atomization is irreversible: a parcel that has met air faster than the Weber break-up
+    // speed of a centimetre sheet (ρₐv²δ/σ ≈ 12 → v ≈ 10 m/s) is spray from then on — and
+    // spray feels the air: millimetre drops fall at vt ≈ 7 m/s, so quadratic drag
+    // g·|v|v/vt² brakes them (implicit, stable at any dt). Coherent sheets barely notice air.
+    const vAtom2 = 10 * 10, kDrag = 9.81 / (7 * 7);
+    for (let p = 0; p < P.count; p++) {
+      if (!(P.flags[p] & FLAG_ALIVE)) continue;
+      const s2 = P.vx[p] * P.vx[p] + P.vy[p] * P.vy[p] + P.vz[p] * P.vz[p];
+      if (s2 > vAtom2) P.flags[p] |= FLAG_FOAM;
+      if (P.flags[p] & FLAG_FOAM) {
+        const f = 1 / (1 + safeDt * kDrag * Math.sqrt(s2));
+        P.vx[p] *= f; P.vy[p] *= f; P.vz[p] *= f;
+      }
+    }
     // Ledger view.
     let vol = 0, n = 0;
     for (let p = 0; p < P.count; p++) if (P.flags[p] & FLAG_ALIVE) { vol += P.vol[p]; n++; }

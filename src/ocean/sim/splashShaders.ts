@@ -16,37 +16,55 @@ uniform mat4 uViewProj;
 uniform vec3 uCam;               // camera position relative to the splash origin
 uniform float uViewportH, uProjY;
 uniform float uSizeGain;
-uniform float uSprayOnly;        // 1: only fine spray (droplets < 1.2 mm) — the sheet goes to the fluid pass
-out vec4 vData;                  // x: alpha, y: speed, z: age01, w: coherence
+uniform float uSprayOnly;        // 1: only atomized spray (droplets < 1.2 mm) — the sheet goes to the fluid pass
+uniform float uSheetOnly;        // 1: only coherent water (the fluid passes) — spray is a cloud, not a surface
+out vec4 vData;                  // x: alpha, y: aeration (1 = spray cloud), z: age01, w: coherence
 out vec3 vRel;
-out vec2 vSplat;                 // world radius of the parcel (m), water volume it carries (m³)
+out vec2 vSplat;                 // sheet: world radius (m), water volume (m³) · spray: cloud radius (m), mean optical depth
 void main(){
   ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
   vec4 P = texelFetch(uP, c, 0);
   vSplat = vec2(1.0, 0.0);
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
-  if (uSprayOnly > 0.5 && V.w > 0.0012){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
+  // Atomized water that still has neighbours is white water — an aerated body with a surface
+  // (the fluid passes, opaque white); atomized parcels that have flown apart are a cloud of
+  // drops (the spray pass). Clear water is always the sheet.
+  bool spray = V.w <= 0.0012;
+  float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
+  bool cloud = spray && coh < 0.5;
+  if ((uSprayOnly > 0.5 && !cloud) || (uSheetOnly > 0.5 && cloud)){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec3 rel = P.xyz - uCam;
   vec4 clip = uViewProj*vec4(rel, 1.0);
   // A parcel spreads as it flies: its radius grows from the droplet cloud's initial size.
   // Coherent water (dense) renders at its sheet thickness; water that has broken up into
   // isolated drops (low MPM density) shrinks toward droplet size — the pool's metaball
   // strength followed density the same way.
-  float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
   float r = uSizeGain*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
+  float tau = 0.0;
+  if (cloud){
+    // A parcel of atomized water is a cloud of drops of radius V.w: it disperses as it flies
+    // (~0.5 m/s), and its mean optical depth is τ = 1.5·V/(r_d·πR²) (extinction efficiency 2).
+    // Dense white at birth, thinning to mist.
+    r = min(max(1.2*pow(max(M.x, 1e-7), 1.0/3.0), 0.12) + 0.5*M.y, 3.0);
+    tau = 1.5*M.x/(V.w*3.14159*r*r);
+  }
   gl_Position = clip;
   gl_PointSize = clamp(r*uViewportH*uProjY/max(clip.w, 0.05), 1.0, 96.0);
   float fadeIn = smoothstep(0.0, 0.06, M.y), fadeOut = smoothstep(0.0, 0.25, P.w);
-  vData = vec4(fadeIn*fadeOut, length(V.xyz), clamp(M.y/1.5, 0.0, 1.0), coh);
+  // Aeration: atomized parcels (the solver flags them spray once past the Weber break-up
+  // speed; droplet radius < 1.2 mm) stay white; a torn-up parcel is partly so.
+  float aer = cloud ? 2.0 : spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
+  vData = vec4(fadeIn*fadeOut, aer, clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
-  vSplat = vec2(max(r, 1e-4), max(M.x, 0.0));
+  vSplat = cloud ? vec2(r, tau) : vec2(max(r, 1e-4), max(M.x, 0.0));
 }`;
 
 export const SPLASH_POINT_FS = /* glsl */ `#version 300 es
 precision highp float;
 in vec4 vData;
 in vec3 vRel;
+in vec2 vSplat;
 out vec4 o;
 uniform vec3 uSunDir, uSunE, uSkyE;
 uniform float uFogDensity;
@@ -68,6 +86,20 @@ void main(){
   // Forward scattering through droplets brightens spray against the sun.
   float fwd = pow(max(dot(-V, uSunDir), 0.0), 6.0);
   vec3 col = 0.9*(uSunE*(ndl + 1.8*fwd) + uSkyE*1.1)/3.14159;
+  // Spray cloud: Gaussian column optical depth 4.07τ̄·e^(−4ρ²) (mean τ̄ over its disc; no hard
+  // rim), lit by two-stream transfer through a drop cloud (g ≈ 0.85): it reflects R toward the
+  // sun's side and diffusely transmits T to the far side — never brighter than E/π.
+  bool cloud = vData.y > 1.5;
+  if (cloud){
+    float tau = 4.07*vSplat.y*exp(-4.0*r2);
+    float ts = 0.15*tau, R = ts/(2.0 + ts), Td = max(2.0/(2.0 + ts) - exp(-tau), 0.0);
+    float w = 0.5 + 0.5*dot(V, uSunDir);
+    vec3 L = (uSunE*(R*w + Td*(1.0 - w)) + uSkyE*(R + Td)*0.5)/3.14159;
+    float a = (1.0 - exp(-tau))*vData.x;
+    float fog = exp(-length(vRel)*uFogDensity);
+    o = vec4(mix(uHaze*a, L*vData.x, fog), a);
+    return;
+  }
   float a = clamp(dens*vData.x*uOpacity*(0.35 + 0.65*(1.0 - vData.z)), 0.0, 1.0);
   float fog = exp(-length(vRel)*uFogDensity);
   col = mix(uHaze, col, fog);
@@ -132,9 +164,8 @@ void main(){
   // ray — a 4 cm crown wall reads 4 cm face-on and more at grazing incidence.
   float t = 1.5*sqrt(1.0 - r2)*vSplat.y/(3.14159265*vSplat.x*vSplat.x)*uThickGain*vData.x;
   // The pool's splash was clear water: sheets, jets and the drops they shed stay glassy.
-  // Water only turns white where air shear atomizes it — Weber number ρₐv²δ/σ past ~12
-  // for centimetre sheets, i.e. beyond ~8–14 m/s — and a torn-up parcel atomizes sooner.
-  float aer = smoothstep(8.0, 14.0, vData.y)*(0.55 + 0.45*(1.0 - vData.w));
+  // Water is white only where air shear has atomized it (Weber, set in the vertex stage).
+  float aer = min(vData.y, 1.0);
   o = vec4(t, t*aer, 1.0, 1.0);
 }`;
 
@@ -274,9 +305,14 @@ void main(){
   // The thickness buffer is the water path along the view ray (volume-conserving splats).
   vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), Tc);
   vec3 water = mix(behind*Tc + column, refl, F);
-  // Aerated water → white water (bubbles scatter all colours).
+  // Aerated water → white water: bubbles and drops (σ ≈ 1.5φ/r ≈ 300 m⁻¹) scatter all colours.
+  // Two-stream through its path (g ≈ 0.85): the face toward the sun reflects R, the far face
+  // glows with the diffuse transmission, thin fringes let the scene through e^(−τ).
   float aer = clamp(th.g/max(thick, 1e-4), 0.0, 1.0);
-  vec3 white = 0.85*(uSunE*(0.4 + 0.6*max(dot(N, uSunDir), 0.0)) + uSkyE)/PI;
+  float tauW = 300.0*th.g;
+  float ts = 0.15*tauW, Rw = ts/(2.0 + ts), Tw = max(2.0/(2.0 + ts) - exp(-tauW), 0.0);
+  float ws = 0.5 + 0.5*dot(N, uSunDir);
+  vec3 white = (uSunE*(Rw*ws + Tw*(1.0 - ws)) + uSkyE*(Rw + Tw)*0.5)/PI + behind*exp(-tauW);
   vec3 col = mix(water, white, smoothstep(0.3, 0.85, aer));
   // Coverage: wherever there is a film there is an interface; its see-through-ness is the
   // Fresnel/Beer optics above, not alpha. Only the last millimetres feather the edge.
