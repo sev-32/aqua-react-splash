@@ -48,7 +48,7 @@ export class FrameGraph {
         }
       }
       endPhase();
-      context.telemetry.checkGlError(`phase:${phase}`);
+      context.telemetry.checkGlErrorAtPhase(`phase:${phase}`);
     }
   }
 

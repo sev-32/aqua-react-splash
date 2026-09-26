@@ -23,6 +23,17 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   approximation while sailing. A capsized boat drifts at 0.1–0.3 m/s with its
   rig as a sea anchor.
 - V16 cloth collision broad phase made bit-exact and 4.3× faster.
+- Direct rig-structure solver: mast (Euler–Bernoulli beam), spreader
+  sockets, routed shrouds, diamonds, jib halyard and luff wire, gooseneck,
+  boom and vang solved as one XPBD block with a sparse LDLᵀ each iteration.
+  A 100 N masthead load bends the mast 0.09 m (was 0.73 m); the rig holds
+  its pretension (≈520 N shrouds, ≈290 N luff at rest; both shrouds were
+  slack before). Dock tune from the design geometry; gooseneck on the mast's
+  aft face; jib sheets led to the side-deck track fairleads (the jib can now
+  be sheeted to ~15° instead of ~30°).
+- Hull resistance: ITTC-57 form factor, Froude-based residuary, planing lift.
+- Knockdown squall (O key): builds to 1.9× and holds until she goes over; the
+  helm bears away (on the wind) or luffs (broad), the crew is caught sitting in.
 
 ## Crew
 
@@ -37,8 +48,15 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   lean back — the righting moment is their weight at its real lever.
 - Turtle recovery from the upturned hull; scoop recovery of the second crew
   as the low gunwale sinks under them; re-boarding with counter-balance.
-- Synthesised swimming, treading, hanging, board, climbing and scoop poses on
-  the legacy skinned humans, blended into the seated biomechanics.
+- Synthesised swimming, treading, hanging, board, climbing and scoop poses,
+  blended into the seated biomechanics.
+- Trim assist sails to the telltales: each sheet is worked to a target angle
+  of attack of the apparent flow at ~40 % height (14° main, 12° jib).
+- The crew are drawn as the LUCID female-skin-v4.2 body (canonical Skin78
+  skin, unchanged): lawful Semantic51 retarget with a joint-limited
+  upper-body IK, grip synergy, GPU skinning with the canonical weights,
+  wetsuit/boots/gloves, buoyancy aid and hair built on her own surface. The
+  body asset is built locally from the LUCID package (not in the public repo).
 
 ## Rendering
 
@@ -54,6 +72,11 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   pressure forcing against the physics sea, stroke splashes, foam from
   entry, lift-out, breaking and splashes.
 - Sun and shadow frustum follow the boat.
+- Sail render surfaces refined (Catmull–Rom, analytic normals) with
+  window-aware sail shadows.
+- GL error checks sampled at frame ends instead of after every frame phase
+  (each `gl.getError()` is a GPU sync); `?glcheck=phase` restores the old
+  attribution.
 
 ## Experience
 
@@ -67,9 +90,13 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
 ## Verification
 
 - CPU: all V7 lanes plus `ocean-field` (spectrum, field inversion, time
-  slices) and `hull-hydrostatics` (equilibrium, GZ curve, inverted
-  stability). Tests now resolve paths relative to the repository.
-- Browser (Chromium, ANGLE SwiftShader): capsize → dry capsize recovery in
-  ~11 s; capsize → swim → board → righting → scoop → re-board in ~21 s;
-  forced turtle → climb on hull → pull board → board → upright in ~17 s; no
-  GL errors; zero unauthorised render calls.
+  slices), `hull-hydrostatics` (equilibrium, GZ curve, inverted
+  stability), `rig-structure` (sparse LDLᵀ exactness, cantilever within 1%
+  of Euler–Bernoulli) and `lucid-crew` (TypeScript Semantic51 + canonical
+  drivers + LBS against the LUCID package: joints 2·10⁻¹² m, vertices
+  10⁻⁷ m; skipped without the local asset). Tests resolve paths relative to
+  the repository.
+- Browser (Chromium, ANGLE SwiftShader): knockdown from close-hauled → over
+  in ~4 s → dry capsize and scoop recovery; wet capsize → swim → board →
+  righting with the LUCID crew; forced turtle → climb on hull → pull board →
+  board → upright; no GL errors; zero unauthorised render calls.

@@ -59,6 +59,22 @@ export class TelemetryHub {
   private frameMode: FrameMode = 'static';
   private frameReason = 'initialization';
   private lastGlError = 0;
+  /**
+   * gl.getError() is a synchronous round trip to the GPU process (it flushes
+   * and waits), so checking after every frame-graph phase serialised CPU and
+   * GPU several times a frame. GL errors are sticky until read, so sampling
+   * at frame boundaries loses none of them, only per-phase attribution:
+   *   'sampled' (default) every 30th frame end, 'frame' every frame end,
+   *   'phase' after every phase as before (URL ?glcheck=phase for debugging).
+   * Runtime/init boundaries and explicit verification checks always read.
+   */
+  readonly glErrorPolicy: 'phase' | 'frame' | 'sampled' = (() => {
+    try {
+      const v = new URLSearchParams(globalThis.location?.search ?? '').get('glcheck');
+      return v === 'phase' || v === 'frame' ? v : 'sampled';
+    } catch { return 'sampled'; }
+  })();
+  private glChecksSkipped = 0;
   private telemetrySamples = 0;
   private telemetrySampleLastMs = 0;
   private telemetrySampleMeanMs = 0;
@@ -94,7 +110,8 @@ export class TelemetryHub {
     this.gpuTimer?.end();
     this.gpuTimer?.poll();
     if ((this.frame + 1) % 30 === 0) this.sampleSystems(systems, 'periodic');
-    this.checkGlError('frame:end');
+    if (this.glErrorPolicy !== 'sampled' || (this.frame + 1) % 30 === 0) this.checkGlError('frame:end');
+    else this.glChecksSkipped++;
     const elapsed = performance.now() - this.lastFrameStart;
     this.allFrameTimes.push(elapsed);
     (this.frameMode === 'dynamic' ? this.dynamicFrameTimes : this.staticFrameTimes).push(elapsed);
@@ -125,6 +142,12 @@ export class TelemetryHub {
   recordError(system: string, error: unknown): void {
     this.errors.push({ system, message: error instanceof Error ? error.stack ?? error.message : String(error), at: new Date().toISOString() });
     if (this.errors.length > 100) this.errors.shift();
+  }
+
+  /** Per-phase check: only under the 'phase' policy (see glErrorPolicy). */
+  checkGlErrorAtPhase(label: string): number {
+    if (this.glErrorPolicy !== 'phase') { this.glChecksSkipped++; return 0; }
+    return this.checkGlError(label);
   }
 
   checkGlError(label: string): number {
@@ -247,6 +270,8 @@ export class TelemetryHub {
         error: this.lastGlError,
         errorEvents: [...this.glErrors],
         errorSemantics: 'GL errors are sampled at defined frame/runtime boundaries and retained; snapshot does not drain gl.getError().',
+        errorPolicy: this.glErrorPolicy,
+        errorChecksSkipped: this.glChecksSkipped,
       } : null,
       gpuTimer: this.gpuTimer?.snapshot() ?? { supported: false, reason: 'runtime not attached' },
       browser: {
