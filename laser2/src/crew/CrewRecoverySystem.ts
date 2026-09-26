@@ -149,6 +149,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private gustFactor = 1;
   /** Remaining seconds the crew is caught out by the gust. */
   private knockdownS = 0;
+  private knockdownElapsed = 0;
   private luffSign = 0;
   readonly agents: CrewAgent[] = [];
   private context: AppContext | null = null;
@@ -1477,6 +1478,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     g.active = true;
     g.t = 0;
     this.knockdownS = g.rampS + g.holdS;
+    this.knockdownElapsed = 0;
     this.luffSign = 0;
     return g.rampS + g.holdS + g.decayS;
   }
@@ -1485,6 +1487,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     const g = this.gust;
     if (g.active) {
       g.t += dt;
+      // A knockdown squall holds at its peak until she is over (or 12 s).
+      if (this.knockdownS > 0 && frame.heelDeg < 75 && g.t > g.rampS + g.holdS - 0.05 && this.knockdownElapsed < 12) {
+        g.t = g.rampS + g.holdS - 0.05;
+      }
       let k = 0;
       if (g.t < g.rampS) k = P.smooth(g.t / g.rampS);
       else if (g.t < g.rampS + g.holdS) k = 1;
@@ -1495,9 +1501,14 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       this.gustFactor = 1;
     }
     if (this.knockdownS <= 0) return;
-    this.knockdownS = Math.max(0, this.knockdownS - dt);
-    // Caught out on a broad course the helm luffs into the gust (the boat
-    // rounds up, the sails load up and she goes over to leeward).
+    this.knockdownElapsed += dt;
+    // Held until capsized (heel > 75°) or the squall gives up after 12 s.
+    this.knockdownS = frame.heelDeg > 75 || this.knockdownElapsed > 12 ? 0 : Math.max(this.knockdownS, 0.1);
+    // Caught out: on a broad course the helm luffs into the gust (the boat
+    // rounds up, the sails load up and she goes over to leeward); on the
+    // wind the helm bears away to a beam reach with the sheets held, which is
+    // how most dinghy knockdowns start. The crew is caught sitting in (the
+    // sailing balance is suspended while the knockdown lasts).
     const input = master.input?.state;
     const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
     if (!input || !wind || frame.heelDeg > 60) return;
@@ -1505,14 +1516,14 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     const fl = Math.hypot(fromX, fromZ), hl = Math.hypot(frame.fwd.x, frame.fwd.z);
     if (fl < 0.3 || hl < 0.2) return;
     const twa = (Math.acos(Math.max(-1, Math.min(1, (fromX * frame.fwd.x + fromZ * frame.fwd.z) / (fl * hl)))) * 180) / Math.PI;
-    if (this.luffSign === 0) {
-      if (twa < 95) { this.luffSign = 2; return; } // already on the wind: just hold on
-      // Which way is the wind: + yaw turns the bow towards it when this is positive.
-      const cross = frame.fwd.z * fromX - frame.fwd.x * fromZ;
-      this.luffSign = cross > 0 ? 1 : -1;
-    }
-    if (this.luffSign !== 2 && twa > 60) {
+    // Which way is the wind: + yaw turns the bow towards it when this is positive.
+    const cross = frame.fwd.z * fromX - frame.fwd.x * fromZ;
+    const towardsWind = cross > 0 ? 1 : -1;
+    if (this.luffSign === 0) this.luffSign = twa < 80 ? -towardsWind * 2 : towardsWind; // ±2: bear away, ±1: luff
+    if (Math.abs(this.luffSign) === 2) {
       // Tiller convention: +tiller turns the bow towards −yaw.
+      input.tiller = twa < 100 ? Math.max(-1, Math.min(1, -(this.luffSign / 2) * 0.8)) : 0;
+    } else if (twa > 60) {
       input.tiller = Math.max(-1, Math.min(1, -this.luffSign * 0.85));
     }
   }
