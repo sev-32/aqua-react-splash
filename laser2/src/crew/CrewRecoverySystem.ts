@@ -138,9 +138,18 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   /** Maximum lean-back angle on the board (rad); U key raises it. */
   maxLeanRad = 1.0;
   heaveBoost = 0;
-  /** Remaining seconds of a forced knockdown gust (O key / API). */
+  /**
+   * Knockdown gust (O key / API): a real gust — the wind speed ramps to
+   * `gustPeak` × for a few seconds — that catches the crew out: sheets held,
+   * no extra hiking, and on a broad course the helm luffs into it. Whether the
+   * boat goes over is decided by the sail forces and the righting moment.
+   */
+  gustPeak = 1.9;
+  private readonly gust = { active: false, t: 0, rampS: 0.7, holdS: 2.6, decayS: 1.6 };
+  private gustFactor = 1;
+  /** Remaining seconds the crew is caught out by the gust. */
   private knockdownS = 0;
-  private knockdownSide = 1;
+  private luffSign = 0;
   readonly agents: CrewAgent[] = [];
   private context: AppContext | null = null;
   private installed = false;
@@ -194,19 +203,19 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     for (const agent of this.agents) this.wrapActor(agent);
     const forceHook = (dt: number): void => {
       for (const a of this.agents) if (a.swimmer.active) a.swimmer.computeForces(this.ocean, dt);
-      if (this.knockdownS > 0) {
-        // Knockdown gust: heeling torque about the hull's longitudinal axis,
-        // lifting the crew's side (a classic leeward capsize).
-        const f = this.frame;
-        // Gust heeling moment falls off as the sail approaches the water.
-        const heelRad = Math.acos(Math.max(-1, Math.min(1, f.up.y)));
-        const spill = heelRad < 1.3 ? Math.cos(heelRad) ** 2 : 0;
-        const torque = 2600 * this.knockdownSide * spill;
-        master.body.torque.x += f.fwd.x * torque;
-        master.body.torque.y += f.fwd.y * torque;
-        master.body.torque.z += f.fwd.z * torque;
-      }
     };
+    // The gust acts through the wind itself: every consumer (sails, spars,
+    // windage) sees the same stronger air.
+    const wind = master.wind;
+    if (wind?.update) {
+      const hadOwn = Object.prototype.hasOwnProperty.call(wind, 'update');
+      const originalUpdate = wind.update;
+      wind.update = (dt: number): void => {
+        originalUpdate.call(wind, dt);
+        if (this.gustFactor !== 1) wind.curSpeed *= this.gustFactor;
+      };
+      this.removers.push(() => { if (hadOwn) wind.update = originalUpdate; else delete wind.update; });
+    }
     const predict = (dt: number): void => { for (const a of this.agents) if (a.swimmer.active) a.swimmer.predict(dt); };
     const finish = (dt: number): void => { for (const a of this.agents) if (a.swimmer.active) a.swimmer.finish(dt); };
     world.forceHooks.push(forceHook);
@@ -446,7 +455,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       context.events.emit('sailing:capsize', { state: frame.heelDeg > 140 ? 'turtled' : 'capsized', heelDeg: frame.heelDeg });
     }
     this.manageSheets(master, frame, dt);
-    if (this.knockdownS > 0) this.knockdownS = Math.max(0, this.knockdownS - dt);
+    this.advanceGust(master, frame, dt);
     for (const agent of this.agents) {
       agent.taskTime += dt;
       this.stepAgent(agent, frame, dt);
@@ -472,8 +481,9 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     switch (agent.task) {
       case 'sailing': {
         const phi = this.phiAway(agent, frame);
-        if (this.knockdownS > 0) agent.hikeCommand = Math.min(agent.hikeCommand, 0.1); // caught out by the gust
-        else this.balance(agent, phi, dt);
+        // Caught out by a gust: no time to react (hiking stays where it was).
+        if (this.knockdownS <= 0) this.balance(agent, phi, dt);
+        else agent.lastPhiAway = phi;
         if (phi > 58 || phi < -42 || heel > 70) agent.setTask('bracing', `heel ${heel.toFixed(0)}°`);
         break;
       }
@@ -623,7 +633,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
         input.jibScope += (this.savedTrim.jibScope - input.jibScope) * k;
         if (Math.abs(input.mainScope - this.savedTrim.mainScope) < 0.01) this.savedTrim = null;
       }
-    } else if (this.trimAssist && frame.heelDeg < 60) {
+    } else if (this.trimAssist && frame.heelDeg < 60 && this.knockdownS <= 0) {
       this.autoTrim(master, frame, dt);
     }
   }
@@ -644,16 +654,83 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     const cosA = (ax * frame.fwd.x + az * frame.fwd.z) / (al * fl);
     const awa = (Math.acos(Math.max(-1, Math.min(1, cosA))) * 180) / Math.PI;
     this.lastAwaDeg = awa;
-    const mainTarget = Math.max(0.03, Math.min(0.97, 1 - (awa - 30) / 118));
-    const jibTarget = Math.max(0.03, Math.min(0.97, 1 - (awa - 32) / 104));
-    // Ease the main when the heel exceeds what the crew can hold: early when
-    // they are already fully hiked, later (and harder) when they are not.
+    // Sailing to the telltales: each sheet is worked until the flow meets the
+    // sail at the angle of best lift at ~40 % height (soft sails: ~14° main,
+    // ~12° jib), easing faster than trimming in. Falls back to an apparent-
+    // wind schedule when the sail geometry is unavailable.
+    const layout = window.LASER2_RIGGING_V16?.layout;
+    const alphaMain = this.sailAlpha(layout?.main, 0.4, master, frame);
+    const alphaJib = this.sailAlpha(layout?.jib, 0.45, master, frame);
+    this.lastAlpha.main = alphaMain ?? Number.NaN;
+    this.lastAlpha.jib = alphaJib ?? Number.NaN;
     const fullyHiked = this.agents.every((a) => a.mode !== 'aboard' || a.hikeCommand > 0.88);
     const threshold = fullyHiked ? 21 : 27;
     const ease = Math.min(0.65, Math.max(0, frame.heelDeg - threshold) / 22);
-    const step = (value: number, target: number, rate: number): number => value + Math.max(-rate * 2.5, Math.min(rate, target - value));
-    if (!keys.KeyW && !keys.KeyS) input.mainScope = step(input.mainScope, mainTarget - ease, dt * 0.45);
-    if (!keys.KeyQ && !keys.KeyE) input.jibScope = step(input.jibScope, jibTarget - 0.5 * ease, dt * 0.45);
+    const work = (value: number, alpha: number | null, target: number, fallback: number): number => {
+      if (alpha === null) return value + Math.max(-dt * 1.1, Math.min(dt * 0.45, fallback - value));
+      const error = target - alpha; // positive → sheet in
+      const rate = Math.max(-0.55, Math.min(0.28, error * 0.028));
+      return Math.max(0.02, Math.min(0.98, value + rate * dt));
+    };
+    if (!keys.KeyW && !keys.KeyS) {
+      const trimmed = work(input.mainScope, alphaMain, 14, 1 - (awa - 30) / 118);
+      // Gust relief overrides the telltales.
+      input.mainScope = ease > 0 ? Math.min(trimmed, input.mainScope - ease * dt * 1.6) : trimmed;
+    }
+    if (!keys.KeyQ && !keys.KeyE) input.jibScope = work(input.jibScope, alphaJib, 12, 1 - (awa - 32) / 104);
+    // Kicker firm to hold the leech (twist) on the wind and reaching; eased on
+    // a run so the boom can lift and the leech open (death-roll prevention).
+    if (!keys.KeyR && !keys.KeyF) {
+      const vangTarget = awa < 125 ? 0.88 : 0.62;
+      input.vang += Math.max(-dt * 0.3, Math.min(dt * 0.3, vangTarget - input.vang));
+    }
+  }
+
+  private readonly lastAlpha = { main: Number.NaN, jib: Number.NaN };
+
+  /**
+   * Signed angle of attack (deg) of the apparent flow on the chord of the
+   * sail row at `frac` of the height, positive when the wind loads the
+   * windward face (negative: backwinded / luffing). Mirrors the V16 strip
+   * aerodynamics' chord/normal construction.
+   */
+  private sailAlpha(rows: any[] | undefined, frac: number, master: any, frame: HullFrame): number | null {
+    if (!rows || rows.length < 3) return null;
+    const r = Math.max(1, Math.min(rows.length - 2, Math.round(frac * (rows.length - 1))));
+    const row = rows[r], prev = rows[r - 1], next = rows[r + 1];
+    const luff = row[0].x, leech = row[row.length - 1].x;
+    let cx = leech.x - luff.x, cy = leech.y - luff.y, cz = leech.z - luff.z;
+    const cl = Math.hypot(cx, cy, cz);
+    if (cl < 0.05) return null;
+    cx /= cl; cy /= cl; cz /= cl;
+    let sx = next[0].x.x + next[next.length - 1].x.x - prev[0].x.x - prev[prev.length - 1].x.x;
+    let sy = next[0].x.y + next[next.length - 1].x.y - prev[0].x.y - prev[prev.length - 1].x.y;
+    let sz = next[0].x.z + next[next.length - 1].x.z - prev[0].x.z - prev[prev.length - 1].x.z;
+    const sl = Math.hypot(sx, sy, sz);
+    if (sl < 1e-4) return null;
+    sx /= sl; sy /= sl; sz /= sl;
+    let nx = sy * cz - sz * cy, ny = sz * cx - sx * cz, nz = sx * cy - sy * cx;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    nx /= nl; ny /= nl; nz /= nl;
+    const T = three();
+    const center = this.tmp.b.set((luff.x + leech.x) / 2, (luff.y + leech.y) / 2, (luff.z + leech.z) / 2);
+    const w = master.wind.velocityAt(center, this.tmp.a);
+    const pv = row[Math.floor(row.length * 0.42)].v;
+    let fx = w.x - pv.x, fy = w.y - pv.y, fz = w.z - pv.z;
+    const along = fx * sx + fy * sy + fz * sz;
+    fx -= along * sx; fy -= along * sy; fz -= along * sz;
+    const flen = Math.hypot(fx, fy, fz);
+    if (flen < 0.2) return null;
+    // Orient the normal to the sail's leeward face: towards the side the
+    // clew is sheeted out to, or downwind when sheeted to the centreline.
+    const outboard = (leech.x - luff.x) * frame.right.x + (leech.y - luff.y) * frame.right.y + (leech.z - luff.z) * frame.right.z;
+    let lee = Math.abs(outboard) > 0.08 * cl
+      ? (nx * frame.right.x + ny * frame.right.y + nz * frame.right.z) * Math.sign(outboard)
+      : nx * fx + ny * fy + nz * fz;
+    if (lee < 0) { nx = -nx; ny = -ny; nz = -nz; lee = -lee; }
+    void T; void lee;
+    const sinA = Math.max(-1, Math.min(1, (fx * nx + fy * ny + fz * nz) / flen));
+    return (Math.asin(sinA) * 180) / Math.PI;
   }
 
   private fall(agent: CrewAgent, frame: HullFrame, phi: number): void {
@@ -1389,13 +1466,55 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     return pick.mode === 'overboard' ? this.swimmerPos(pick) : this.designToWorld(pick.comDesign, P.v3());
   }
 
-  /** Force a capsize (demo/test): a knockdown gust that lifts the crew's side. */
-  forceCapsize(durationS = 1.6): void {
-    if (!this.context) return;
+  /**
+   * Knockdown gust (demo/test/O key): the wind builds to `gustPeak` × for a few
+   * seconds while the crew is caught out. Returns the gust duration (s).
+   */
+  forceCapsize(): number {
+    if (!this.context) return 0;
     this.updateFrame();
-    const helm = this.agents.find((a) => a.id === 'helm');
-    this.knockdownSide = helm ? -Math.sign(helm.actor.side || -1) : 1;
-    this.knockdownS = durationS;
+    const g = this.gust;
+    g.active = true;
+    g.t = 0;
+    this.knockdownS = g.rampS + g.holdS;
+    this.luffSign = 0;
+    return g.rampS + g.holdS + g.decayS;
+  }
+
+  private advanceGust(master: any, frame: HullFrame, dt: number): void {
+    const g = this.gust;
+    if (g.active) {
+      g.t += dt;
+      let k = 0;
+      if (g.t < g.rampS) k = P.smooth(g.t / g.rampS);
+      else if (g.t < g.rampS + g.holdS) k = 1;
+      else if (g.t < g.rampS + g.holdS + g.decayS) k = 1 - P.smooth((g.t - g.rampS - g.holdS) / g.decayS);
+      else g.active = false;
+      this.gustFactor = 1 + (this.gustPeak - 1) * k;
+    } else {
+      this.gustFactor = 1;
+    }
+    if (this.knockdownS <= 0) return;
+    this.knockdownS = Math.max(0, this.knockdownS - dt);
+    // Caught out on a broad course the helm luffs into the gust (the boat
+    // rounds up, the sails load up and she goes over to leeward).
+    const input = master.input?.state;
+    const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+    if (!input || !wind || frame.heelDeg > 60) return;
+    const fromX = -wind.x, fromZ = -wind.z;
+    const fl = Math.hypot(fromX, fromZ), hl = Math.hypot(frame.fwd.x, frame.fwd.z);
+    if (fl < 0.3 || hl < 0.2) return;
+    const twa = (Math.acos(Math.max(-1, Math.min(1, (fromX * frame.fwd.x + fromZ * frame.fwd.z) / (fl * hl)))) * 180) / Math.PI;
+    if (this.luffSign === 0) {
+      if (twa < 95) { this.luffSign = 2; return; } // already on the wind: just hold on
+      // Which way is the wind: + yaw turns the bow towards it when this is positive.
+      const cross = frame.fwd.z * fromX - frame.fwd.x * fromZ;
+      this.luffSign = cross > 0 ? 1 : -1;
+    }
+    if (this.luffSign !== 2 && twa > 60) {
+      // Tiller convention: +tiller turns the bow towards −yaw.
+      input.tiller = Math.max(-1, Math.min(1, -this.luffSign * 0.85));
+    }
   }
 
   telemetry(): Record<string, unknown> {
@@ -1406,6 +1525,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       balanceAssist: this.balanceAssist,
       trimAssist: this.trimAssist,
       apparentWindAngleDeg: this.lastAwaDeg,
+      sailAngleOfAttackDeg: { main: this.lastAlpha.main, jib: this.lastAlpha.jib },
       trapezeAssist: this.trapezeAssist,
       capsizeActive: this.capsizeActive,
       capsizes: this.capsizeCount,

@@ -177,6 +177,14 @@ export class SailingPhysicsSystem implements AppSystem {
     this.originalInvI.y = master.body.invI.y;
     this.originalInvI.z = master.body.invI.z;
     hydro.hook = (dtSub: number): void => this.hook(dtSub);
+    // The V16 strip aerodynamics carried a 0.82 efficiency factor calibrated
+    // against the anchored lab; free sailing is calibrated against the native
+    // hull resistance with full sail forces.
+    const v16 = window.LASER2_RIGGING_V16;
+    if (v16?.params) {
+      this.savedAeroScale = v16.params.sailAeroScale;
+      v16.params.sailAeroScale = this.sailAeroScale;
+    }
     this.installed = true;
   }
 
@@ -187,6 +195,9 @@ export class SailingPhysicsSystem implements AppSystem {
     else master.hydro.hook = this.originalHook;
     master.body.invMass = this.originalInvMass;
     master.body.invI.set(this.originalInvI.x, this.originalInvI.y, this.originalInvI.z);
+    const v16 = window.LASER2_RIGGING_V16;
+    if (v16?.params && this.savedAeroScale !== null) v16.params.sailAeroScale = this.savedAeroScale;
+    this.savedAeroScale = null;
     this.installed = false;
   }
 
@@ -221,6 +232,14 @@ export class SailingPhysicsSystem implements AppSystem {
   }
 
   private readonly lever = { x: 0, y: 0, z: 0 };
+  /** Resistance components along the hull axis at the last sub-step (N). */
+  private readonly surge = { hullN: 0, residuaryN: 0, planingLiftN: 0 };
+  /** Share of the weight carried dynamically when fully planing. */
+  planingLiftMax = 0.5;
+  /** V16 sail aerodynamic efficiency used while sailing. */
+  sailAeroScale = 1.0;
+  private savedAeroScale: number | null = null;
+  private lastPlaningShare = 0;
 
   private hook(dtSub: number): void {
     if (!this.enabled || !this.hydro || !this.context) return;
@@ -271,6 +290,12 @@ export class SailingPhysicsSystem implements AppSystem {
     const hydro = this.hydro.compute(this.pose, this.ocean, this.air, this.last);
     this.tmpForce.set(hydro.fx, hydro.fy, hydro.fz);
     body.force.add(this.tmpForce);
+    {
+      // Horizontal resistance only (buoyancy does not project on a trimmed axis).
+      const rr = this.foilPose.r;
+      const hx = rr[2]!, hz = rr[8]!, hl = Math.hypot(hx, hz) || 1;
+      this.surge.hullN = -(hydro.fx * hx + hydro.fz * hz) / hl;
+    }
     body.torque.x += hydro.tx; body.torque.y += hydro.ty; body.torque.z += hydro.tz;
 
     // 3. Foils.
@@ -287,13 +312,43 @@ export class SailingPhysicsSystem implements AppSystem {
     const cfg = master.config?.hydro;
     const upright = smoothstep(0.35, 0.8, upY);
     const immersion = Math.min(1.3, hydro.submergedVolume / Math.max(0.05, mass / 1025));
-    if (Math.abs(u) > 0.05 && upright > 0 && cfg) {
+    void cfg;
+    if (Math.abs(u) > 0.05 && upright > 0) {
+      // Residuary (wave-making + spray) resistance of a light planing
+      // dinghy as a share of displacement vs Froude number: negligible below
+      // Fr 0.2, rising steeply to the hump (R_r/Δ ≈ 0.058 at Fr ≈ 0.52 —
+      // 6.5 kn for a 4.2 m waterline), then easing as the hull climbs onto the
+      // plane (dynamic lift below reduces the displaced weight further).
       const c = Math.abs(u);
-      const hump = Math.exp(-Math.pow((c - cfg.humpSpeed) / 0.55, 2));
-      const plane = 1 / (1 + Math.exp(-(c - cfg.humpSpeed * 1.08) * 2.6));
-      const residuary = cfg.residuaryK * c * c * (0.1 + hump * 0.55) * (1 - cfg.planingRelief * plane) * immersion * upright * this.residuaryScale;
+      const fr = c / Math.sqrt(g * 4.2);
+      const rise = smoothstep(0.18, 0.52, fr);
+      const share = fr < 0.52 ? 0.058 * Math.pow(rise, 2.2) : 0.058 - 0.03 * smoothstep(0.52, 1.02, fr);
+      const displaced = mass * g * (1 - Math.min(0.9, this.lastPlaningShare));
+      const residuary = share * displaced * Math.min(1.15, immersion) * upright * this.residuaryScale;
       const sign = -Math.sign(u);
       this.sink!.addForceAt(fwdX * residuary * sign, fwdY * residuary * sign, fwdZ * residuary * sign, this.pose.px, this.pose.py - 0.12, this.pose.pz);
+      this.surge.residuaryN = residuary;
+    } else {
+      this.surge.residuaryN = 0;
+    }
+    // 5. Dynamic lift of the planing bottom. Above hull speed the aft bottom
+    // meets the water at a small angle and carries a growing share of the
+    // weight hydrodynamically; the hull rises, the wetted surface (and so the
+    // friction computed on it) shrinks. Centre of dynamic pressure is aft of
+    // the centre of gravity, trimming the bow up as real dinghies do.
+    const froude = u / Math.sqrt(g * 4.2);
+    const liftShare = u > 0 ? this.planingLiftMax * smoothstep(0.42, 1.0, froude) * upright * Math.min(1, immersion) : 0;
+    this.lastPlaningShare = liftShare;
+    this.surge.planingLiftN = 0;
+    if (liftShare > 0.001) {
+      const lift = liftShare * mass * g;
+      const upX = r[1]!, upYb = r[4]!, upZ = r[7]!;
+      const lx = 0, ly = -0.02 - this.refY, lz = -0.85 - this.refZ;
+      const px = this.pose.px + r[0]! * lx + r[1]! * ly + r[2]! * lz;
+      const py = this.pose.py + r[3]! * lx + r[4]! * ly + r[5]! * lz;
+      const pz = this.pose.pz + r[6]! * lx + r[7]! * ly + r[8]! * lz;
+      this.sink!.addForceAt(upX * lift, upYb * lift, upZ * lift, px, py, pz);
+      this.surge.planingLiftN = lift;
     }
     this.kinematics.speedThroughWaterMs = Math.abs(u);
     const rightX = r[0]!, rightY = r[3]!, rightZ = r[6]!;
@@ -382,6 +437,7 @@ export class SailingPhysicsSystem implements AppSystem {
         wettedAreaM2: h.wettedArea, pressureDragN: h.pressureDragN, frictionN: h.frictionN, windageN: h.windageN,
         wetTriangles: h.wetTriangles, clippedTriangles: h.clippedTriangles,
       },
+      surgeResistance: { ...this.surge, boardDragN: this.board.state.dragN, rudderDragN: this.rudder.state.dragN },
       rightingMomentNm: this.rightingMomentNm,
       rightingArmM: this.rightingArmM,
       board: { ...this.board.state, deployment: this.board.deployment },

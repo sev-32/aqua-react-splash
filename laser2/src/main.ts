@@ -1,10 +1,12 @@
 import { AppKernel } from './core/AppKernel.js';
 import { LegacyRuntimeAdapter } from './legacy/LegacyRuntimeAdapter.js';
 import { RigRuntimeSystem } from './legacy/RigRuntimeSystem.js';
+import { RigStructureSystem } from './sailing/RigStructureSystem.js';
 import { AnchoredPhysicsSystem } from './physics/AnchoredPhysicsSystem.js';
 import { RenderSystem } from './render/RenderSystem.js';
 import { NativeHullAssetSystem } from './scene/NativeHullAssetSystem.js';
 import { NativeHullBatchSystem } from './scene/NativeHullBatchSystem.js';
+import { SailRenderSystem } from './scene/SailRenderSystem.js';
 import { BoatSceneSystem } from './scene/BoatSceneSystem.js';
 import { TelemetryHub } from './telemetry/TelemetryHub.js';
 import { QualityManager } from './quality/QualityManager.js';
@@ -56,6 +58,7 @@ async function start(): Promise<void> {
   const nativeHull = new NativeHullAssetSystem();
   const hullBatches = new NativeHullBatchSystem(nativeHull);
   const scene = new BoatSceneSystem(nativeHull);
+  const sailSurfaces = new SailRenderSystem();
   const catalog = new ObjectCatalogSystem(scene);
   const camera = new CameraControllerSystem();
   const selection = new SelectionSystem(catalog, camera);
@@ -97,10 +100,12 @@ async function start(): Promise<void> {
     .add(physics)
     .add(crewRecovery)
     .add(sailWater)
+    .add(new RigStructureSystem())
     .add(new RigRuntimeSystem())
     .add(nativeHull)
     .add(hullBatches)
     .add(scene)
+    .add(sailSurfaces)
     .add(catalog)
     .add(camera)
     .add(coupling)
@@ -145,7 +150,7 @@ async function start(): Promise<void> {
     telemetry,
     quality,
     lighting,
-    systems: { sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
+    systems: { sailSurfaces, sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
     snapshot: (deep = false) => kernel.snapshot({ deep }),
     runBenchmark: (id: BenchmarkId) => benchmarks.run(id),
     setDynamic: (enabled: boolean) => kernel.setDynamic(enabled),

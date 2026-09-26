@@ -70,6 +70,11 @@ export interface HydroCoefficients {
    * remain fully bluff.
    */
   longitudinalPressureFactor: number;
+  /**
+   * ITTC form factor k: the viscous pressure (form) drag of a fair hull in
+   * surge, as a fraction of its flat-plate friction (applied as (1+k)·Cf).
+   */
+  formFactor: number;
 }
 
 export const DEFAULT_HYDRO_COEFFICIENTS: HydroCoefficients = {
@@ -87,7 +92,11 @@ export const DEFAULT_HYDRO_COEFFICIENTS: HydroCoefficients = {
   kinematicViscosity: 1.19e-6,
   airPressureCoefficient: 0.9,
   maxFacePressure: 26000,
-  longitudinalPressureFactor: 0.07,
+  // Surge is carried entirely by friction·(1+k) and the residuary
+  // (wave-making) model: the face-pressure law, with its linear radiation-
+  // damping term, is for heave, roll, pitch, sway and bluff motion only.
+  longitudinalPressureFactor: 0,
+  formFactor: 0.12,
 };
 
 export interface HydroResult {
@@ -210,7 +219,7 @@ export class HullHydrostatics {
     // ITTC-57 skin friction at the current hull speed through the water.
     const speed = Math.hypot(pose.vx, pose.vy, pose.vz);
     const reynolds = Math.max(2e5, (speed * c.frictionLength) / c.kinematicViscosity);
-    const cf = (0.075 / Math.pow(Math.log10(reynolds) - 2, 2)) * c.frictionScale;
+    const cf = (0.075 / Math.pow(Math.log10(reynolds) - 2, 2)) * c.frictionScale * (1 + c.formFactor);
     const poly = this.poly;
 
     for (let t = 0; t < tri.length; t += 3) {
