@@ -103,7 +103,10 @@ export interface RigStructureParams {
   enabled: boolean;
   boomEiVerticalNm2: number;
   boomEiLateralNm2: number;
-  /** Iterations of the Gauss–Seidel loop on which the block is solved (every iteration by default). */
+  /**
+   * Solve the block on every n-th Gauss–Seidel iteration, aligned so the last
+   * iteration of each sub-step always includes it (2: iterations 2, 4, 6 of 6).
+   */
   solveEvery: number;
 }
 
@@ -116,7 +119,7 @@ export class RigStructureSolver {
     enabled: true,
     boomEiVerticalNm2: 9000,
     boomEiLateralNm2: 9000,
-    solveEvery: 1,
+    solveEvery: 2,
   };
   readonly nodes: Particle[] = [];
   readonly rows: RigRow[] = [];
@@ -139,6 +142,7 @@ export class RigStructureSolver {
   private dl = new Float64Array(0);
   private needFactor = true;
   private iteration = 0;
+  private solvedThisSubstep = 0;
   private dt = 1 / 720;
   private readonly tmpA: LegacyVec;
   private readonly tmpB: LegacyVec;
@@ -469,6 +473,7 @@ export class RigStructureSolver {
       row.lambda = 0;
     }
     this.iteration = 0;
+    this.solvedThisSubstep = 0;
     this.needFactor = true;
   }
 
@@ -524,8 +529,9 @@ export class RigStructureSolver {
       this.beginSubstep();
       this.lambda = 1;
     }
-    const iteration = this.iteration++;
-    if (iteration % Math.max(1, this.params.solveEvery) !== 0) return;
+    const every = Math.max(1, this.params.solveEvery);
+    if ((++this.iteration) % every !== 0) return;
+    const first = this.solvedThisSubstep++ === 0;
     const rows = this.rows;
     const n = rows.length;
     const invDt2 = 1 / (dt * dt);
@@ -536,7 +542,7 @@ export class RigStructureSolver {
       if (row.uni < 0) {
         // Tension-only member: taut when stretched past its rest length.
         const taut = row.C > -1e-7 || row.lambda < 0;
-        if (iteration === 0) {
+        if (first) {
           if (row.active !== taut) { row.active = taut; this.needFactor = true; }
         } else if (!row.active && row.C > 1e-6) {
           row.active = true;

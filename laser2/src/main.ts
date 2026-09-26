@@ -2,6 +2,7 @@ import { AppKernel } from './core/AppKernel.js';
 import { LegacyRuntimeAdapter } from './legacy/LegacyRuntimeAdapter.js';
 import { RigRuntimeSystem } from './legacy/RigRuntimeSystem.js';
 import { RigStructureSystem } from './sailing/RigStructureSystem.js';
+import { LucidCrewSystem } from './crew/lucid/LucidCrewSystem.js';
 import { AnchoredPhysicsSystem } from './physics/AnchoredPhysicsSystem.js';
 import { RenderSystem } from './render/RenderSystem.js';
 import { NativeHullAssetSystem } from './scene/NativeHullAssetSystem.js';
@@ -86,6 +87,7 @@ async function start(): Promise<void> {
   const ocean = new OceanSystem(stepBus);
   const sailingPhysics = new SailingPhysicsSystem(ocean);
   const crewRecovery = new CrewRecoverySystem(ocean, sailingPhysics, stepBus);
+  const lucidCrew = new LucidCrewSystem(crewRecovery);
   const sailWater = new SailWaterSystem(ocean);
   const sailingMode = new SailingModeSystem().addAuthority(ocean).addAuthority(sailingPhysics).addAuthority(sailWater).addAuthority(crewRecovery);
   const waterSurface = new WaterSurfaceSystem(ocean, coupling, atmosphere, lighting);
@@ -99,6 +101,7 @@ async function start(): Promise<void> {
     .add(sailingPhysics)
     .add(physics)
     .add(crewRecovery)
+    .add(lucidCrew)
     .add(sailWater)
     .add(new RigStructureSystem())
     .add(new RigRuntimeSystem())
@@ -150,7 +153,7 @@ async function start(): Promise<void> {
     telemetry,
     quality,
     lighting,
-    systems: { sailSurfaces, sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
+    systems: { lucidCrew, sailSurfaces, sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
     snapshot: (deep = false) => kernel.snapshot({ deep }),
     runBenchmark: (id: BenchmarkId) => benchmarks.run(id),
     setDynamic: (enabled: boolean) => kernel.setDynamic(enabled),
