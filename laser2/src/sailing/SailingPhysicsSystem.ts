@@ -19,6 +19,7 @@ import type { OceanSystem } from '../water/OceanSystem.js';
 import { buildHullMesh, HULL_POINTS, type HullMesh } from './HullGeometry.js';
 import { HullHydrostatics, emptyHydroResult, type HydroResult, type RigidPose, type AirSampler } from './HullHydrostatics.js';
 import { FoilModel, type FoilPose, type BodyForceSink } from './FoilModel.js';
+import { three } from '../three/ThreeRuntime.js';
 
 export interface Vec3Like { x: number; y: number; z: number }
 
@@ -185,7 +186,74 @@ export class SailingPhysicsSystem implements AppSystem {
       this.savedAeroScale = v16.params.sailAeroScale;
       v16.params.sailAeroScale = this.sailAeroScale;
     }
+    this.installJibSheetRange(master);
     this.installed = true;
+  }
+
+  /**
+   * Jib sheeting. The legacy fairleads sat 0.95 m aft of the jib clew and the
+   * trim law stopped the working sheet at 0.98 m, so the clew could not come
+   * inside ~30° of the centreline and the low, aft sheet lead left the leech
+   * open: the jib luffed at any apparent wind under ~40° and the boat could
+   * not point. The fairleads are placed where the V16 rope hardware draws
+   * them (side-deck tracks just forward of the clew, ±0.42 m, 2.65 m from the
+   * transom), so the sheet pulls the low clew down and in and holds the leech,
+   * and full scope brings the clew onto the fairlead line (~15° sheeting
+   * angle). The trim law between is the legacy one, rescaled to the new lead.
+   */
+  jibFairleadDesignZ = 0.45;
+  jibFairleadHalfBeam = 0.42;
+  private jibTrimOriginal: ((s: number, d: number) => void) | null = null;
+  private jibSheetSaved: Array<{ c: any; local: any }> = [];
+  private installJibSheetRange(master: any): void {
+    const jib = master.sails?.jib;
+    const cloth = jib?.cloth;
+    if (!jib?.setTrim || !cloth?.parts || this.jibTrimOriginal) return;
+    const sheets: any[] = jib.sheetCs ?? [];
+    if (sheets.length !== 2) return;
+    const T = three();
+    const cfg = master.config;
+    const ref = master.bodyReference ?? new T.Vector3(0, cfg.hull.bodyReferenceY, cfg.hull.comZ);
+    const toBody = (x: number, y: number, z: number) => (master.designToBody ? master.designToBody(new T.Vector3(x, y, z)) : new T.Vector3(x, y, z).sub(ref));
+    const tack = cfg.jib.tackLocal;
+    const footLen = cfg.jib.foot;
+    this.jibSheetSaved = sheets.map((c) => ({ c, local: c.local.clone() }));
+    const fairY = cfg.jib.fairleadLocal.y;
+    let minLen = 0.8;
+    sheets.forEach((c, k) => {
+      const sign = Math.sign(this.jibSheetSaved[k]!.local.x) || (k === 0 ? -1 : 1);
+      c.local.copy(toBody(sign * this.jibFairleadHalfBeam, fairY, this.jibFairleadDesignZ));
+      // Clew on the fairlead line (design foot drops 0.12 m aft of the tack).
+      const dx = sign * this.jibFairleadHalfBeam - tack.x, dz = this.jibFairleadDesignZ - tack.z;
+      const h = Math.hypot(dx, dz);
+      const clew = { x: tack.x + (dx / h) * footLen, y: tack.y - 0.12, z: tack.z + (dz / h) * footLen };
+      minLen = Math.hypot(sign * this.jibFairleadHalfBeam - clew.x, fairY - clew.y, this.jibFairleadDesignZ - clew.z);
+    });
+    this.jibSheetMinM = Math.max(0.12, minLen);
+    const original = jib.setTrim;
+    this.jibTrimOriginal = original;
+    const legacyMin = 0.98, legacyMax = 2.6;
+    const self = this;
+    jib.setTrim = function (scope: number, side: number) {
+      original.call(this, scope, side);
+      const s = Math.max(0, Math.min(1, scope));
+      const working = legacyMax + (self.jibSheetMinM - legacyMax) * s;
+      for (const c of sheets) {
+        // The working sheet (the lazy one carries +2.2 m of slack).
+        if (c.rest < legacyMax + 1e-6) c.rest = working;
+        else c.rest = working + 2.2;
+      }
+      void legacyMin;
+    };
+  }
+
+  jibSheetMinM = 0.8;
+
+  private uninstallJibSheetRange(master: any): void {
+    if (this.jibTrimOriginal && master.sails?.jib) master.sails.jib.setTrim = this.jibTrimOriginal;
+    for (const { c, local } of this.jibSheetSaved) c.local.copy(local);
+    this.jibSheetSaved = [];
+    this.jibTrimOriginal = null;
   }
 
   uninstall(context: AppContext): void {
@@ -198,6 +266,7 @@ export class SailingPhysicsSystem implements AppSystem {
     const v16 = window.LASER2_RIGGING_V16;
     if (v16?.params && this.savedAeroScale !== null) v16.params.sailAeroScale = this.savedAeroScale;
     this.savedAeroScale = null;
+    this.uninstallJibSheetRange(master);
     this.installed = false;
   }
 
