@@ -32,6 +32,11 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   aft face; jib sheets led to the side-deck track fairleads (the jib can now
   be sheeted to ~15° instead of ~30°).
 - Hull resistance: ITTC-57 form factor, Froude-based residuary, planing lift.
+- Leech tapes: the main and jib leech links are solved exactly in the rig
+  block (tension-only). With the trim assist free to use the full sheet
+  range and the kicker hard on the wind, upwind twist fell from ~16° to
+  ~12° (main) and speed at 45° TWA in 12 kn rose from 3.7 to 3.9 kn, with
+  the crew now fully hiked as in a real 12 kn breeze.
 - Luffing sails flog: rows near zero angle of attack carry a travelling
   chordwise pressure wave (Strouhal 0.5 shedding from the luff, 0.6 q),
   zero-mean so drive and heel are unchanged.
@@ -51,6 +56,12 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   lean back — the righting moment is their weight at its real lever.
 - Turtle recovery from the upturned hull; scoop recovery of the second crew
   as the low gunwale sinks under them; re-boarding with counter-balance.
+- Recovery robustness: the righter stays on the board until the boat is
+  within ~30° of upright (lean eased as it comes up); a stalled righting
+  (boat hanging at 35–80°) sends the sailor on the gunwale back to the board;
+  the scooped crew shifts her weight against the heel and resumes seated
+  sailing only once the helm is aboard (previously a boat could hang at ~45°
+  for 40 s, or go back over after re-boarding).
 - Synthesised swimming, treading, hanging, board, climbing and scoop poses,
   blended into the seated biomechanics.
 - Trim assist sails to the telltales: each sheet is worked to a target angle

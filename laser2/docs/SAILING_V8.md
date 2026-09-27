@@ -76,8 +76,8 @@ the pretension never built (shrouds read 0–75 N instead of 450 N) and the
 jib luff sagged. `RigStructureSolver` gathers the load-bearing members —
 mast foot pin, mast stretch and two-plane bending, spreader sockets, routed
 shrouds, diamonds, safety forestay, jib halyard over its sheave, jib luff wire
-and tack, gooseneck, boom stretch and bending, vang (109 rows, 42 nodes) —
-into one XPBD block and solves it exactly with a sparse LDLᵀ factorisation
+and tack, gooseneck, boom stretch and bending, vang, and the leech tapes of
+the main and jib (133 rows, 68 nodes) — into one XPBD block and solves it exactly with a sparse LDLᵀ factorisation
 of J·W·Jᵀ + α̃ (greedy minimum-degree ordering, precompiled update schedule,
 938 non-zeros). Tension-only members use a lagged active set; the hull is an
 external rigid body whose generalised inverse mass enters the diagonal and
@@ -97,6 +97,13 @@ step): the shrouds carry the V16 standing pretension (450 N), the halyard is
 taken up until the luff tension balances their fore-and-aft moment about the
 step (453 N computed), the diamonds keep their 310 N. At rest in calm air the
 rig now reads ≈500–540 N per shroud and ≈290 N on the luff.
+
+**Leech tapes.** The cloth links along the free leech of the main (14) and
+jib (10) are block rows too, tension-only so the cloth still buckles and
+flogs. Under Gauss–Seidel the leech stretched a few per cent under load, and
+2 % of extra leech length lets it sag ~0.5 m to leeward at mid-height. The
+remaining twist upwind (main ~12°, jib ~18° from foot to head in 12 kn) is
+the leech's own roach under the leech tension the sheets give it.
 
 **Gooseneck.** The boom hangs on a fitting 45 mm aft of the mast axis; the
 main tack lashing is tension-only (the legacy 60 mm rigid bar fought the luff
@@ -148,9 +155,11 @@ authority adds:
   light air, trapeze for the crew when fully hiked;
 - trim assist (HUD `TRIM`): each sheet is worked to the telltales — the
   signed angle of attack of the apparent flow on the chord at ~40 % height
-  (targets 14° main, 12° jib), easing faster than trimming in — the vang is
-  firm on the wind and eased on a run, and the main is eased in gusts beyond
-  what full hiking can hold; any W/S or Q/E key press overrides;
+  (targets 14° main, 12° jib), easing faster than trimming in, over the full
+  sheet range (the jib clew can be hauled onto its fairlead) — the kicker is
+  hard on the wind (it holds the leech; a centre mainsheet mostly sets the
+  boom angle), firm reaching and eased on a run, and the main is eased in
+  gusts beyond what full hiking can hold; any W/S or Q/E key press overrides;
 - capsize: sheets released, bracing, then either a **dry capsize** (the helm
   steps over the high gunwale onto the centreboard; HUD `DRY`) or falling in;
   in a leeward capsize the crew drops into the flooded cockpit holding the toe
@@ -161,12 +170,21 @@ authority adds:
   lines to the board tip, toe strap or gunwale drawn in at a human pace;
 - the helm closes with the hull, works along it hand over hand, round the
   transom to the centreboard, hangs on the tip, climbs onto the board and
-  leans back (U key: heave harder). The weight on the board is a carried mass
-  at its real lever, so the boat comes up by physics, not animation;
+  leans back (U key: heave harder), less as the boat comes up so it is not
+  thrown over onto her; she stays on the board until the boat is within ~30°
+  of upright (or her feet go under) and then takes the high gunwale. The
+  weight on the board is a carried mass at its real lever, so the boat comes
+  up by physics, not animation;
+- a righting that stalls (boat hanging at 35–80° with the rig in the water)
+  sends the sailor holding the gunwale back to the board;
 - turtle: the righter climbs onto the upturned hull and pulls the board until
   the boat is on its side, then continues from the board;
 - scoop: as the boat rises the low gunwale sinks beneath the floating crew,
-  who is carried in over it and kneels on the sole opposite the helm;
+  who is carried in over it and works her weight against the heel — to the
+  high side while the boat is still well over, opposite the helm climbing in
+  once it is nearly up — and only returns to seated sailing when the helm is
+  aboard too (seated on the low side with the helm still in the water, her
+  weight put the boat back over);
 - re-boarding over the gunwale with the other sailor counter-balancing, then
   control returns to the legacy seated biomechanics.
 
@@ -304,9 +322,13 @@ WIND −/+, RESET.
   body are made with trunk rotation and the shoulder girdle; hand targets can
   miss by a few centimetres where the envelope does not reach.
 - Sails, sheets and contacts are still Gauss–Seidel; only the rig structure
-  is solved directly. Upwind speed is still below a real Laser 2 (≈3.8 kn at
-  45° TWA in 12 kn): sail twist from the strip aerodynamics and leech
-  tension remain the limiting factors.
+  and the leech tapes are solved directly. Upwind speed is still below a real
+  Laser 2 (≈3.9 kn at 45° TWA in 12 kn): the remaining sail twist (leech roach
+  under modest leech tension) and the strip aerodynamics (no jib–main slot
+  interaction) are the limiting factors.
+- A fully hiked sailor's centre of mass (legacy seated biomechanics) sits
+  ~0.63 m from the centreline, somewhat inboard of a real hiking position, so
+  the crew's righting moment is on the low side.
 - The rendered water surface is a height field: no overturning breakers,
   no spray particles; cockpit flooding is not simulated as a separate water
   volume (hydrostatics treats the cockpit as open to the sea).

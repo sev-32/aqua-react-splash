@@ -216,6 +216,25 @@ export class RigStructureSystem implements AppSystem {
       count('jib-tack');
     }
 
+    // ---- sail leeches (leech tape): the cloth's links along the free leech of
+    // the main and jib, solved exactly and tension-only (cloth buckles). Under
+    // six Gauss–Seidel iterations a 15-link leech stretched a few per cent
+    // under load; a 2 % longer leech sags ~0.5 m to leeward at mid-height,
+    // which was 20–25° of twist upwind and an upper main that barely drew.
+    for (const [kind, cloth] of [['main', master.sails?.main?.cloth], ['jib', jib]] as const) {
+      const cols: number = cloth?.parts?.[0]?.length ?? 0;
+      const tape: any[] = cols > 1 ? (cloth.vertCons?.[cols - 1] ?? []) : [];
+      for (const [k, c] of tape.entries()) {
+        solver.addRow({
+          label: `${kind}-leech-${k}`, group: `${kind}-leech`, type: RigRowType.DIST, uni: -1,
+          a: S.node(solver.addNode(c.a)), b: S.node(solver.addNode(c.b)),
+          source: c, rest: c.rest, alpha: c.alpha, refresh: fromSource,
+        });
+        toRemove.add(c);
+        count(`${kind}-leech`);
+      }
+    }
+
     // ---- gooseneck (point on mast segment ↔ boom inboard end)
     const goose = constraints.find((c) => c?.pA && c?.pB && c.p === boom[0] && mastIndex.has(c.pA) && mastIndex.has(c.pB));
     if (!goose) throw new Error('gooseneck not found');

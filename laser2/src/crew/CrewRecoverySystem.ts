@@ -83,6 +83,14 @@ class CrewAgent {
   gripTarget = 0.8;
   /** Lowest recent heel (deg) while waiting for the scoop; detects the boat rising. */
   scoopHeelMark = 180;
+  /** Low-passed heel rate (deg/s) and the heel it was taken from. */
+  heelRate = 0;
+  lastHeel = 0;
+  /** Time the righting has made no progress while this sailor waits (s). */
+  stallS = 0;
+  /** Scooped crew's seat, design-x sign blended between the sides, and its target. */
+  seatBlend = 0;
+  seatWant = 0;
   holdSide = 1; // design x sign of the gunwale/strap used
   heading: V3 = { x: 1, y: 0, z: 0 };
   waypoint = 0;
@@ -113,6 +121,7 @@ class CrewAgent {
     this.taskTime = 0;
     this.waypoint = 0;
     this.scoopHeelMark = 180;
+    this.stallS = 0;
     this.mode = OVERBOARD_TASKS.has(task) ? 'overboard' : ATTACHED_TASKS.has(task) ? 'attached' : 'aboard';
     this.swimmer.active = this.mode === 'overboard';
   }
@@ -477,6 +486,8 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private stepAgent(agent: CrewAgent, frame: HullFrame, dt: number): void {
     const other = this.agents.find((a) => a !== agent) ?? null;
     const heel = frame.heelDeg;
+    agent.heelRate += ((heel - agent.lastHeel) / Math.max(dt, 1e-3) - agent.heelRate) * Math.min(1, dt / 0.6);
+    agent.lastHeel = heel;
     const s = agent.swimmer;
     if (!['swimToBoard', 'swimToHull', 'swimToCockpit', 'swimToGunwale', 'treading'].includes(agent.task)) s.hold = 0;
     switch (agent.task) {
@@ -531,7 +542,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
         s.swimThrottle = 0;
         s.treading = 0.6;
         grip.length = Math.max(0.72, grip.length - dt * 0.12);
-        if (heel < 48) { this.releaseGrip(agent); agent.setTask('swimToGunwale', 'boat came up'); break; }
+        if (heel < 32) { this.releaseGrip(agent); agent.setTask('swimToGunwale', 'boat came up'); break; }
         if (heel > 140) { this.releaseGrip(agent); agent.setTask('swimToHull', 'turtled'); break; }
         if (agent.taskTime > 1.1) this.attach(agent, 'climbBoard');
         break;
@@ -671,7 +682,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       if (alpha === null) return value + Math.max(-dt * 1.1, Math.min(dt * 0.45, fallback - value));
       const error = target - alpha; // positive → sheet in
       const rate = Math.max(-0.55, Math.min(0.28, error * 0.028));
-      return Math.max(0.02, Math.min(0.98, value + rate * dt));
+      return Math.max(0.02, Math.min(1, value + rate * dt));
     };
     if (!keys.KeyW && !keys.KeyS) {
       const trimmed = work(input.mainScope, alphaMain, 14, 1 - (awa - 30) / 118);
@@ -679,10 +690,11 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       input.mainScope = ease > 0 ? Math.min(trimmed, input.mainScope - ease * dt * 1.6) : trimmed;
     }
     if (!keys.KeyQ && !keys.KeyE) input.jibScope = work(input.jibScope, alphaJib, 12, 1 - (awa - 32) / 104);
-    // Kicker firm to hold the leech (twist) on the wind and reaching; eased on
-    // a run so the boom can lift and the leech open (death-roll prevention).
+    // Kicker hard on the wind (it, not the centre mainsheet, holds the leech
+    // and the twist), firm reaching; eased on a run so the boom can lift and
+    // the leech open (death-roll prevention).
     if (!keys.KeyR && !keys.KeyF) {
-      const vangTarget = awa < 125 ? 0.88 : 0.62;
+      const vangTarget = awa < 60 ? 1 : awa < 125 ? 0.88 : 0.62;
       input.vang += Math.max(-dt * 0.3, Math.min(dt * 0.3, vangTarget - input.vang));
     }
   }
@@ -779,7 +791,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
 
   private chooseRecoveryTask(agent: CrewAgent, frame: HullFrame, other: CrewAgent | null): void {
     const heel = frame.heelDeg;
-    if (heel < 45) { agent.setTask('swimToGunwale', 'boat upright'); return; }
+    if (heel < 32) { agent.setTask('swimToGunwale', 'boat upright'); return; }
     const righterBusy = other && other.role === 'righter' && other.mode !== 'aboard';
     let role = agent.role;
     // If the designated righter is back aboard (or missing), this agent rights.
@@ -842,7 +854,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private waterPoint(p: V3): V3 { return { x: p.x, y: this.surfaceAt(p), z: p.z }; }
 
   private swimToBoard(agent: CrewAgent, frame: HullFrame, dt: number): void {
-    if (frame.heelDeg < 45) { agent.setTask('swimToGunwale', 'boat upright'); return; }
+    if (frame.heelDeg < 32) { agent.setTask('swimToGunwale', 'boat upright'); return; }
     if (frame.heelDeg > 140) { agent.setTask('swimToHull', 'turtled'); return; }
     const { L, B } = this.hullPlane(frame);
     const tip = this.designToWorld(this.boardTipDesign(), P.v3());
@@ -929,8 +941,12 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private onBoard(agent: CrewAgent, frame: HullFrame, dt: number): void {
     if (frame.heelDeg > 140) { this.detach(agent, 'swimToHull', frame); return; }
     const standSide = this.boardStandSide(frame);
-    if (frame.heelDeg < 47) {
-      // Boat coming up: slide off the board and grab the gunwale on this side.
+    // Stay on the board while it has leverage: until the boat is nearly up or
+    // the board root (her feet) goes under, then slide off and grab the
+    // gunwale on this side to climb in.
+    const root = this.designToWorld({ x: 0, y: this.boardRootDesign().y, z: HULL_POINTS.boardZ - 0.12 }, P.v3());
+    const feetUnder = root.y < this.surfaceAt(root) - 0.3;
+    if (frame.heelDeg < 30 || (feetUnder && frame.heelDeg < 60)) {
       this.detach(agent, 'holdGunwale', frame);
       agent.holdSide = standSide;
       this.engageGrip(agent, this.gunwaleDesign(standSide, -0.55), 0.75);
@@ -947,7 +963,11 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       agent.lean = 0.15 * p;
       if (agent.progress >= 1) agent.setTask('standBoard');
     } else {
-      const maxLean = Math.min(1.25, this.maxLeanRad + 0.25 * this.heaveBoost);
+      // Lean back hard to start the boat up, less as she comes up (the board is
+      // then nearer horizontal and her weight has more leverage) so the boat
+      // is not thrown over onto the righter.
+      const need = 0.45 + 0.55 * P.smooth((frame.heelDeg - 30) / 45);
+      const maxLean = Math.min(1.25, this.maxLeanRad + 0.25 * this.heaveBoost) * need;
       agent.lean += Math.max(-dt * 0.6, Math.min(dt * 0.45, maxLean - agent.lean));
       const target = this.worldToDesign(pose.com, P.v3());
       agent.comDesign.x = target.x; agent.comDesign.y = target.y; agent.comDesign.z = target.z;
@@ -1172,14 +1192,28 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // on the side opposite the swimmer climbing in (counter-balancing).
     agent.progress = Math.min(1, agent.progress + dt / (frame.heelDeg > 45 ? 2.6 : 1.3));
     const counterSide = other && other.mode !== 'aboard' ? -other.holdSide : agent.holdSide;
-    const seat = { x: counterSide * 0.32, y: COCKPIT_SOLE_Y + 0.28, z: -0.55 };
+    // She works her weight against the heel: to the high side while the boat
+    // is still well over (it helps the righting) or when the climber's pull
+    // is not yet balanced, and opposite the swimmer climbing in once the boat
+    // is nearly upright.
+    const high = -this.lowerStrapSide();
+    if (frame.heelDeg > 12) agent.seatWant = high;
+    else if (frame.heelDeg < 5) agent.seatWant = counterSide;
+    if (agent.progress < 0.5) { agent.seatBlend = agent.holdSide; agent.seatWant = frame.heelDeg > 12 ? high : counterSide; }
+    agent.seatBlend += Math.max(-dt * 1.1, Math.min(dt * 1.1, agent.seatWant - agent.seatBlend));
+    const seat = { x: agent.seatBlend * 0.34, y: COCKPIT_SOLE_Y + 0.28 + 0.12 * Math.max(0, agent.seatBlend * high), z: -0.55 };
     const gunwale = this.gunwaleDesign(agent.holdSide, Math.max(-1.6, Math.min(-0.3, agent.attachStartDesign.z)));
     const over = { x: gunwale.x * 0.8, y: gunwale.y + 0.2, z: gunwale.z };
     const p = agent.progress;
     const target = p < 0.5 ? P.lerp3(agent.attachStartDesign, over, P.smooth(p / 0.5)) : P.lerp3(over, seat, P.smooth((p - 0.5) / 0.5));
     const safe = this.pushOutOfHull(target, 0.2);
     agent.comDesign.x = safe.x; agent.comDesign.y = safe.y; agent.comDesign.z = safe.z;
-    if (agent.progress >= 1 && frame.heelDeg < 35) this.handBackToLegacy(agent, counterSide, 'scooped and seated');
+    // Seated sailing resumes once the other sailor is aboard too (handing her
+    // back while the helm still hangs on the gunwale put her weight on the low
+    // side with nobody balancing it, and the boat went back over).
+    const otherAboard = !other || (other.mode === 'aboard' && other.task !== 'climbIn');
+    const side = Math.sign(agent.seatBlend) || counterSide;
+    if (agent.progress >= 1 && frame.heelDeg < 20 && otherAboard && Math.abs(agent.seatBlend - agent.seatWant) < 0.15) this.handBackToLegacy(agent, side, 'scooped and seated');
   }
 
   private swimToGunwale(agent: CrewAgent, frame: HullFrame, dt: number): void {
@@ -1201,6 +1235,16 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     s.treading = 0.6;
     s.verticality += (1 - s.verticality) * Math.min(1, dt * 2);
     if (frame.heelDeg > 80 && this.autoRecovery) { this.releaseGrip(agent); agent.setTask('treading', 'capsized again'); return; }
+    // The boat has stopped coming up (rig in the water, weight on the low
+    // side): the sailor in the water goes back to the centreboard for leverage.
+    if (frame.heelDeg > 34 && agent.heelRate > -1.2) agent.stallS += dt;
+    else agent.stallS = Math.max(0, agent.stallS - 2 * dt);
+    const canRight = agent.role === 'righter' || !other || other.mode !== 'overboard';
+    if (this.autoRecovery && canRight && agent.stallS > 4 && agent.taskTime > 3) {
+      this.releaseGrip(agent);
+      agent.setTask('swimToBoard', 'righting stalled');
+      return;
+    }
     const otherBusy = other && (other.task === 'climbIn');
     // Only climb when the boat is upright and someone aboard (or nobody else
     // to wait for) can counter-balance.
