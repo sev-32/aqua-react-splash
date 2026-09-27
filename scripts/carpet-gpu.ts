@@ -57,7 +57,7 @@ function bodyFrame(v: FieldView, body: { x: number; z: number }, dir: [number, n
   return { m, f };
 }
 function mapPng(file: string, m: number, f: Float64Array, mark: [number, number, number], scale = 4) {
-  const range = Math.max(1e-9, ...Array.from(f, Math.abs));
+  const range = f.reduce((m, x) => Math.max(m, Math.abs(x)), 1e-9);
   const W = m * scale, rgb = Buffer.alloc(W * W * 3);
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
     const val = Math.max(-1, Math.min(1, f[Math.floor(y / scale) * m + Math.floor(x / scale)] / range));

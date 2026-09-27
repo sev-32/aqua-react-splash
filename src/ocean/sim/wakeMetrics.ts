@@ -108,7 +108,7 @@ export function trackWavelength(v: FieldView, body: { x: number; z: number }, di
   const h = v.dx / 4;
   const prof: number[] = [];
   for (let s = s0; s <= s1; s += h) prof.push(sampleField(v, body.x - ax[0] * s, body.z - ax[1] * s));
-  const top = Math.max(...prof.map(Math.abs));
+  const top = prof.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
   const crests: number[] = [];
   for (let i = 1; i < prof.length - 1; i++)
     if (prof[i] > prof[i - 1] && prof[i] >= prof[i + 1] && prof[i] > floor * top) crests.push(s0 + i * h);

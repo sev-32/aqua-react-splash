@@ -64,7 +64,7 @@ function fieldPng(file: string, v: FieldView, x0: number, z0: number, L: number,
   const m = Math.round(L / v.dx);
   const f = new Float64Array(m * m);
   for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) f[j * m + i] = sampleField(v, x0 + (i + 0.5) * v.dx, z0 + (j + 0.5) * v.dx);
-  const range = Math.max(1e-9, ...Array.from(f, Math.abs));
+  const range = f.reduce((m, x) => Math.max(m, Math.abs(x)), 1e-9);
   const W = m * scale, rgb = Buffer.alloc(W * W * 3);
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
     const val = Math.max(-1, Math.min(1, f[Math.floor(y / scale) * m + Math.floor(x / scale)] / range));
@@ -122,12 +122,13 @@ function tow(scene: 'S1' | 'S1m' | 'S2', U: number, variant: string) {
     }
   }
   const v: FieldView = { field: c.eta, n, dx, origin: c.origin };
-  const eta = Array.from(c.eta);
+  let maxEta = -Infinity, minEta = Infinity;
+  for (const e of c.eta) { if (e > maxEta) maxEta = e; if (e < minEta) minEta = e; }
   const L = c.ledger;
   const resid = c.volume() - (L.source - L.sponge - L.released - L.shifted);
   const run: Run = {
     scene, variant, U, depth, dx, n, t: +t.toFixed(3), kappa: +kappa.toFixed(2), substeps: sub,
-    maxEta: Math.max(...eta), minEta: Math.min(...eta), ledgerResidual: resid, ledger: { ...L }, volume: c.volume(),
+    maxEta, minEta, ledgerResidual: resid, ledger: { ...L }, volume: c.volume(),
     png: '', range: 0, wallMs: Date.now() - t0,
   };
   const name = `carpet_${scene}_U${U.toFixed(1).replace('.', 'p')}_${variant}.png`;
