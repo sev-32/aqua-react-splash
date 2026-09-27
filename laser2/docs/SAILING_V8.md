@@ -19,6 +19,7 @@ foundry, `?mode=anchored` the anchored rig lab (both unchanged from V7).
 | Ocean | `water/OceanSystem.ts`, `OceanSpectrum.ts`, `OceanWaveField.ts` | JONSWAP directional sea (wind sea + swell) as Gerstner components; the one water model every physics consumer queries. |
 | Hull physics | `sailing/SailingPhysicsSystem.ts`, `HullGeometry.ts`, `HullHydrostatics.ts`, `FoilModel.ts` | Closed-mesh pressure integration at any attitude, strip-theory foils, composite mass model. |
 | Sail in water | `sailing/SailWaterSystem.ts` | Sheet hydrodynamics of sailcloth in the water. |
+| Sail flutter | `sailing/SailFlutterSystem.ts` | Travelling pressure wave on luffing sail rows (flogging). |
 | Rig structure | `sailing/RigStructureSystem.ts`, `RigStructureSolver.ts`, `SparseLDL.ts` | Mast, spreaders, standing rig, jib luff and boom solved as one direct XPBD block; dock tune of the rig tension. |
 | Crew | `crew/CrewRecoverySystem.ts`, `SwimmerBody.ts`, `CrewPoseSynth.ts` | Balance, trim, capsize behaviour, swimming, righting, scoop, re-boarding, poses. |
 | Crew body | `crew/lucid/LucidCrewSystem.ts`, `LucidRetarget.ts`, `LucidKinematics.ts`, `LucidAsset.ts` | The LUCID female-skin-v4.2 body (canonical Skin78 skin) drawn for both crew members from the crew poses. |
@@ -111,6 +112,19 @@ jib luffed at any apparent wind under ~40°.
 Verified (`tests/cpu/rig-structure.test.mjs`): the sparse factorisation is
 exact on a chain-with-loops system, and a clamped 20-segment beam matches the
 Euler–Bernoulli cantilever deflection within 1%.
+
+## Luffing sails
+
+The strip aerodynamics gives a luffing row only its quasi-steady force, so an
+eased or head-to-wind sail moved with the boat and the gusts but never
+flogged. `SailFlutterSystem` adds, only on rows
+within ~10° of zero angle of attack, the unsteady loading of a flogging sail:
+a chordwise travelling pressure wave Δp = q·0.6·env(u)·sin(ωt − k·u·c + φ)
+with ω = 2π·St·U/c (St 0.5, luff shedding) and phase speed 0.6 U, growing
+towards the free leech. It is zero-mean, so drive and heel are unchanged; the
+cloth's own stretch/bend dynamics turn it into ripples. Head to wind in 14 kn
+it adds ~20% to the leech's high-frequency motion (high-pass RMS 7–27 cm).
+Rows under the water are left to `SailWaterSystem`.
 
 ## Sail in the water
 

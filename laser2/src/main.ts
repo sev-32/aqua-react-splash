@@ -3,6 +3,7 @@ import { LegacyRuntimeAdapter } from './legacy/LegacyRuntimeAdapter.js';
 import { RigRuntimeSystem } from './legacy/RigRuntimeSystem.js';
 import { RigStructureSystem } from './sailing/RigStructureSystem.js';
 import { LucidCrewSystem } from './crew/lucid/LucidCrewSystem.js';
+import { SailFlutterSystem } from './sailing/SailFlutterSystem.js';
 import { AnchoredPhysicsSystem } from './physics/AnchoredPhysicsSystem.js';
 import { RenderSystem } from './render/RenderSystem.js';
 import { NativeHullAssetSystem } from './scene/NativeHullAssetSystem.js';
@@ -89,7 +90,8 @@ async function start(): Promise<void> {
   const crewRecovery = new CrewRecoverySystem(ocean, sailingPhysics, stepBus);
   const lucidCrew = new LucidCrewSystem(crewRecovery);
   const sailWater = new SailWaterSystem(ocean);
-  const sailingMode = new SailingModeSystem().addAuthority(ocean).addAuthority(sailingPhysics).addAuthority(sailWater).addAuthority(crewRecovery);
+  const sailFlutter = new SailFlutterSystem(ocean);
+  const sailingMode = new SailingModeSystem().addAuthority(ocean).addAuthority(sailingPhysics).addAuthority(sailWater).addAuthority(sailFlutter).addAuthority(crewRecovery);
   const waterSurface = new WaterSurfaceSystem(ocean, coupling, atmosphere, lighting);
   const waterInteraction = new WaterInteractionSystem(ocean, sailingPhysics, crewRecovery);
   waterSurface.interaction = waterInteraction;
@@ -103,6 +105,7 @@ async function start(): Promise<void> {
     .add(crewRecovery)
     .add(lucidCrew)
     .add(sailWater)
+    .add(sailFlutter)
     .add(new RigStructureSystem())
     .add(new RigRuntimeSystem())
     .add(nativeHull)
@@ -153,7 +156,7 @@ async function start(): Promise<void> {
     telemetry,
     quality,
     lighting,
-    systems: { lucidCrew, sailSurfaces, sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
+    systems: { lucidCrew, sailFlutter, sailSurfaces, sailingHud, ocean, waterSurface, waterInteraction, sailingPhysics, sailWater, sailingMode, crewRecovery, nativeHull, hullBatches, scene, coupling, atmosphere, sun, shadows, shProbe, environment, localProbes, cameraResponse, aerialPerspective, sailCloth, catalog, camera, selection, notes, markup, screenshot, materials, benchmarks, renderer, runtimeBudget, ui },
     snapshot: (deep = false) => kernel.snapshot({ deep }),
     runBenchmark: (id: BenchmarkId) => benchmarks.run(id),
     setDynamic: (enabled: boolean) => kernel.setDynamic(enabled),

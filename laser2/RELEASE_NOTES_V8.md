@@ -32,6 +32,9 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   aft face; jib sheets led to the side-deck track fairleads (the jib can now
   be sheeted to ~15° instead of ~30°).
 - Hull resistance: ITTC-57 form factor, Froude-based residuary, planing lift.
+- Luffing sails flog: rows near zero angle of attack carry a travelling
+  chordwise pressure wave (Strouhal 0.5 shedding from the luff, 0.6 q),
+  zero-mean so drive and heel are unchanged.
 - Knockdown squall (O key): builds to 1.9× and holds until she goes over; the
   helm bears away (on the wind) or luffs (broad), the crew is caught sitting in.
 

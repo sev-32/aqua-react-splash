@@ -1,3 +1,38 @@
+# Laser 2 Sailing Foundry V8 — sailing, capsize and crew recovery
+
+V8 builds on the V7 lighting foundry below. The Laser 2 now sails freely on a
+physical sea, capsizes (and turtles) and is recovered by its crew. Sailing is
+the default mode (`?mode=inspect` / `?mode=anchored` open the V7 foundry and
+the anchored rig lab).
+
+- **Rig**: the mast, spreaders, standing rig, jib luff and boom are solved as
+  one direct XPBD block (sparse LDLᵀ), so the mast bends like its EI and the
+  rig holds its pretension; dock-tuned rig tension; jib sheets on the
+  side-deck track fairleads.
+- **Hull**: exact buoyancy at any attitude, drag, foils, planing lift.
+- **Crew**: balance, telltale trim, knockdowns, swimming, centreboard
+  righting, scoop and re-boarding; drawn as the LUCID female-skin-v4.2 body
+  (canonical Skin78 skin, lawful Semantic51 poses) in sailing kit.
+- **Water**: JONSWAP sea, HDR ocean surface, GPU wake/foam solver.
+
+Keys: A/D tiller, W/S main, Q/E jib, X/Z hike, C trapeze, **O knockdown**,
+I auto-recovery, U heave on the board, V camera, N reset.
+
+Details: `RELEASE_NOTES_V8.md`, `docs/SAILING_V8.md`.
+
+The LUCID body asset (`public/assets/lucid/`) is built locally from the LUCID
+Biomechanical Causal Rig package and is not committed to the public
+repository:
+
+```bash
+python3 tools/build_lucid_crew_asset.py <LUCID_BIOMECH_CAUSAL_RIG_R1 dir>
+python3 tools/lucid_parity_reference.py <LUCID_BIOMECH_CAUSAL_RIG_R1 dir>   # optional, for tests
+```
+
+Without it the legacy procedural crew is drawn.
+
+---
+
 # Laser 2 Lighting Foundry V7 — Worker Atmosphere, Local Probes, Batched Hull
 
 A modular developer application for replacing the Laser 2 renderer, lighting, materials, scene, and simulation with independently measurable authorities.
