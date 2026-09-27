@@ -294,7 +294,7 @@ void main(){
   for (int t = 0; t < ${MAX_TILES}; t++){
     if (t >= uTileCount) break;
     vec2 tuv; float w = tileWeight(vParam, uTileRect[t], tuv);
-    if (w > 0.0){ vec4 s = texture(uTileArr, vec3(tuv, uTileRect[t].w)); Sx += w*s.y; Sz += w*s.z; localFoam = max(localFoam, w*s.w); }
+    if (w > 0.0){ vec4 s = textureGrad(uTileArr, vec3(tuv, uTileRect[t].w), gx/uTileRect[t].z, gy/uTileRect[t].z); Sx += w*s.y; Sz += w*s.z; localFoam = max(localFoam, w*s.w); }
   }
   float shoreMass = 0.0, shoreAge01 = 0.0, shoreBubbles = 0.0;
   if (vShore.x > 0.0){

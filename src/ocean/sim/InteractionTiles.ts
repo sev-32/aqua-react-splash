@@ -136,7 +136,10 @@ export class InteractionTiles {
     const n = cfg.n;
     this.impactsTarget = new Target(gl, n, n, [createTexture(gl, n, n, FMT.rgba16f(gl))]);
     this.zeroTex = createTexture(gl, 1, 1, { ...FMT.rgba16f(gl), data: new Uint16Array(4) });
-    this.outputArray = createTextureArray(gl, n, n, InteractionTiles.LAYERS, { ...FMT.rgba16f(gl), filter: gl.LINEAR });
+    // Mipmapped: the water shader filters the carpet's slopes by the pixel footprint (as it
+    // does the ocean cascades), so 10 cm detail seen from afar averages instead of aliasing
+    // into a speckle over the refracted sea floor.
+    this.outputArray = createTextureArray(gl, n, n, InteractionTiles.LAYERS, { ...FMT.rgba16f(gl), filter: gl.LINEAR, mips: true });
     this.splatVao = gl.createVertexArray()!;
     gl.bindVertexArray(this.splatVao);
     this.splatBuf = gl.createBuffer()!;
@@ -447,6 +450,11 @@ export class InteractionTiles {
         t.readRing.request(t.ring.fbo);
         t.ringReq = { ids: coupled.map((b) => b.id), centers: coupled.map((b) => [b.pos[0], b.pos[2]] as [number, number]), t: now };
       }
+    }
+    if (this.tiles.length) {
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.outputArray);
+      gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
     }
     for (const b of bodies) this.prevPose.set(b.id, { pos: [b.pos[0], b.pos[1], b.pos[2]], rot: [b.rot[0], b.rot[1], b.rot[2], b.rot[3]] });
     if (this.prevPose.size > bodies.length) {
