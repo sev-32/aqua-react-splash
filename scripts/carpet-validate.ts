@@ -135,8 +135,14 @@ function tow(scene: 'S1' | 'S1m' | 'S2', U: number, variant: string) {
     run.range = fieldPng(path.join(outDir, name), v, -6, -6, 12, [[body.x, body.z, r]]);
   } else if (scene === 'S1m') {
     run.range = fieldPng(path.join(outDir, name), v, body.x - 10, -6, 12, [[body.x, body.z, r]]);
+    // From the centre, and from the shoulders (waterline half-width), where a finite body's wedge begins.
     const a = angularEnergy(v, body, [1, 0], 5, 9);
-    run.mach = { th99: a.th99, th95: a.th95, peakDeg: a.peakDeg, machDeg: +((Math.asin(Math.sqrt(G * depth) / U) * 180) / Math.PI).toFixed(2) };
+    const sh = Math.sqrt(r * r - yc * yc);
+    const b = angularEnergy(v, body, [1, 0], 5, 9, sh);
+    run.mach = {
+      th99: a.th99, th95: a.th95, peakDeg: a.peakDeg, shoulderTh99: b.th99, shoulderTh95: b.th95, shoulder: +sh.toFixed(3),
+      machDeg: +((Math.asin(Math.sqrt(G * depth) / U) * 180) / Math.PI).toFixed(2),
+    };
   } else {
     run.range = fieldPng(path.join(outDir, name), v, body.x - 22, -12, 24, [[body.x, body.z, r]], 2);
     const lam = (2 * Math.PI * U * U) / G;
@@ -154,9 +160,11 @@ function tow(scene: 'S1' | 'S1m' | 'S2', U: number, variant: string) {
   console.log(JSON.stringify(run));
 }
 
+// SCENES=S1,S1m,S2 (default all) runs a subset.
+const scenes = (process.env.SCENES ?? 'S1,S1m,S2').split(',');
 for (const variant of variants) {
-  for (const U of [1.0, 2.0, 4.5]) tow('S1', U, variant);
-  for (const U of [3.5, 4.5, 6.0]) tow('S1m', U, variant);
-  tow('S2', 1.5, variant);
+  if (scenes.includes('S1')) for (const U of [1.0, 2.0, 4.5]) tow('S1', U, variant);
+  if (scenes.includes('S1m')) for (const U of [3.5, 4.5, 6.0]) tow('S1m', U, variant);
+  if (scenes.includes('S2')) tow('S2', 1.5, variant);
 }
 writeFileSync(path.join(outDir, 'carpet-validate.json'), JSON.stringify(results, null, 1));

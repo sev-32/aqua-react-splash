@@ -121,8 +121,10 @@ export function trackWavelength(v: FieldView, body: { x: number; z: number }, di
  * the track (both sides) over radii [r0, r1]. Supercritical flow in finite depth cannot
  * radiate outside the Mach wedge asin(√(gH)/U): `th99` (the angle holding 99 % of the
  * energy in 0–90°) is the causality check; `peakDeg` is where the dominant arm lies.
+ * `y0`: rays start at this lateral offset on each side (the body's shoulders, where the
+ * wedge begins for a body of finite width) instead of at the centre.
  */
-export function angularEnergy(v: FieldView, body: { x: number; z: number }, dir: [number, number], r0: number, r1: number) {
+export function angularEnergy(v: FieldView, body: { x: number; z: number }, dir: [number, number], r0: number, r1: number, y0 = 0) {
   const l = Math.hypot(dir[0], dir[1]);
   const ax = [dir[0] / l, dir[1] / l], lat = [-ax[1], ax[0]];
   const E: number[] = [];
@@ -131,7 +133,7 @@ export function angularEnergy(v: FieldView, body: { x: number; z: number }, dir:
     let e = 0, m = 0;
     for (let r = r0; r <= r1; r += v.dx / 2)
       for (const sg of [1, -1]) {
-        const s = r * Math.cos(a), y = sg * r * Math.sin(a);
+        const s = r * Math.cos(a), y = sg * (y0 + r * Math.sin(a));
         const q = sampleField(v, body.x - ax[0] * s + lat[0] * y, body.z - ax[1] * s + lat[1] * y);
         e += q * q; m++;
       }

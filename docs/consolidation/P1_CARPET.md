@@ -51,13 +51,13 @@ The volume ledger closes to about 1e-14 m³ in every run. In each carpet map the
 
 In water of depth H, nothing can radiate faster than √(gH). So at U > √(gH) the whole wake must lie inside the Mach wedge asin(√(gH)/U). Measured: the angle that holds 99 % of the wake energy 5–9 m from the body, past its non-radiating near field. The runs are long enough for the start-up transient to fall behind.
 
-| U | Mach half-angle | 99 % (95 %) of energy within, from the body centre | dominant arm | spray released |
-|---|---|---|---|---|
-| 3.5 m/s | 63.5° | 55° (42°) | 24° | 4.8 m³ over 30 s |
-| 4.5 m/s | 44.1° | 47° (38°) | 18° | 2.6 m³ over 8.6 s |
-| 6.0 m/s | 31.5° | 39° (31°) | 12° | 2.3 m³ over 4.4 s |
+| U | Mach half-angle | 99 % (95 %) of energy within, from the shoulders | same, from the centre | dominant arm | spray released |
+|---|---|---|---|---|---|
+| 3.5 m/s | 63.5° | **52°** (34°) | 55° (42°) | 24° | 4.8 m³ over 30 s |
+| 4.5 m/s | 44.1° | **43°** (33°) | 47° (38°) | 18° | 2.6 m³ over 8.6 s |
+| 6.0 m/s | 31.5° | **35°** (27°) | 39° (31°) | 12° | 2.3 m³ over 4.4 s |
 
-These angles are measured from the body centre, but the wedge starts at the body's shoulders (±0.67 m at the waterline). At 5–9 m that adds up to atan(0.67/7) ≈ 5°. So 6 m/s is inside its shoulder-origin wedge within about 2°, and 4.5 m/s lies right on it. A measurement from the shoulders is running.
+A body of finite width starts its wedge at its shoulders (±0.67 m at the waterline), so the causality check measures rays from there. At 3.5 and 4.5 m/s the wake is inside the wedge. At 6 m/s it is 3.5° outside, just over the +3° criterion. The source footprint is band-limited over ±2 cells (±0.2 m), which moves the effective shoulder out and accounts for about 1.6° of that. The rest is the local near-field operators (hold, φ smoothing, breaking spill), which act within one substep and so aren't bound by √(gH). This is recorded, not tuned away.
 
 **About BEST's clean 44° V at 4.5 m/s:** that is the non-dispersive limit. BEST makes every wavelength travel at √(gH), so the whole disturbance piles onto the Mach line. In real water, and in the carpet, only the long waves travel that fast. A sphere as wide as the water is deep puts most of its energy into shorter waves, which form narrower dispersive arms inside the wedge. The wedge edge is still there, and the energy stays inside it. The 44° V is the right answer for long hulls in shallow water, which the carpet also gives, because such hulls make long waves.
 
@@ -84,7 +84,10 @@ Left: the engine (GPU). Right: the CPU mirror. The tow is at 4.5 m/s, shown in t
 |---|---|---|---|---|
 | 4.5 m/s | off | −0.431 … 0.638 m | −0.469 … 0.671 m | 0.993 |
 | 4.5 m/s | on | −0.310 … 0.579 m | −0.304 … 0.586 m | 0.980 |
-| 1.0, 2.0 m/s | on | *measuring* | | |
+| 1.0 m/s | on | −0.025 … 0.055 m | −0.024 … 0.088 m | 0.785 |
+| 2.0 m/s | on | *measuring* | | |
+
+At 1 m/s the wake is only 5 cm high. The engine's lab sea is not perfectly flat (millimetre ripples), and the body scatters those ripples into the carpet. The pattern matches the CPU (bow crest, transverse waves on the track, start-up rings), but the GPU map carries that extra low-level texture, so the correlation is lower.
 
 ### Unit tests (`src/ocean/__tests__/carpet.test.ts`, run in CI with `npm test`)
 

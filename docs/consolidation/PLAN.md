@@ -59,7 +59,7 @@ Captured for references and THALASSA alike:
 - **Limiter change** (needed for the carpet to hold with the limiter on): breaking now spills and mixes (volume exact), and only ballistic separation releases spray. The old per-step release drained the sea at carpet resolution.
 - **Acceptance, as measured:**
   - S1: bow pile-up, stern hollow, volume ledger ≈ 1e-14 m³;
-  - supercritical wake energy (99 %) inside the Mach wedge + 3° (criterion restated: BEST's single V is the non-dispersive limit; being re-measured past the near field with the engine's numerics);
+  - supercritical wake energy (99 %, measured from the body's shoulders 5–9 m back) inside the Mach wedge at 3.5 and 4.5 m/s, and 3.5° outside at 6 m/s (criterion +3°; restated because BEST's single V is the non-dispersive limit);
   - S2: λ = 2πU²/g within 1 %, and the Kelvin arm converging to 19.5° with distance;
   - recentring seamless (≤ 5 % near the body against a fixed carpet);
   - no drift on a swell;
