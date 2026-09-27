@@ -85,7 +85,7 @@ Left: the engine (GPU). Right: the CPU mirror. The tow is at 4.5 m/s, shown in t
 | 4.5 m/s | off | −0.431 … 0.638 m | −0.469 … 0.671 m | 0.993 |
 | 4.5 m/s | on | −0.310 … 0.579 m | −0.304 … 0.586 m | 0.980 |
 | 1.0 m/s | on | −0.025 … 0.055 m | −0.024 … 0.088 m | 0.785 |
-| 2.0 m/s | on | *measuring* | | |
+| 2.0 m/s | on | −0.101 … 0.204 m | −0.111 … 0.208 m | 0.974 |
 
 At 1 m/s the wake is only 5 cm high. The engine's lab sea is not perfectly flat (millimetre ripples), and the body scatters those ripples into the carpet. The pattern matches the CPU (bow crest, transverse waves on the track, start-up rings), but the GPU map carries that extra low-level texture, so the correlation is lower.
 
