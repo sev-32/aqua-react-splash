@@ -46,8 +46,7 @@ void main(){
   float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
   // Scattering cross-section (m²): drops 1.5V/r_d; aerated water ≈ 300 m⁻¹·V; clear water ~0.
   float sig = spray ? 1.5*M.x/V.w : 300.0*M.x*aer;
-  float R = spray && coh < 0.5 ? min(max(1.2*pow(max(M.x, 1e-7), 1.0/3.0), 0.12) + 0.5*M.y, 3.0)
-                               : 1.6*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
+  float R = 1.6*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
   vec3 q = P.xyz - uOsmC;
   gl_Position = vec4(dot(q, uOsmU)/uOsmExt.x, dot(q, uOsmV)/uOsmExt.x, 0.0, 1.0);
   gl_PointSize = clamp(R/uOsmExt.x*uOsmSize, 1.0, 64.0);
@@ -66,7 +65,13 @@ void main(){
   o = 4.07*vTau*exp(-4.0*r2)*clamp((vec4(0.25, 0.5, 0.75, 1.0) - vS)*8.0 + 0.5, 0.0, 1.0);
 }`;
 
-/** Whitewater points: soft, lit parcels of spray. */
+/**
+ * Splash points: the depth and thickness passes of the screen-space fluid, and the whole
+ * splash in points mode. Every parcel is water: atomized parcels (drops < 1.2 mm) that have
+ * flown apart draw as the droplets they are, at the size their volume gives. (They used to
+ * draw as a Gaussian "drop cloud" growing 0.5 m/s to 3 m across, rendered in a separate
+ * pass: soft white balls with nothing of the fluid spray around them.)
+ */
 export const SPLASH_POINT_VS = /* glsl */ `#version 300 es
 precision highp float;
 precision highp int;
@@ -76,52 +81,33 @@ uniform mat4 uViewProj;
 uniform vec3 uCam;               // camera position relative to the splash origin
 uniform float uViewportH, uProjY;
 uniform float uSizeGain;
-uniform float uSprayOnly;        // 1: only atomized spray (droplets < 1.2 mm) — the sheet goes to the fluid pass
-uniform float uSheetOnly;        // 1: only coherent water (the fluid passes) — spray is a cloud, not a surface
-${OSM_GLSL}
-out float vSun;                  // sun reaching this parcel through the rest of the splash
-out vec4 vData;                  // x: alpha, y: aeration (1 = spray cloud), z: age01, w: coherence
+out vec4 vData;                  // x: alpha, y: aeration (1 = atomized), z: age01, w: coherence
 out vec3 vRel;
-out vec2 vSplat;                 // sheet: world radius (m), water volume (m³) · spray: cloud radius (m), mean optical depth
+out vec2 vSplat;                 // world radius (m), water volume (m³)
 void main(){
   ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
   vec4 P = texelFetch(uP, c, 0);
   vSplat = vec2(1.0, 0.0);
-  vSun = 1.0;
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
-  // Atomized water that still has neighbours is white water — an aerated body with a surface
-  // (the fluid passes, opaque white); atomized parcels that have flown apart are a cloud of
-  // drops (the spray pass). Clear water is always the sheet.
+  // Atomized water (drops < 1.2 mm) is white water; clear water is the sheet.
   bool spray = V.w <= 0.0012;
   float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
-  bool cloud = spray && coh < 0.5;
-  if ((uSprayOnly > 0.5 && !cloud) || (uSheetOnly > 0.5 && cloud)){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec3 rel = P.xyz - uCam;
   vec4 clip = uViewProj*vec4(rel, 1.0);
-  // A parcel spreads as it flies: its radius grows from the droplet cloud's initial size.
   // Coherent water (dense) renders at its sheet thickness; water that has broken up into
   // isolated drops (low MPM density) shrinks toward droplet size — the pool's metaball
   // strength followed density the same way.
   float r = uSizeGain*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
-  float tau = 0.0;
-  if (cloud){
-    // A parcel of atomized water is a cloud of drops of radius V.w: it disperses as it flies
-    // (~0.5 m/s), and its mean optical depth is τ = 1.5·V/(r_d·πR²) (extinction efficiency 2).
-    // Dense white at birth, thinning to mist.
-    r = min(max(1.2*pow(max(M.x, 1e-7), 1.0/3.0), 0.12) + 0.5*M.y, 3.0);
-    tau = 1.5*M.x/(V.w*3.14159*r*r);
-  }
   gl_Position = clip;
   gl_PointSize = clamp(r*uViewportH*uProjY/max(clip.w, 0.05), 1.0, 96.0);
   float fadeIn = smoothstep(0.0, 0.06, M.y), fadeOut = smoothstep(0.0, 0.25, P.w);
   // Aeration: atomized parcels (the solver flags them spray once past the Weber break-up
   // speed; droplet radius < 1.2 mm) stay white; a torn-up parcel is partly so.
-  float aer = cloud ? 2.0 : spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
+  float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
   vData = vec4(fadeIn*fadeOut, aer, clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
-  vSplat = cloud ? vec2(r, tau) : vec2(max(r, 1e-4), max(M.x, 0.0));
-  vSun = cloud ? osmSun(P.xyz) : 1.0;
+  vSplat = vec2(max(r, 1e-4), max(M.x, 0.0));
 }`;
 
 export const SPLASH_POINT_FS = /* glsl */ `#version 300 es
@@ -129,7 +115,6 @@ precision highp float;
 in vec4 vData;
 in vec3 vRel;
 in vec2 vSplat;
-in float vSun;
 out vec4 o;
 uniform vec3 uSunDir, uSunE, uSkyE;
 uniform float uFogDensity;
@@ -151,20 +136,6 @@ void main(){
   // Forward scattering through droplets brightens spray against the sun.
   float fwd = pow(max(dot(-V, uSunDir), 0.0), 6.0);
   vec3 col = 0.9*(uSunE*(ndl + 1.8*fwd) + uSkyE*1.1)/3.14159;
-  // Spray cloud: Gaussian column optical depth 4.07τ̄·e^(−4ρ²) (mean τ̄ over its disc; no hard
-  // rim), lit by two-stream transfer through a drop cloud (g ≈ 0.85): it reflects R toward the
-  // sun's side and diffusely transmits T to the far side — never brighter than E/π.
-  bool cloud = vData.y > 1.5;
-  if (cloud){
-    float tau = 4.07*vSplat.y*exp(-4.0*r2);
-    float ts = 0.15*tau, R = ts/(2.0 + ts), Td = max(2.0/(2.0 + ts) - exp(-tau), 0.0);
-    float w = 0.5 + 0.5*dot(V, uSunDir);
-    vec3 L = (uSunE*vSun*(R*w + Td*(1.0 - w)) + uSkyE*(R + Td)*0.5)/3.14159;
-    float a = (1.0 - exp(-tau))*vData.x;
-    float fog = exp(-length(vRel)*uFogDensity);
-    o = vec4(mix(uHaze*a, L*vData.x, fog), a);
-    return;
-  }
   float a = clamp(dens*vData.x*uOpacity*(0.35 + 0.65*(1.0 - vData.z)), 0.0, 1.0);
   float fog = exp(-length(vRel)*uFogDensity);
   col = mix(uHaze, col, fog);

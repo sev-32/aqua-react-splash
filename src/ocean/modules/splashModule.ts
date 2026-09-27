@@ -264,6 +264,12 @@ export class SplashModule implements EngineModule {
     }
   }
 
+  /** Scene reset: no splash carried over from the previous experiment. */
+  reset() {
+    this.mpm.reset();
+    this.displaced.clear();
+  }
+
   drawTransparent(engine: OceanEngine) {
     const s = engine.settings;
     if (!s.spray.enabled) return;

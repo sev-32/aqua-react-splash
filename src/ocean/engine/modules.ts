@@ -125,6 +125,7 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
       if (-world.world.sampleProduct('height', x, z) >= want) break;
     }
     bodies.clear();
+    splash.reset();
     for (const t of interaction.tiles.tiles) interaction.tiles.retire(t);
     interaction.tiles.depthOverride = opts.tileDepth ?? null;
     const R = opts.radius ?? 0.6;

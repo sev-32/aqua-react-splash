@@ -583,6 +583,18 @@ export class OceanMpm {
     }
   }
 
+  /**
+   * Discard every splash particle and simulation volume (a scene reset: the lab starting a new
+   * experiment). The discarded water is booked as lost in the ledger, not returned to the sea.
+   */
+  reset() {
+    const P = this.particles;
+    for (let i = 0; i < P.capacity; i++) if (P.flags[i]) { this.stats.lost += P.vol[i]; P.flags[i] = 0; P.vol[i] = 0; }
+    P.count = 0;
+    P.next = 0;
+    this.volumes.length = 0;
+  }
+
   /** Retire volumes idle for `idle` seconds. */
   retireIdle(now: number, idle = 3) {
     for (let i = this.volumes.length - 1; i >= 0; i--) {

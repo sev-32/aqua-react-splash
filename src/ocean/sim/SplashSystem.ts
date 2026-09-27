@@ -181,9 +181,9 @@ export class SplashSystem {
     else p.tex('uOsm', this.osm.texture).set('uHasOsm', 0);
   }
 
-  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number, sheetOnly = 0) {
+  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number) {
     p.set('uW', W).set('uViewProj', f.viewProj).set('uCam', f.cam).set('uViewportH', f.viewportH).set('uProjY', f.projY)
-      .set('uSizeGain', sizeGain).set('uSheetOnly', sheetOnly).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
+      .set('uSizeGain', sizeGain).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
   }
 
   private ensureFluid(w: number, h: number) {
@@ -226,9 +226,8 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendEquation(gl.MIN);
       const pd = this.pDepth.use();
-      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6, 1);
+      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6);
       this.setOsm(pd, null);
-      pd.set('uSprayOnly', 0);
       occ(pd);
       gl.drawArrays(gl.POINTS, 0, count);
       gl.blendEquation(gl.FUNC_ADD);
@@ -237,9 +236,9 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendFunc(gl.ONE, gl.ONE);
       const pt = this.pThick.use();
-      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6, 1);
+      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6);
       this.setOsm(pt, null);
-      pt.set('uSprayOnly', 0).set('uThickGain', 1);
+      pt.set('uThickGain', 1);
       occ(pt);
       gl.drawArrays(gl.POINTS, 0, count);
       gl.disable(gl.BLEND);
@@ -266,7 +265,12 @@ export class SplashSystem {
       this.setOsm(this.pShade, osm);
       this.quad.draw();
     }
-    // Fine spray and mist as soft lit parcels (also the whole splash in points mode).
+    // Points mode: the whole splash as lit parcels. (The fluid mode is complete above: fine
+    // spray is part of it.)
+    if (f.mode === 'fluid' && f.hdr.depth) {
+      gl.bindVertexArray(null);
+      return;
+    }
     f.hdr.bind();
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -278,7 +282,7 @@ export class SplashSystem {
     this.setPointUniforms(pp, f, fluid ? 0.32 : 0.9);
     this.setOsm(pp, osm);
     pp.set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uFogDensity', f.fogDensity)
-      .set('uHaze', f.haze).set('uOpacity', fluid ? 0.3 : 0.75).set('uSprayOnly', fluid ? 1 : 0);
+      .set('uHaze', f.haze).set('uOpacity', fluid ? 0.3 : 0.75);
     gl.drawArrays(gl.POINTS, 0, count);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
