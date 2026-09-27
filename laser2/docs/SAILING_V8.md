@@ -38,10 +38,11 @@ Significant height follows from the spectrum (Hs ≈ 0.28 m at 12 kn over 6 km).
 Changing the wind cross-fades the old and new sea over 9 s.
 
 `OceanWaveField` evaluates the Gerstner surface on an 80 × 80 Eulerian grid
-(0.28 m) around the boat. Each step builds a Lagrangian grid with separable
+(0.28 m) around the boat. Each slice builds a Lagrangian grid with separable
 phases and inverts the Gerstner map (three fixed-point iterations) so height
-and orbital velocity at a fixed world point are exact; two time slices are
-blended across the XPBD sub-steps. The legacy water object's `height`,
+and orbital velocity at a fixed world point are exact; two time slices 1/30 s
+apart are blended across the XPBD sub-steps of two physics steps (linear
+interpolation error < 1 mm for the shortest physics waves). The legacy water object's `height`,
 `velocity` and `setSea` are redirected here, so the V16 spars, ropes and
 sheets float on the same sea.
 
@@ -84,7 +85,14 @@ external rigid body whose generalised inverse mass enters the diagonal and
 which receives its share of every correction as an impulse. Sails, sheets,
 contacts and crew stay in the Gauss–Seidel loop, which now sees a structure
 that behaves like the real one. The block is solved on every second
-Gauss–Seidel iteration (always including the last).
+Gauss–Seidel iteration (always including the last) and refactorised once per
+sub-step (its gradients follow the geometry). Tension-only members that
+carried load in the previous sub-step start the next one active: after the
+prediction a loaded member can sit a hair under its rest length, and dropping
+it refactorised the block again a solve later (35 → 15 factorisations per
+step). A member that would push is released and the block refactorised;
+keeping it in the factorisation with its correction clamped made the other
+members' corrections inconsistent and blew the rig up.
 
 Measured (anchored, calm): 100 N at the masthead now bends the tip 0.09 m
 with the hounds moving 3 mm (was 0.73 m / 0.39 m); both shrouds stay taut
@@ -248,6 +256,12 @@ which writes `public/assets/lucid/` (git-ignored; the delivery zip includes
 it). Without it the legacy procedural crew is drawn.
 
 ## Rendering
+
+The refined sail surfaces are rebuilt once per rendered frame (the legacy
+cloth sync after every physics step only marks them dirty), and hull windage
+samples the height-only legacy wind once per sub-step instead of per dry
+face. Physics cost per 1/60 s step while sailing, measured headless on this
+4-core sandbox: 23.5 → 19 ms.
 
 `gl.getError()` is a synchronous round trip to the GPU process; the telemetry
 used to call it after every frame-graph phase. GL errors are sticky until

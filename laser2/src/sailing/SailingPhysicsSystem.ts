@@ -120,8 +120,19 @@ export class SailingPhysicsSystem implements AppSystem {
     this.tmpForce = new Vec3();
     this.tmpPoint = new Vec3();
     const wind = master.wind;
+    // The legacy wind is a pure function of height (direction × current speed
+    // × (max(y, 0.15)/10)^shearExp; gusts scale the current speed). Hull
+    // windage samples it on every dry face, so the 10 m wind is taken once per
+    // sub-step (refreshAir) and the same power law applied per face.
+    const air10 = this.air10;
     this.air = {
       velocity: (x: number, y: number, z: number, out: Vec3Like): Vec3Like => {
+        const exp = wind.shearExp;
+        if (air10.valid && typeof exp === 'number' && Number.isFinite(exp)) {
+          const k = Math.pow(Math.max(y, 0.15) / 10, exp);
+          out.x = air10.x * k; out.y = air10.y * k; out.z = air10.z * k;
+          return out;
+        }
         this.tmpPoint.set(x, y, z);
         wind.velocityAt(this.tmpPoint, this.tmpForce);
         out.x = this.tmpForce.x; out.y = this.tmpForce.y; out.z = this.tmpForce.z;
@@ -310,6 +321,18 @@ export class SailingPhysicsSystem implements AppSystem {
   private savedAeroScale: number | null = null;
   private lastPlaningShare = 0;
 
+  private readonly air10 = { x: 0, y: 0, z: 0, valid: false };
+
+  /** 10 m wind for this sub-step (see the air sampler). */
+  private refreshAir(master: any): void {
+    const wind = master.wind;
+    if (!wind?.velocityAt || !this.tmpPoint || !this.tmpForce) { this.air10.valid = false; return; }
+    this.tmpPoint.set(this.pose.px, 10, this.pose.pz);
+    wind.velocityAt(this.tmpPoint, this.tmpForce);
+    this.air10.x = this.tmpForce.x; this.air10.y = this.tmpForce.y; this.air10.z = this.tmpForce.z;
+    this.air10.valid = true;
+  }
+
   private hook(dtSub: number): void {
     if (!this.enabled || !this.hydro || !this.context) return;
     const started = performance.now();
@@ -317,6 +340,7 @@ export class SailingPhysicsSystem implements AppSystem {
     const body = master.body;
     if (body.kinematic) return;
     this.readPose(body);
+    this.refreshAir(master);
     const g = master.config?.env?.g ?? 9.81;
 
     // 1. Composite mass, inertia and the moment of gravity about the body origin.

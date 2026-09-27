@@ -24,6 +24,9 @@ interface OceanLayer {
   target: number;
 }
 
+
+/** Physics steps covered by one pair of exact-height grid slices. */
+const OCEAN_SLICE_STEPS = 2;
 export class OceanSystem implements AppSystem {
   readonly id = 'water.ocean';
   readonly phase = 'prePhysics' as const;
@@ -155,7 +158,10 @@ export class OceanSystem implements AppSystem {
     const focusZ = Number.isFinite(body?.pos?.z) ? body.pos.z : 0;
     this.lastFocus.x = focusX;
     this.lastFocus.z = focusZ;
-    this.field.advance(time, time + dt, focusX, focusZ);
+    // Each exact-height slice serves two steps: queries blend linearly in
+    // time between slices 1/30 s apart (error < 1 mm for the shortest waves),
+    // which halves the grid rebuilds.
+    if (!this.field.covers(time, time + dt, focusX, focusZ)) this.field.advance(time, time + dt * OCEAN_SLICE_STEPS, focusX, focusZ);
     this.field.setQueryTime(time);
   }
 

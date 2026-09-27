@@ -237,6 +237,8 @@ interface SailRecord {
   hadOwnSync: boolean;
   originalCastShadow: boolean;
   depthMaterial: any;
+  /** Cloth moved since the refined surface was last rebuilt. */
+  dirty: boolean;
 }
 
 export class SailRenderSystem implements AppSystem {
@@ -267,18 +269,14 @@ export class SailRenderSystem implements AppSystem {
         hadOwnSync: Object.prototype.hasOwnProperty.call(cloth, 'syncMesh'),
         originalCastShadow: !!mesh.castShadow,
         depthMaterial: sailDepthMaterial(kind, this.shadowTransmission),
+        dirty: true,
       };
       mesh.geometry = surface.geometry;
       if (record.vinyl) record.vinyl.geometry = surface.geometry;
-      // The legacy visual sync writes particle positions into the render
-      // geometry after each step; route it to the refined surface instead.
-      const start = performance;
-      cloth.syncMesh = (): void => {
-        const t0 = start.now();
-        surface.update();
-        this.updates++;
-        this.lastUpdateMs = start.now() - t0;
-      };
+      // The legacy visual sync runs after every physics step; the refined
+      // surface is rebuilt once per rendered frame instead (update()), which
+      // matters whenever a frame catches up several steps.
+      cloth.syncMesh = (): void => { record.dirty = true; };
       mesh.customDepthMaterial = record.depthMaterial;
       mesh.castShadow = this.castShadows;
       this.records.push(record);
@@ -287,6 +285,13 @@ export class SailRenderSystem implements AppSystem {
 
   update(): void {
     for (const r of this.records) {
+      if (r.dirty) {
+        const t0 = performance.now();
+        r.surface.update();
+        r.dirty = false;
+        this.updates++;
+        this.lastUpdateMs = performance.now() - t0;
+      }
       r.depthMaterial.uniforms.uTransmission.value = this.shadowTransmission;
       r.mesh.castShadow = this.castShadows && r.mesh.visible;
     }

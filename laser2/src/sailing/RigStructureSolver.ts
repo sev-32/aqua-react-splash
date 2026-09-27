@@ -97,6 +97,8 @@ export interface RigRow extends RigRowSpec {
   lever: Float64Array;
   bodyW: number;
   tensionN: number;
+  /** Tension it carried at the end of the previous sub-step (N). */
+  prevTensionN: number;
 }
 
 export interface RigStructureParams {
@@ -108,6 +110,13 @@ export interface RigStructureParams {
    * iteration of each sub-step always includes it (2: iterations 2, 4, 6 of 6).
    */
   solveEvery: number;
+  /**
+   * Stretch (m) at which a slack tension-only member is taken into the block
+   * in the middle of a sub-step; below it the member waits for the next
+   * sub-step's factorisation (the block is refactorised once per sub-step
+   * anyway, as its gradients follow the geometry).
+   */
+  lateActivationM: number;
 }
 
 interface Term { entry: number; r1: number; s1: number; r2: number; s2: number; node: number }
@@ -120,6 +129,7 @@ export class RigStructureSolver {
     boomEiVerticalNm2: 9000,
     boomEiLateralNm2: 9000,
     solveEvery: 2,
+    lateActivationM: 1e-4,
   };
   readonly nodes: Particle[] = [];
   readonly rows: RigRow[] = [];
@@ -153,6 +163,7 @@ export class RigStructureSolver {
     factorizations: 0,
     solves: 0,
     activeSetChanges: 0,
+    slackClamps: 0,
     clampedPivots: 0,
     lastSolveUs: 0,
     lastFactorUs: 0,
@@ -206,6 +217,7 @@ export class RigStructureSolver {
       lever: new Float64Array(3),
       bodyW: 0,
       tensionN: 0,
+      prevTensionN: 0,
     };
     const slot = (node: number): number => {
       for (let k = 0; k < row.ne; k++) if (row.node[k] === node) return k;
@@ -468,8 +480,10 @@ export class RigStructureSolver {
   // ------------------------------------------------------------------ solve
 
   private beginSubstep(): void {
+    const invDt2 = 1 / (this.dt * this.dt);
     for (const row of this.rows) {
       row.refresh?.(row);
+      row.prevTensionN = -row.lambda * invDt2;
       row.lambda = 0;
     }
     this.iteration = 0;
@@ -540,11 +554,14 @@ export class RigStructureSolver {
       const row = rows[r]!;
       this.evaluate(row);
       if (row.uni < 0) {
-        // Tension-only member: taut when stretched past its rest length.
-        const taut = row.C > -1e-7 || row.lambda < 0;
+        // Tension-only member: taut when stretched past its rest length, or
+        // still loaded from the last sub-step (after the prediction a loaded
+        // member can sit a hair under its rest length; dropping it refactorised
+        // the block again a solve later).
+        const taut = row.C > -1e-7 || row.lambda < 0 || row.prevTensionN > 0.5;
         if (first) {
           if (row.active !== taut) { row.active = taut; this.needFactor = true; }
-        } else if (!row.active && row.C > 1e-6) {
+        } else if (!row.active && row.C > this.params.lateActivationM) {
           row.active = true;
           this.needFactor = true;
           this.stats.activeSetChanges++;
@@ -566,9 +583,11 @@ export class RigStructureSolver {
       const row = rows[r]!;
       let d = row.active ? dl[r]! : 0;
       if (row.uni < 0 && row.lambda + d > 0) {
-        // Would push: release the member for the rest of this sub-step.
+        // Would push: release the member for the rest of this sub-step (the
+        // other members' corrections assumed it held, so the block must be
+        // refactorised without it; clamping it in place blew the rig up).
         d = -row.lambda;
-        if (row.active) { row.active = false; this.needFactor = true; this.stats.activeSetChanges++; }
+        if (row.active) { row.active = false; this.needFactor = true; this.stats.activeSetChanges++; this.stats.slackClamps++; }
       }
       if (d === 0) continue;
       row.lambda += d;

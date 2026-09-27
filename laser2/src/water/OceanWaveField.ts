@@ -127,6 +127,15 @@ export class OceanWaveField {
     this.blend = 0;
   }
 
+  /** True when the current slices span [t0, t1] around a still-centred focus. */
+  covers(t0: number, t1: number, focusX: number, focusZ: number): boolean {
+    if (!this.valid) return false;
+    const half = 0.5 * this.extentM;
+    const margin = 0.3 * this.extentM;
+    if (Math.abs(focusX - this.centerX) > half - margin || Math.abs(focusZ - this.centerZ) > half - margin) return false;
+    return t0 >= this.sliceA.time - 1e-9 && t1 <= this.sliceB.time + 1e-9;
+  }
+
   /** Selects the time inside the current [t0, t1] window used by queries. */
   setQueryTime(t: number): void {
     const span = this.sliceB.time - this.sliceA.time;
