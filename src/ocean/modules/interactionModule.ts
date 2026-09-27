@@ -8,6 +8,7 @@ import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/Ocean
 import { InteractionTiles, type ReleasePatch } from '../sim/InteractionTiles';
 import { QUALITY } from '../engine/settings';
 import type { BodiesModule } from './bodiesModule';
+import { CARPET_VISCOSITY, CARPET_RELAX } from '../sim/carpetParams';
 
 export class InteractionModule implements EngineModule {
   name = 'interaction';
@@ -23,24 +24,23 @@ export class InteractionModule implements EngineModule {
       dx: q.tileN >= 512 ? 0.25 : 128 / q.tileN,
       depth: 60,
       damping: s.dispersionDamping,
-      viscosity: 0.004,
+      viscosity: CARPET_VISCOSITY,
       sourceGain: s.sourceGain,
       limiter: s.limiterEnabled,
       maxSlope: s.maxSlope,
-      relax: 0.5,
+      relax: CARPET_RELAX,
       foamLife: 6,
     });
     engine.heightProviders.push((x, z, h) => h + this.tiles.sampleHeight(x, z));
-    // A sphere of ~1 m needs ~8 cells across it; capture/low: 32 m tiles, medium+: 64 m.
-    this.fineDx = 0.25;
   }
 
-  /** Cell size of fine tiles (small bodies: the pool's sphere, rocks, buoys). */
-  readonly fineDx: number;
-
-  /** JIT promotion hook (called by the scheduler, or directly when no scheduler is installed). */
-  requestTile(center: [number, number], reason: string, followId?: number, fine = false) {
-    const t = this.tiles.ensure(center, reason, this.engine.time, fine ? this.fineDx : undefined);
+  /**
+   * JIT promotion hook (called by the scheduler, or directly when no scheduler is installed).
+   * `dx`: a carpet cell size for a small body (carpetDx: ~12 cells across it); hulls use the
+   * wide coarse field their wakes need.
+   */
+  requestTile(center: [number, number], reason: string, followId?: number, dx?: number) {
+    const t = this.tiles.ensure(center, reason, this.engine.time, dx);
     if (t && followId !== undefined && !t.followIds.includes(followId)) t.followIds.push(followId);
     return t;
   }
@@ -71,7 +71,9 @@ export class InteractionModule implements EngineModule {
   }
 
   telemetry(t: EngineTelemetry) {
-    t.tiles = this.tiles.tiles.filter((x) => !x.retiring).length;
+    const live = this.tiles.tiles.filter((x) => !x.retiring);
+    t.tiles = live.length;
+    t.carpet = live.map((x) => ({ dx: x.dx, n: this.tiles.cfg.n, depth: x.depth, substeps: x.substeps, kappa: +x.kappa.toFixed(1), origin: x.origin }));
   }
 
   dispose() {

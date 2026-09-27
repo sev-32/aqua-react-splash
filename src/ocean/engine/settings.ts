@@ -9,6 +9,7 @@ import { DEFAULT_POST, type PostParams } from '../render/post';
 import { DEFAULT_SURFACE, type WaterOptics, type SurfaceParams } from '../render/OceanSurface';
 import type { CdlodConfig } from '../render/cdlod';
 import type { FoamParams } from '../ocean/SpectralOcean';
+import { CARPET_DAMPING, CARPET_MAX_SLOPE } from '../sim/carpetParams';
 
 export type QualityName = 'capture' | 'low' | 'medium' | 'high' | 'ultra';
 
@@ -156,7 +157,7 @@ export function defaultSettings(quality: QualityName = 'high'): EngineSettings {
     earthCurvature: true,
     geoLodBias: 0.35,
     debug: 0,
-    interaction: { tilesEnabled: true, dispersionDamping: 0.06, sourceGain: 1, limiterEnabled: true, maxSlope: 0.62, maxGamma: 0.78 },
+    interaction: { tilesEnabled: true, dispersionDamping: CARPET_DAMPING, sourceGain: 1, limiterEnabled: true, maxSlope: CARPET_MAX_SLOPE, maxGamma: 0.78 },
     shore: { enabled: true, friction: 0.022, breakGamma: 0.62, lip: 0.85 },
     spray: { enabled: true, gain: 1, render: 'fluid' },
     scheduler: { overlay: false },

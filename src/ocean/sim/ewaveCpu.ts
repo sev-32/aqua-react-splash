@@ -95,17 +95,33 @@ export class EwaveCpu {
 /* ─────────────────────── Representability Limiter ─────────────────────── */
 
 export interface Release {
-  volume: number;   // m³ removed from the heightfield this step
+  volume: number;   // m³ removed from the heightfield this step (ballistic separation: spray)
   momentumX: number; momentumY: number; momentumZ: number; // m³·m/s (volume-weighted velocity)
   cells: number;
+  /** m³ moved by spilling this step (breaking: redistributed, not removed). */
+  spilled: number;
 }
 
 /**
- * The 2.5D envelope: a crest may not stand higher above its lowest neighbour
- * than maxSlope·dx (steepness beyond ~Stokes-limit geometry cannot be a
- * single-valued surface). The excess is removed — a fraction `relax` per step
- * to stay grid-smooth — and returned as released volume + momentum, to become
- * splash (T4). Volume is conserved exactly: η_removed = released.
+ * The 2.5D envelope and what happens at it. Two different physical events:
+ *
+ * Breaking (the slope envelope). A crest may not stand higher above a neighbour than
+ * maxSlope·dx (steepness beyond ~Stokes-limit geometry cannot be a single-valued
+ * surface). The excess spills to that neighbour (a fraction `relax`/4 per edge per step,
+ * volume exact), and the surface flow across the breaking edge is mixed (eddy viscosity
+ * on φ). Breaking is mainly dissipation: removing the crest's water while leaving its
+ * momentum would let the linear field rebuild the crest every step and drain the sea
+ * through it (a hose). Launching water from a breaking crest is a finite event with a
+ * budget frozen at birth (CORE_LAW §2), not this per-step envelope.
+ *
+ * Ballistic separation. A rising surface can decelerate no faster than gravity pulls
+ * its water back; where the heightfield turns faster than that, the excess leaves as a
+ * jet at the speed it had. That volume is removed and returned (with momentum) as
+ * spray. Volume is conserved exactly: η_removed = released.
+ *
+ * Neither happens under a body, and slopes are measured on the free surface only: a
+ * neighbour under a hull holds water + solid (the hull wall), so a crest against it is
+ * run-up on the body, not an overturning slope.
  */
 export function limitRepresentability(
   eta: Float64Array, phi: Float64Array, etaPrev: Float64Array | null,
@@ -116,34 +132,47 @@ export function limitRepresentability(
    * ballistic-separation criterion (the surface may not decelerate faster than g).
    */
   wPrev?: Float64Array,
-  /** Body displacement per column (m, GPU aux.x): occupied columns never release. */
+  /** Body displacement per column (m, GPU aux.x): occupied columns neither break nor release. */
   occupied?: Float64Array,
 ): Release {
-  const out: Release = { volume: 0, momentumX: 0, momentumY: 0, momentumZ: 0, cells: 0 };
+  const out: Release = { volume: 0, momentumX: 0, momentumY: 0, momentumZ: 0, cells: 0, spilled: 0 };
   const limit = maxSlope * dx;
-  const removed = new Float64Array(n * n);
-  for (let z = 1; z < n - 1; z++)
-    for (let x = 1; x < n - 1; x++) {
+  const e0 = eta.slice(), p0 = phi.slice();
+  const free = (i: number) => !occupied || occupied[i] <= 0.02;
+  const k = relax * 0.25;
+  // Every cell, with neighbours clamped at the border as the GPU pass does (a clamped
+  // neighbour is the cell itself: no exchange), so each edge's exchange is seen from both sides.
+  const at = (x: number, z: number) => Math.min(n - 1, Math.max(0, z)) * n + Math.min(n - 1, Math.max(0, x));
+  for (let z = 0; z < n; z++)
+    for (let x = 0; x < n; x++) {
       const i = z * n + x;
-      if (occupied && occupied[i] > 0.02) continue;
-      const lo = Math.min(eta[i - 1], eta[i + 1], eta[i - n], eta[i + n]);
-      const e = eta[i] - lo - limit;
-      let r = e > 0 ? e * relax : 0;
-      const w = etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
+      if (!free(i)) continue;
+      let lo = e0[i], spill = 0, mix = 0;
+      for (const j of [at(x + 1, z), at(x - 1, z), at(x, z + 1), at(x, z - 1)]) {
+        if (!free(j)) continue;
+        lo = Math.min(lo, e0[j]);
+        // Antisymmetric per edge, so what one cell sheds its neighbour gains exactly.
+        const d = e0[j] - e0[i];
+        const ex = Math.abs(d) - limit;
+        if (ex > 0) {
+          spill += k * Math.sign(d) * ex;
+          mix += k * (p0[j] - p0[i]);
+        }
+      }
+      eta[i] = e0[i] + spill;
+      phi[i] = p0[i] + mix;
+      if (spill < 0) out.spilled -= spill * dx * dx;
+      // Ballistic separation.
+      const w = etaPrev ? (e0[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
       const wp = wPrev ? wPrev[i] : 0;
       const acc = (w - wp) / Math.max(dt, 1e-6);
-      if (wPrev && acc < -G && wp > 0 && eta[i] > 0) r += Math.min((-acc - G) * dt * dt * relax, eta[i]);
-      removed[i] = Math.min(r, Math.max(eta[i] - lo, 0) + Math.max(eta[i], 0));
-    }
-  for (let z = 1; z < n - 1; z++)
-    for (let x = 1; x < n - 1; x++) {
-      const i = z * n + x;
-      const r = removed[i];
+      let r = 0;
+      if (wPrev && acc < -G && wp > 0 && e0[i] > 0) r = Math.min((-acc - G) * dt * dt * relax, e0[i]);
+      r = Math.min(r, Math.max(e0[i] - lo, 0) + Math.max(e0[i], 0));
       if (r <= 0) continue;
       const v = r * dx * dx;
-      const wp = wPrev ? wPrev[i] : etaPrev ? (eta[i] - etaPrev[i]) / Math.max(dt, 1e-6) : 0;
-      const ux = (phi[i + 1] - phi[i - 1]) / (2 * dx);
-      const uz = (phi[i + n] - phi[i - n]) / (2 * dx);
+      const ux = (p0[at(x + 1, z)] - p0[at(x - 1, z)]) / (2 * dx);
+      const uz = (p0[at(x, z + 1)] - p0[at(x, z - 1)]) / (2 * dx);
       eta[i] -= r;
       out.volume += v;
       out.momentumX += v * ux; out.momentumY += v * Math.max(wp, 0); out.momentumZ += v * uz;

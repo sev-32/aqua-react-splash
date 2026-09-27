@@ -8,9 +8,9 @@ This document is the design for that loop. Each part names **where the best exis
  FFT ocean (POSEIDON)          Carpet (moves with the body)             Detached liquid (in the carpet)
  ────────────────────          ────────────────────────────             ───────────────────────────────
  η_ocean, u_orbital  ──►  η_total = η_ocean + δ_carpet
-                          bulk: occupancy SWE (BEST)           §2 detect ─►  §3 launch (ledger debit)
+                          occupancy σ + the hull's hold (BEST) §2 detect ─►  §3 launch (ledger debit)
                           waves: exact dispersion (eWave)                     §4 ride → release
-                          body: σ, Brinkman no-penetration                    §5 particles 1–3 cm
+                          breaking: spill + mix (no hose)                     §5 particles 1–3 cm
                           §1                                   ◄── §6 return (footprints, zero-mean)
                                                                ──► air → bubbles → foam (§6b)
                           §7 one optical chain (POSEIDON) for surface, sheet, droplets
@@ -27,22 +27,23 @@ This document is the design for that loop. Each part names **where the best exis
 
 ## 1. The carrier: a carpet that reacts like heightfieldBEST and propagates like the real sea
 
-**1a. Body → water by occupancy and blocking** (*champion: heightfieldBEST*, see `references/heightfieldBEST.md`).
-- Per column, solid occupancy σ = the height of solid inside the wet column (from THALASSA's shared hull functions), swept-sampled along the body path. Liquid depth `m = H + η − σ`.
-- Continuity in liquid form: `∂η/∂t = ∂σ/∂t − ∇·q`, with `q` carried only through the open (liquid) part of each face. This is exactly BEST's source, and it is volume-exact.
-- **[new] Replace BEST's heuristic "push ring" gains with Brinkman penalisation** on face velocities: `u_f ← u_f + (1 − φ_f)·(U_body·n_f − u_f)`, where `φ_f` is the face's open fraction. This is the standard immersed-boundary treatment of the no-penetration condition. Front compression, rear suction and shoulder flow then come out of the pressure solve instead of three tuned constants (0.95 / 0.34 / 0.18).
-- **Void collapse** on `∂σ/∂t < 0` follows from the same continuity equation. BEST's extra `0.55·Δσ` becomes unnecessary once blocking is exact. Keep it only as a calibrated "detachment" rate if captures demand it.
+**As built in P1** (details, numbers and images: `P1_CARPET.md`). The plan below proposed an occupancy SWE bulk with Brinkman penalisation plus a dispersive split. Working the equations through gave a simpler route with the same reaction, built on THALASSA's eWave tiles:
 
-**1b. Numerics** (*champion: THALASSA T2*). Flux-form, well-balanced, positivity-preserving (hydrostatic reconstruction + HLL) on a staggered layout. That removes the odd–even modes that forced BEST's anti-grid blur, HybridSplash's offshore relaxation and AQUA's anti-sandpaper guard. Keep AQUA's checkerboard/spike *detector* as a cockpit alarm, not as a physics filter.
+**1a. Body → water by occupancy and the hull's hold** (*champion: heightfieldBEST*, see `references/heightfieldBEST.md`).
+- Per column, solid occupancy σ = the wet solid below the open-ocean surface, from THALASSA's shared hull functions, band-limited, and swept by substeps with interpolated poses. BEST's source form is kept: `η += Δσ` (volume-exact; η is water + solid).
+- **The hold replaces BEST's blocking and push ring.** Where the body pierces the surface (fraction χ), the free surface must follow the hull (linear flat-ship theory), i.e. η = 0 there. A stiff penalty pressure `g·κ·χ·η` on φ enforces it, κ ≈ 100 (converged), with a φ damper under the hull. The displaced water has to go around the body; waves reflect off it.
+- **Why not Brinkman on face velocities:** in a potential-flow surface model, no-penetration *is* the surface following the hull. Penalising η directly is the same condition without a staggered velocity field. Front compression, shoulder flow and the stern hollow come out of it, not from 0.95 / 0.34 / 0.18.
+- **Equivalence:** with η_s = η − σ, the source form is Havelock's moving hydrostatic pressure patch. The old T3 source was therefore already a classical wake model, but a transparent one. The hold is exactly what it lacked.
+- **Void collapse** follows from continuity: the hole a withdrawing body leaves (Δσ < 0) is no longer held, so the sea falls into it.
 
-**1c. [new] Dispersion without losing the reaction.** BEST is non-dispersive. In deep water it can't make a Kelvin wake, and subcritical tows give a swell dome instead (measured: `references/heightfieldBEST.md`). Split the carpet state, as in Jeschke & Wojtan (2023):
-- **bulk** (low-pass, `λ > λ_c ≈ 2–4 cells`) is solved by the occupancy SWE (1a, 1b);
-- **surface waves** (high-pass) are propagated with exact dispersion `ω² = gk·tanh(kH)(1 + σk²/ρg)` (THALASSA's eWave tile solver: spectral rotation per tile) and advected by the bulk velocity;
-- the body source and the release/return sources are split the same way each step.
+**1b. Numerics.** The carpet is spectral (exact rotation per wavenumber), so the odd–even modes that forced BEST's anti-grid blur can't arise. The only grid-scale risk is the stiffened footprint, which the φ damper removes (energy above half-Nyquist 4–10× lower). Substeps are chosen so κ is stable (`κ < 1.44/(g·K_max·Δt²) − 1`) and no body moves more than half a cell per substep (`sim/carpetParams.ts`).
 
-**Acceptance:**
-- BEST tow parity at supercritical depth-Froude (U = 4.5 m/s, H = 1 m, r = 0.68 m): Mach half-angle `asin(c/U) ± 3°`, bow pile-up and hollow interior.
-- Deep-water subcritical tow: Kelvin cusp angle `19.5° ± 1.5°`, transverse wavelength `2πU²/g ± 5 %`.
+**1c. Dispersion.** Exact: `ω² = gk·tanh(kH)(1 + σk²/ρg)` for every wavelength, carried by the eWave rotation. The Jeschke & Wojtan bulk/surface split is **not needed for the reaction**: the hold supplies the near field, and the dispersion is exact at all scales. It stays the route for orbital advection and nonlinear bulk flow if captures ask for them (P1b).
+
+**Acceptance (restated after measuring; results in `P1_CARPET.md`):**
+- S1 tow parity with BEST's geometry: bow pile-up, hollow behind, volume-exact.
+  - Supercritical: **99 % of the wake energy inside the Mach wedge `asin(√(gH)/U)` + 3°**. BEST's single sharp V at the Mach angle is the non-dispersive limit. In real water only the long waves travel at √(gH), so a body as wide as the water is deep also shows narrower dispersive arms *inside* the wedge.
+- Deep-water subcritical tow: transverse wavelength `2πU²/g ± 5 %`. The Kelvin arm (envelope maximum) must approach 19.47° with distance: the Airy peak lies inside the caustic by ∝ s^−2/3. Target ±1.5° at 14–20 m.
 - Compare against WaveLab's analytic Kelvin overlay (`references/ocean-visual-atmosphere.md`).
 - Drop: a ring with the correct dispersive group speed.
 
@@ -62,7 +63,7 @@ Combine the strongest signals. Each is a physical quantity, not a gain:
 
 | Signal | Meaning | Champion |
 |---|---|---|
-| Representability excess `max(0, η − (min_nbr + s_max·Δx))` | The grid literally can't hold this crest | THALASSA limiter |
+| Representability excess `max(0, η − (min_nbr + s_max·Δx))` | The grid literally can't hold this crest. Since P1 the carpet *spills* this excess to the neighbour (volume exact) and mixes the flow across the edge: breaking as dissipation. Removing it as spray every step while its momentum stays drained the sea (43 m³ in 1.3 s at 4.5 m/s). The excess is the **budget signal** for a finite launch event, not a per-step release. | THALASSA limiter |
 | **[new] Kinematic breaking ratio `B = u_s / c_crest`** | Surface particle speed vs crest speed. Onset near **B ≈ 0.85** (Barthelemy et al. 2018), valid in deep and intermediate depth. `u_s` = bulk velocity + ocean orbital velocity at the surface. `c_crest` = local phase speed from the dispersion relation at the local dominant wavenumber. | new (replaces slope × rise heuristics) |
 | Material vertical velocity `w = η_t + u·∇η` and flow-map compression `J = det(I + τ∇u) < 1` | Rising, converging water | JIT lab `candidates()` |
 | Depth-limited breaking `η/D > γ(bed slope)`, `Fr > 0.95` | Shoaling breakers (spilling vs plunging) | HybridSplash v43 `WG_HF` |

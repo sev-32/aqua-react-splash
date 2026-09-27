@@ -46,8 +46,8 @@ describe('eWave interaction field (CPU reference of the GPU tile)', () => {
   });
 });
 
-describe('Representability Limiter (heightfield → splash release)', () => {
-  it('removes exactly the released volume and leaves representable shapes untouched', () => {
+describe('Representability Limiter (breaking + ballistic release)', () => {
+  it('breaking spills an unrepresentable crest to its neighbours (volume exact, nothing removed) and leaves representable shapes untouched', () => {
     const n = 32, dx = 0.5;
     const eta = new Float64Array(n * n), phi = new Float64Array(n * n);
     // Gentle swell (slope 0.1) — must be untouched.
@@ -56,13 +56,19 @@ describe('Representability Limiter (heightfield → splash release)', () => {
     const r0 = limitRepresentability(eta, phi, null, n, dx, 1 / 30, 0.6, 0.5);
     expect(r0.volume).toBe(0);
     expect(eta).toEqual(before);
-    // A needle crest 2 m tall on one cell — unrepresentable, must release.
-    eta[16 * n + 16] += 2;
-    const sum0 = eta.reduce((a, b) => a + b, 0) * dx * dx;
+    // A needle crest 2 m tall on one cell with a sharp surface flow — unrepresentable: it breaks.
+    const i = 16 * n + 16;
+    eta[i] += 2;
+    phi[i] = 1;
+    const sum0 = eta.reduce((a, b) => a + b, 0), phi0 = phi.reduce((a, b) => a + b, 0);
     const r = limitRepresentability(eta, phi, null, n, dx, 1 / 30, 0.6, 0.5);
-    const sum1 = eta.reduce((a, b) => a + b, 0) * dx * dx;
-    expect(r.volume).toBeGreaterThan(0);
-    expect(sum0 - sum1).toBeCloseTo(r.volume, 12); // exact escrow: removed == released
+    expect(r.volume).toBe(0);                                    // breaking is not a hose
+    expect(r.spilled).toBeGreaterThan(0);
+    expect(eta.reduce((a, b) => a + b, 0)).toBeCloseTo(sum0, 12); // what the crest sheds its neighbours gain
+    expect(eta[i]).toBeLessThan(before[i] + 2);
+    // The flow across the breaking edges is mixed (dissipation), conservatively.
+    expect(phi[i]).toBeLessThan(1);
+    expect(phi.reduce((a, b) => a + b, 0)).toBeCloseTo(phi0, 12);
   });
 
   it('ballistic separation: a surface decelerating faster than g throws its water off (volume exact)', () => {
@@ -98,15 +104,16 @@ describe('Representability Limiter (heightfield → splash release)', () => {
     expect(limitRepresentability(e2, phi, new Float64Array(e2), n, dx, dt, 0.62, 0.5, undefined, new Float64Array(wPrev), occ).volume).toBe(0);
   });
 
-  it('repeated limiting converges to the envelope', () => {
+  it('repeated breaking converges to the envelope without losing water', () => {
     const n = 32, dx = 0.5, maxSlope = 0.6;
     const eta = new Float64Array(n * n), phi = new Float64Array(n * n);
     eta[16 * n + 16] = 3;
-    let total = 0;
-    for (let i = 0; i < 60; i++) total += limitRepresentability(eta, phi, null, n, dx, 1 / 30, maxSlope, 0.5).volume;
+    let released = 0;
+    for (let i = 0; i < 60; i++) released += limitRepresentability(eta, phi, null, n, dx, 1 / 30, maxSlope, 0.5).volume;
     const i = 16 * n + 16;
     const lo = Math.min(eta[i - 1], eta[i + 1], eta[i - n], eta[i + n]);
     expect(eta[i] - lo).toBeLessThanOrEqual(maxSlope * dx + 1e-3);
-    expect(total).toBeCloseTo((3 - maxSlope * dx) * dx * dx, 2);
+    expect(released).toBe(0);
+    expect(eta.reduce((a, b) => a + b, 0)).toBeCloseTo(3, 10);
   });
 });

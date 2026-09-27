@@ -43,6 +43,8 @@ export interface EngineTelemetry {
   time: number;
   camera: CameraPose;
   tiles: number;
+  /** Live carpet tiles: cell size, grid, depth, substeps and hold stiffness of the last frame. */
+  carpet?: { dx: number; n: number; depth: number; substeps: number; kappa: number; origin: [number, number] }[];
   sprayLive: number;
   shoreActive: boolean;
   receipts: number;

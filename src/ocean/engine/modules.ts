@@ -8,6 +8,7 @@ import { beachPose } from '../world/terrain';
 import { registerAction, oceanActions } from './actions';
 import { applyWeatherMorph } from '../atmos/weather';
 import type { Vec3 } from '../math/mat4';
+import { carpetDx } from '../sim/carpetParams';
 
 export interface StandardModules {
   world: WorldModule;
@@ -38,7 +39,8 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
         const nearWater = Math.abs(b.pos[1]) < 12;
         // Small bodies get fine tiles (the pool's resolution); hulls get the wide coarse field their wakes need.
         const small = b.shape.kind !== 'hull' && Math.max(b.shape.radius ?? 0, ...(b.shape.half ?? [0])) < 2.5;
-        if (nearWater && (speed > 0.3 || b.age < 3 || b.script)) interaction.requestTile([b.pos[0], b.pos[2]], `body:${b.label}`, b.id, small);
+        const width = b.shape.kind === 'sphere' ? 2 * (b.shape.radius ?? 1) : 2 * Math.min((b.shape.half ?? [1, 1, 1])[0], (b.shape.half ?? [1, 1, 1])[2]);
+        if (nearWater && (speed > 0.3 || b.age < 3 || b.script)) interaction.requestTile([b.pos[0], b.pos[2]], `body:${b.label}`, b.id, small ? carpetDx(width) : undefined);
       }
       for (const t of interaction.tiles.tiles) {
         if (!t.retiring && !t.followIds.length && e.time - t.lastActive > 14) interaction.tiles.retire(t);
@@ -93,7 +95,13 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
    * one sphere driven like the pool's: dropped, towed, bobbed or plunged and yanked out.
    */
   registerAction('lab', (e, arg) => {
-    const opts = (typeof arg === 'string' ? { scene: arg } : (arg ?? {})) as { scene?: string; depth?: number; bearingDeg?: number; radius?: number };
+    const opts = (typeof arg === 'string' ? { scene: arg } : (arg ?? {})) as {
+      scene?: string; depth?: number; bearingDeg?: number; radius?: number;
+      /** tow speed (m/s), sphere centre height above the still surface (m) */
+      speed?: number; y?: number;
+      /** validation: a uniform carpet depth (m) instead of the seabed's (BEST's flat pool) */
+      tileDepth?: number;
+    };
     const scene = opts.scene ?? 'drop';
     const s = e.settings;
     s.weather.coupleSea = false;
@@ -112,7 +120,9 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
     }
     bodies.clear();
     for (const t of interaction.tiles.tiles) interaction.tiles.retire(t);
+    interaction.tiles.depthOverride = opts.tileDepth ?? null;
     const R = opts.radius ?? 0.6;
+    const yc = opts.y ?? 0;
     const sunAz = (s.sky.sunAzimuthDeg * Math.PI) / 180;
     // Look roughly toward the sun (forward-scattered light, glints) but off its glare.
     const look = sunAz - 0.5;
@@ -120,8 +130,8 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
     const side: [number, number] = [-fwd[1], fwd[0]];
     const at: Vec3 = [x, 0, z];
     if (scene === 'tow') {
-      const start: Vec3 = [x - side[0] * 9, 0, z - side[1] * 9];
-      bodies.spawnSphere(start, R, { kind: 'tow', dir: side, speed: 2.2, amp: 0, period: 1 });
+      const start: Vec3 = [x - side[0] * 9, yc, z - side[1] * 9];
+      bodies.spawnSphere(start, R, { kind: 'tow', dir: side, speed: opts.speed ?? 2.2, amp: 0, period: 1 });
     } else if (scene === 'bob') bodies.spawnSphere(at, R, { kind: 'bob', dir: [1, 0], speed: 0, amp: 0.35, period: 1.4 });
     else if (scene === 'plunge') bodies.spawnSphere(at, R, { kind: 'plunge', dir: [1, 0], speed: 0, amp: 1.0, period: 2.5 });
     else if (scene === 'rock') bodies.dropRock(at);
@@ -129,7 +139,7 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
       const b = bodies.spawnSphere([x, 3, z], R);
       b.vel = [0, -2, 0];
     }
-    interaction.requestTile([x, z], `lab:${scene}`, bodies.bodies[0]?.id, true);
+    interaction.requestTile([x, z], `lab:${scene}`, bodies.bodies[0]?.id, carpetDx(2 * R));
     const dist = 12, h = 3.2;
     e.camera.setPose({
       position: [x - fwd[0] * dist, h, z - fwd[1] * dist],

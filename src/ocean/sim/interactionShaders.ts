@@ -1,6 +1,7 @@
 /**
- * GLSL for T3 interaction tiles: eWave + capacity-field hull sources + the
- * Representability Limiter. Mirrors sim/ewaveCpu.ts.
+ * GLSL for T3 interaction tiles, the carpet kernel: eWave dispersion + occupancy
+ * coupling with the hull's hold on the water (heightfieldBEST's blocking) + the
+ * Representability Limiter. Mirrors sim/carpetCpu.ts and sim/ewaveCpu.ts.
  *
  * Textures (N×N, real space unless noted):
  *   state   RG32F    (η, φ)                         ← FFT'd each step
@@ -18,7 +19,17 @@ uniform float uDx;           // cell size (m)
 float tileSize(){ return float(uN)*uDx; }
 `;
 
-/** 1. Hull capacity sources + impacts. MRT: state, aux. */
+/**
+ * 1. Carpet source + hold + impacts. MRT: state, aux. Mirrors CarpetCpu.step (sim/carpetCpu.ts).
+ *
+ * η is water + solid above the open-ocean surface (BEST's source form): a body entering a
+ * column adds its wet occupancy σ there, leaving withdraws it (exact volume, escrowed in
+ * aux.x). Where the body pierces the surface (fraction χ) the hull holds the column: a stiff
+ * penalty pressure g·κ·χ·η keeps the water from rising or sinking under the hull, so the
+ * displaced water must go around it (bow pile-up, a hollow behind that the sea falls into)
+ * and waves do not pass through the body. A smoothing of φ under the hull damps the
+ * stiffened footprint's own grid-scale ringing.
+ */
 export const TILE_SOURCE_FS = /* glsl */ `#version 300 es
 precision highp float;
 precision highp int;
@@ -37,6 +48,11 @@ uniform vec4 uBodyPos[${MAX_BODIES}];     // tile-local xyz, kind
 uniform vec3 uBodyAx[${MAX_BODIES * 3}];  // rotation columns
 uniform vec4 uBodyDims[${MAX_BODIES}];
 uniform float uSourceGain;
+uniform float uDt;
+uniform float uKappa;          // hold stiffness (×g), stable for this substep
+uniform float uSmooth;         // φ smoothing under the hull (fraction of the explicit limit)
+uniform int uApplyImpacts;     // impacts land once per frame (first substep)
+uniform int uPrime;            // new tile: bodies already in the water have displaced it already
 layout(location=0) out vec4 outState;
 layout(location=1) out vec4 outAux;
 float oceanHeight(vec2 p){
@@ -47,42 +63,57 @@ float oceanHeight(vec2 p){
   }
   return h;
 }
+float phiAt(ivec2 c){ return texelFetch(uState, clamp(c, ivec2(0), ivec2(uN - 1)), 0).y; }
 void main(){
   ivec2 c = ivec2(gl_FragCoord.xy);
   vec2 st = texelFetch(uState, c, 0).xy;
   vec4 aux = texelFetch(uAux, c, 0);
   vec2 xz = (vec2(c) + 0.5)*uDx;
-  // Displacement capacity: water the bodies occupy in this column, measured against
-  // the open-ocean surface (never against this field itself — no feedback loop).
+  // Occupancy: wet solid below the open-ocean surface (never this field itself — no
+  // feedback loop), and the piercing fraction χ (the body crosses that surface).
   float ref = oceanHeight(xz);
   // Band-limited (5×5 binomial, σ ≈ dx): a hull pushes water with a smooth pressure field.
   // A hard-edged footprint puts energy at the grid Nyquist, where centimetre ripples would
   // already exceed the ballistic-separation limit (A·k > 1) — numerical spray, not physics.
-  float disp = 0.0;
+  float disp = 0.0, chi = 0.0;
   if (uBodyCount > 0){
     const float W[5] = float[5](1.0, 4.0, 6.0, 4.0, 1.0);
     for (int j = -2; j <= 2; j++) for (int k = -2; k <= 2; k++){
       vec2 q = xz + vec2(float(k), float(j))*uDx;
-      float dq = 0.0;
+      float dq = 0.0, pq = 0.0;
       for (int i = 0; i < ${MAX_BODIES}; i++){
         if (i >= uBodyCount) break;
         mat3 R = mat3(uBodyAx[i*3], uBodyAx[i*3 + 1], uBodyAx[i*3 + 2]);
         vec2 span = bodyVerticalSpan(int(uBodyPos[i].w), uBodyPos[i].xyz, R, uBodyDims[i], q);
-        if (span.x < span.y) dq += clamp(ref - span.x, 0.0, span.y - span.x);
+        if (span.x < span.y){
+          dq += clamp(ref - span.x, 0.0, span.y - span.x);
+          if (span.x < ref && ref < span.y) pq = 1.0;
+        }
       }
-      disp += dq*W[j + 2]*W[k + 2]/256.0;
+      float wq = W[j + 2]*W[k + 2]/256.0;
+      disp += dq*wq;
+      chi += pq*wq;
     }
   }
-  // Continuity (the pool's volume coupling, sign-corrected): a body entering a column
-  // displaces that water, which rises and runs outward — bow crest, stern trough.
-  // Symmetric, so volume is conserved exactly (escrow).
-  float d = (disp - aux.x)*uSourceGain;
+  chi = min(chi, 1.0);
+  // Continuity: the column gains exactly the solid that entered it (and loses what left).
+  float d = uPrime == 1 ? 0.0 : (disp - aux.x)*uSourceGain;
   st.x += d;
-  vec4 imp = texelFetch(uImpacts, c, 0);
-  st.x += imp.x;
-  st.y += imp.z;
+  if (uApplyImpacts == 1){
+    vec4 imp = texelFetch(uImpacts, c, 0);
+    st.x += imp.x;
+    st.y += imp.z;
+    aux.y += imp.y;
+  }
+  // The hull's hold on the water under it.
+  if (chi > 0.0){
+    if (uSmooth > 0.0){
+      float lap = phiAt(c + ivec2(1,0)) + phiAt(c - ivec2(1,0)) + phiAt(c + ivec2(0,1)) + phiAt(c - ivec2(0,1)) - 4.0*phiAt(c);
+      st.y += 0.25*uSmooth*chi*lap;
+    }
+    st.y -= uDt*9.81*uKappa*chi*st.x;
+  }
   aux.x = disp;
-  aux.y += imp.y;
   outState = vec4(st, 0.0, 0.0);
   outAux = aux;
 }
@@ -154,8 +185,13 @@ void main(){
 
 /**
  * 3. Representability Limiter + sponge + foam. MRT: state, aux, releaseA, releaseB.
- * A crest may not exceed its lowest neighbour by more than maxSlope·dx: the excess
- * becomes splash (the heightfield shows the energy, the splash releases it).
+ * Mirrors limitRepresentability (sim/ewaveCpu.ts). Two events at the envelope:
+ *   breaking  a crest may not stand above a neighbour by more than maxSlope·dx; the excess
+ *             spills to it (volume exact) and the surface flow across the breaking edge is
+ *             mixed — dissipation, not a hose (the per-step removal of a crest whose
+ *             momentum stays would drain the sea through it);
+ *   ballistic a surface decelerating faster than g throws its water off: that volume
+ *             leaves as spray (release maps), at the speed it had.
  */
 export const TILE_LIMIT_FS = /* glsl */ `#version 300 es
 precision highp float;
@@ -183,21 +219,36 @@ void main(){
   vec2 st = texelFetch(uState, c, 0).xy;
   vec4 aux = texelFetch(uAux, c, 0);
   vec4 ra = texelFetch(uRelA, c, 0), rb = texelFetch(uRelB, c, 0);
-  float e0 = st.x;
-  float lo = min(min(eta(c + ivec2(1,0)), eta(c - ivec2(1,0))), min(eta(c + ivec2(0,1)), eta(c - ivec2(0,1))));
-  float released = 0.0;
+  float e0 = st.x, p0 = st.y;
+  float released = 0.0, shed = 0.0;
   float w = (e0 - aux.w)/max(uDt, 1e-4);                 // vertical surface velocity (this step)
   float wPrev = aux.z;                                    // … and the step before
   float acc = (w - wPrev)/max(uDt, 1e-4);
   // Columns a body occupies are not a free surface: the water there is flowing around the
-  // hull (the bow wave outside it carries the excess), so nothing detaches from inside.
+  // hull (the bow wave outside it carries the excess), so nothing breaks or detaches there.
   bool underBody = aux.x > 0.02;
   if (uLimiter == 1 && !underBody){
-    // (1) Shape: a crest steeper than the envelope cannot be a single-valued surface.
-    float ex = e0 - lo - uMaxSlope*uDx;
-    if (ex > 0.0){
-      released = ex*uRelax;
+    // Slopes of the free surface only: a neighbour under a hull holds water + solid (the
+    // hull wall), so a crest against it is run-up on the body, not an overturning slope.
+    float lo = e0, spill = 0.0, mixPhi = 0.0;
+    float k = 0.25*uRelax;
+    for (int q = 0; q < 4; q++){
+      ivec2 o = q == 0 ? ivec2(1,0) : q == 1 ? ivec2(-1,0) : q == 2 ? ivec2(0,1) : ivec2(0,-1);
+      ivec2 cn = clamp(c + o, ivec2(0), ivec2(uN - 1));
+      if (texelFetch(uAux, cn, 0).x > 0.02) continue;
+      vec2 sn = texelFetch(uState, cn, 0).xy;
+      lo = min(lo, sn.x);
+      // (1) Breaking: antisymmetric per edge, so what one cell sheds its neighbour gains.
+      float d = sn.x - e0;
+      float ex = abs(d) - uMaxSlope*uDx;
+      if (ex > 0.0){
+        spill += k*sign(d)*ex;
+        mixPhi += k*(sn.y - p0);
+      }
     }
+    st.x = e0 + spill;
+    st.y = p0 + mixPhi;
+    shed = max(-spill, 0.0);
     // (2) Ballistic separation: a rising surface can decelerate no faster than gravity
     //     pulls its water back. Where the heightfield turns faster than that (a < −g:
     //     a wave steeper than A·k = 1, a column stopping under an impact jet), the water
@@ -205,7 +256,7 @@ void main(){
     //     No resolution- or artist-dependent threshold: g is the only scale.
     if (acc < -9.81 && wPrev > 0.0 && e0 > 0.0){
       float dv = (-acc - 9.81)*uDt;
-      released += min(dv*uDt*uRelax, e0);
+      released = min(dv*uDt*uRelax, e0);
     }
     released = min(released, max(e0 - lo, 0.0) + max(e0, 0.0));
     st.x -= released;
@@ -223,7 +274,7 @@ void main(){
   // Bounded birth: a release whitens toward saturation instead of stacking to solid white.
   // Released water is airborne: the surface keeps only the bubbles it entrained on leaving
   // (a patchy trace), the bulk of the foam comes back with the re-entry splats.
-  aux.y = aux.y*exp(-uDt/max(uFoamLife, 0.1)) + (1.0 - aux.y)*(1.0 - exp(-released*0.5)) + churn*uDt*0.35;
+  aux.y = aux.y*exp(-uDt/max(uFoamLife, 0.1)) + (1.0 - aux.y)*(1.0 - exp(-(released + shed)*0.5)) + churn*uDt*0.35;
   aux.y = clamp(aux.y, 0.0, 1.0);
   // Absorbing sponge: waves leave the tile instead of wrapping (FFT periodicity).
   float edge = float(min(min(c.x, uN - 1 - c.x), min(c.y, uN - 1 - c.y)));

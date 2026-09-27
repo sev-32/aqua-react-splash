@@ -15,6 +15,7 @@ This folder is the single place that records **what the references are, what eac
 | [`REFERENCE_MAP.md`](REFERENCE_MAP.md) | The champion (best reference) for each of 22 capabilities, where its code is, what to carry, and THALASSA's status |
 | [`CORE_LAW.md`](CORE_LAW.md) | The design of the heightfield ⇄ splash loop: where water leaves, how much, how fast, what shape, how it releases, breaks up and returns. Champion mechanisms plus proposed improvements, each with an acceptance test |
 | [`PLAN.md`](PLAN.md) | Stages P0–P8 for the local detail layer ("magic carpet"), matched test scenes S1–S8, and the decisions needed from you |
+| [`P1_CARPET.md`](P1_CARPET.md) | **Stage P1, built:** the wake carpet (BEST's occupancy + the hull's hold on exact dispersion), measured against BEST (S1) and Kelvin (S2), GPU parity, tests, limits |
 | [`INVENTORY.md`](INVENTORY.md) + `inventory.csv` | Every file received (hashed), duplicates, what runs here, and what's still missing |
 | [`references/heightfieldBEST.md`](references/heightfieldBEST.md) | Why BEST's wake is real (occupancy + flux blocking); measured tows; its dormant splash stage; limits (no dispersion, checkerboards) |
 | [`references/jit-lineage.md`](references/jit-lineage.md) | jit_infinite → JIT-Splash M1 → M2 → M3 → M4 → Developer Lab R1–R22: the accounted splash chain, step by step |
@@ -30,7 +31,7 @@ This folder is the single place that records **what the references are, what eac
 2. **The wake:** heightfieldBEST's body is a time-varying *occupancy* of the water columns that **blocks the flux**, so water has to go around, pile up and fall in. That's the real reaction.
    - Its solver is non-dispersive, so in deep water it can't make Kelvin wakes. Measured: a correct Mach V at supercritical speed, a swell dome at subcritical speed.
    - THALASSA's eWave tiles have exact dispersion but no blocking.
-   - **Combine them.**
+   - **Combined in P1** (`P1_CARPET.md`): the carpet keeps BEST's reaction and adds Kelvin wakes.
 3. **The splash, in three complementary halves:**
    - the JIT lab has the *accounting* (finite events, exact volume debit/credit, work-bounded launch, temporal ribbons, zero-impulse return);
    - AQUA has the *launch and return semantics* (crest-leader ribbons, whitecap/spill/plunge/slam, two thresholds, ride window, canonical impact footprints, ligament lifecycle, subsurface air);

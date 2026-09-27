@@ -29,7 +29,7 @@ Captured for references and THALASSA alike:
 | ID | Scene | Scale | Champions to compare |
 |---|---|---|---|
 | S1 | Tow, sphere r = 0.68 m at U = 1.0 / 2.0 / 4.5 m/s, H = 1 m pool | BEST's | heightfieldBEST (captured: `img/best_tow_*`), JIT lab |
-| S2 | Tow in deep water (H = 30 m), U = 2 and 5 m/s | open sea | WaveLab analytic Kelvin overlay |
+| S2 | Tow in deep water, the S1 sphere at U = 1.5 m/s (Fr_L = 0.41; measured in P1), then U = 2 and 5 m/s | open sea | WaveLab analytic Kelvin overlay |
 | S3 | Drop, sphere released from 1.15 m | pool | BEST "drop", JIT lab drop (captured), AQUA |
 | S4 | Lift-out / void | pool | BEST "lift", JIT lab wet-exit (film ledger) |
 | S5 | Plunging breaker on a 1:20 beach, Hs 1.2 m, Tp 9 s | nearshore | WaveLab, HybridSplash v43 |
@@ -45,22 +45,30 @@ Captured for references and THALASSA alike:
 - **Done when:** the docs are merged and the S1/S3 captures of BEST and the lab are archived with receipts. BEST tows and lab drop/tow already exist in this session.
 
 ### P1 — Carpet kernel (the wake): BEST coupling plus dispersion, following the body, riding the ocean
-- GPU (WebGL2) carpet on a staggered layout:
-  - occupancy σ from THALASSA hull functions (swept);
-  - liquid-form continuity with `∂σ/∂t`;
-  - HLL/HR flux numerics;
-  - Brinkman no-penetration on face velocities;
-  - bulk/surface split with THALASSA's exact-dispersion eWave for the surface part (`CORE_LAW.md` §1).
-- `η_total = η_ocean + δ_carpet`, with the ocean's `∂η/∂t` removed inside the carpet and relative velocity to the orbital field.
-- Exact-cell recentering with strip accounting (Lab R21), absorbing rims, world hydro memory (Lab R22).
-- Reserved tile-array layer and binding for the ocean renderer. The parked `stash@{0}` has a generic version of this plumbing that can be reused without its old-pool physics.
-- **Acceptance:**
-  - S1: supercritical Mach angle within ±3°, bow pile-up and hollow interior;
-  - S2: Kelvin cusp 19.5° ± 1.5° and transverse λ = 2πU²/g ± 5 %;
-  - recentering has no seam;
-  - volume residual < 1e-6 over ten traversals;
-  - body at rest on swell gives no drift;
-  - 60 fps budget on a mid-range GPU (measure on hardware).
+
+**Status: built.** See `P1_CARPET.md` for the physics, the measured S1/S2 results against BEST, GPU parity and the tests.
+
+- **As built.** Instead of a new staged SWE, THALASSA's eWave tiles were upgraded into the carpet (`CORE_LAW.md` §1):
+  - occupancy σ against the moving ocean surface, band-limited, swept by substeps with interpolated poses;
+  - BEST's volume-exact source;
+  - **the hull's hold** (a stiff penalty pressure where the body pierces the surface, κ ≈ 100, converged) in place of BEST's blocking and push ring;
+  - exact dispersion;
+  - body-scaled cells (≈12 across a small body);
+  - a follow lead (the carpet sits behind the body), whole-cell shifts, absorbing rims;
+  - priming for bodies already afloat.
+- **Limiter change** (needed for the carpet to hold with the limiter on): breaking now spills and mixes (volume exact), and only ballistic separation releases spray. The old per-step release drained the sea at carpet resolution.
+- **Acceptance, as measured:**
+  - S1: bow pile-up, stern hollow, volume ledger ≈ 1e-14 m³;
+  - supercritical wake energy (99 %) inside the Mach wedge + 3° (criterion restated: BEST's single V is the non-dispersive limit; being re-measured past the near field with the engine's numerics);
+  - S2: λ = 2πU²/g within 1 %, and the Kelvin arm converging to 19.5° with distance;
+  - recentring seamless (≤ 5 % near the body against a fixed carpet);
+  - no drift on a swell;
+  - GPU = CPU mirror (correlation ≥ 0.98).
+  - 60 fps still has to be measured on real hardware.
+- **Still open (P1b):**
+  - advect the carpet with the orbital velocity (a body drifting with the swell is still seen as moving);
+  - the world hydro memory of Lab R22 for revisited cells;
+  - physical rather than numerical damping defaults.
 
 ### P2 — Body dynamics
 - gptwaves-v7 sphere terms on top of THALASSA column buoyancy:

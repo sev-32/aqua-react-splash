@@ -15,8 +15,9 @@ import {
 } from './interactionShaders';
 import type { SpectralOcean } from '../ocean/SpectralOcean';
 import type { Body } from '../physics/bodies';
-import { quatToMat3 } from '../math/mat4';
+import { quatToMat3, quatNormalize, type Quat, type Vec3 } from '../math/mat4';
 import { pmod } from '../math/scalar';
+import { CARPET_SMOOTH, carpetSubsteps, stableKappa } from './carpetParams';
 
 export interface TileConfig {
   n: number;
@@ -61,6 +62,14 @@ export interface InteractionTile {
   readEta: AsyncReader;
   etaGrid: Float32Array;        // CPU copy: 64×64 × (η, φ, foam, -)
   etaGridN: number;
+  /** Tile origin the CPU η grid was reduced at (recentring moves `origin` before the readback lands). */
+  etaOrigin: [number, number];
+  etaPendingOrigin: [number, number];
+  /** Last frame's carpet numerics (telemetry): substeps and hold stiffness. */
+  substeps: number;
+  kappa: number;
+  /** False until the first source pass has recorded the occupancy of bodies already in the water. */
+  primed: boolean;
   fade: number;
   retiring: boolean;
   lastActive: number;
@@ -129,13 +138,17 @@ export class InteractionTiles {
 
   /** Seabed depth query (positive down) for per-tile dispersion; defaults to the config depth. */
   depthAt: ((x: number, z: number) => number) | null = null;
+  /** Validation scenes: a uniform tile depth (m) regardless of the seabed (BEST's flat pool). */
+  depthOverride: number | null = null;
+  /** Body poses at the end of the previous frame: substeps sweep the occupancy between them. */
+  private prevPose = new Map<number, { pos: Vec3; rot: Quat }>();
 
   private allocate(center: [number, number], reason: string, now: number, dxOverride?: number): InteractionTile {
     const gl = this.gl;
     const n = this.cfg.n;
     const dx = dxOverride ?? this.cfg.dx;
     const size = n * dx;
-    const d = this.depthAt ? this.depthAt(center[0], center[1]) : this.cfg.depth;
+    const d = this.depthOverride ?? (this.depthAt ? this.depthAt(center[0], center[1]) : this.cfg.depth);
     const snap = (v: number) => Math.round((v - size / 2) / dx) * dx;
     const f32 = FMT.rgba32f(gl), rg = FMT.rg32f(gl);
     const used = new Set(this.tiles.map((x) => x.layer));
@@ -161,6 +174,11 @@ export class InteractionTiles {
       readEta: new AsyncReader(gl, ETA_GRID, ETA_GRID, 1),
       etaGrid: new Float32Array(ETA_GRID * ETA_GRID * 4),
       etaGridN: ETA_GRID,
+      etaOrigin: [snap(center[0]), snap(center[1])],
+      etaPendingOrigin: [snap(center[0]), snap(center[1])],
+      substeps: 1,
+      kappa: 0,
+      primed: false,
       fade: 0,
       retiring: false,
       lastActive: now,
@@ -253,6 +271,18 @@ export class InteractionTiles {
     t.impacts.length = 0;
   }
 
+  /** Body pose at fraction f ∈ (0, 1] of this frame (linear position, normalised-lerp rotation). */
+  private poseAt(b: Body, f: number): { pos: Vec3; rot: Quat } {
+    const p = this.prevPose.get(b.id);
+    if (!p || f >= 1) return { pos: b.pos, rot: b.rot };
+    const q = b.rot, r = p.rot;
+    const sgn = q[0] * r[0] + q[1] * r[1] + q[2] * r[2] + q[3] * r[3] < 0 ? -1 : 1;
+    return {
+      pos: [p.pos[0] + (b.pos[0] - p.pos[0]) * f, p.pos[1] + (b.pos[1] - p.pos[1]) * f, p.pos[2] + (b.pos[2] - p.pos[2]) * f],
+      rot: quatNormalize([r[0] + (sgn * q[0] - r[0]) * f, r[1] + (sgn * q[1] - r[1]) * f, r[2] + (sgn * q[2] - r[2]) * f, r[3] + (sgn * q[3] - r[3]) * f]),
+    };
+  }
+
   /** Advance all tiles one frame. */
   update(ocean: SpectralOcean, bodies: Body[], dt: number, now: number) {
     const gl = this.gl;
@@ -264,28 +294,28 @@ export class InteractionTiles {
       // Fade in/out (receipted by the scheduler); free when fully faded.
       t.fade = Math.min(1, Math.max(0, t.fade + (t.retiring ? -dt / 1.5 : dt / 0.6)));
       if (t.retiring && t.fade <= 0) { this.free(t); continue; }
-      // Follow bodies.
+      // Follow bodies. The carpet leads a moving body: its wake is behind it, so the tile
+      // centre sits 0.2 of a tile behind the body along its track.
       const follow = bodies.filter((b) => t.followIds.includes(b.id));
       if (follow.length) {
-        const cx = follow.reduce((a, b) => a + b.pos[0], 0) / follow.length;
-        const cz = follow.reduce((a, b) => a + b.pos[2], 0) / follow.length;
-        this.recenter(t, [cx, cz]);
+        let cx = 0, cz = 0, vx = 0, vz = 0;
+        for (const b of follow) { cx += b.pos[0]; cz += b.pos[2]; vx += b.vel[0]; vz += b.vel[2]; }
+        cx /= follow.length; cz /= follow.length; vx /= follow.length; vz /= follow.length;
+        const sp = Math.hypot(vx, vz), lead = sp > 0.3 ? (t.size * 0.2) / sp : 0;
+        this.recenter(t, [cx - vx * lead, cz - vz * lead]);
       }
       this.consumeReadbacks(t);
       if (dt <= 0) continue;
       this.drawImpacts(t);
 
-      // 1. Sources.
       const near = bodies.filter((b) => b.alive && Math.abs(b.pos[0] - (t.origin[0] + t.size / 2)) < t.size / 2 + 10
         && Math.abs(b.pos[2] - (t.origin[1] + t.size / 2)) < t.size / 2 + 10).slice(0, MAX_BODIES);
-      const bp = new Float32Array(MAX_BODIES * 4), ba = new Float32Array(MAX_BODIES * 9), bd = new Float32Array(MAX_BODIES * 4);
-      near.forEach((b, i) => {
-        const kind = b.shape.kind === 'sphere' ? 0 : b.shape.kind === 'hull' ? 1 : 2;
-        bp.set([b.pos[0] - t.origin[0], b.pos[1], b.pos[2] - t.origin[1], kind], i * 4);
-        ba.set(quatToMat3(b.rot), i * 9);
-        const s = b.shape;
-        bd.set(kind === 0 ? [s.radius ?? 1, 0, 0, 0] : kind === 1 ? [s.length ?? 8, s.beam ?? 2.4, s.draft ?? 0.9, s.freeboard ?? 0.8] : [...(s.half ?? [1, 1, 1]), 0], i * 4);
-      });
+      const speed = near.reduce((m, b) => Math.max(m, Math.hypot(b.vel[0], b.vel[1], b.vel[2])), 0);
+      const sub = carpetSubsteps(t.dx, dt, speed);
+      const h = dt / sub;
+      const kappa = stableKappa(t.dx, h);
+      t.substeps = sub;
+      t.kappa = kappa;
       const sizes = new Float32Array(4), offs = new Float32Array(8);
       for (let c = 0; c < ocean.cascades; c++) {
         const L = ocean.layout.sizes[c];
@@ -293,59 +323,74 @@ export class InteractionTiles {
         offs[c * 2] = pmod(t.origin[0], L);
         offs[c * 2 + 1] = pmod(t.origin[1], L);
       }
-      const ps = this.pSource.use();
-      ps.set('uN', n).set('uDx', t.dx).set('uCascadeCount', ocean.cascades).set('uSizes', sizes).set('uCascOffset', offs)
-        .set('uBodyCount', near.length).set('uBodyPos', bp).set('uBodyAx', ba).set('uBodyDims', bd).set('uSourceGain', cfg.sourceGain)
-        .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture).tex('uImpacts', this.impactsTarget.texture);
-      ps.tex('uDispArr', ocean.dispArray);
-      this.mrt([t.state.write, t.aux.write]);
-      t.state.swap();
-      t.aux.swap();
+      const bp = new Float32Array(MAX_BODIES * 4), ba = new Float32Array(MAX_BODIES * 9), bd = new Float32Array(MAX_BODIES * 4);
+      for (let k = 1; k <= sub; k++) {
+        // 1. Sources + hold, with the bodies where they are at the end of this substep.
+        near.forEach((b, i) => {
+          const pose = this.poseAt(b, k / sub);
+          const kind = b.shape.kind === 'sphere' ? 0 : b.shape.kind === 'hull' ? 1 : 2;
+          bp.set([pose.pos[0] - t.origin[0], pose.pos[1], pose.pos[2] - t.origin[1], kind], i * 4);
+          ba.set(quatToMat3(pose.rot), i * 9);
+          const s = b.shape;
+          bd.set(kind === 0 ? [s.radius ?? 1, 0, 0, 0] : kind === 1 ? [s.length ?? 8, s.beam ?? 2.4, s.draft ?? 0.9, s.freeboard ?? 0.8] : [...(s.half ?? [1, 1, 1]), 0], i * 4);
+        });
+        const ps = this.pSource.use();
+        ps.set('uN', n).set('uDx', t.dx).set('uCascadeCount', ocean.cascades).set('uSizes', sizes).set('uCascOffset', offs)
+          .set('uBodyCount', near.length).set('uBodyPos', bp).set('uBodyAx', ba).set('uBodyDims', bd).set('uSourceGain', cfg.sourceGain)
+          .set('uDt', h).set('uKappa', kappa).set('uSmooth', CARPET_SMOOTH).set('uApplyImpacts', k === 1 ? 1 : 0)
+          .set('uPrime', t.primed ? 0 : 1)
+          .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture).tex('uImpacts', this.impactsTarget.texture);
+        ps.tex('uDispArr', ocean.dispArray);
+        this.mrt([t.state.write, t.aux.write]);
+        t.state.swap();
+        t.aux.swap();
+        t.primed = true;
 
-      // 2. Forward FFT → exact rotation → inverse FFT.
-      let src = t.state.read.texture;
-      let w = 0;
-      const pf = this.pFft.use();
-      pf.set('uN', n).set('uSign', -1);
-      for (const h of [1, 0]) {
-        pf.set('uHorizontal', h);
-        for (let s = 2; s <= n; s <<= 1) {
-          pf.set('uStage', s).tex('uSrc', src);
-          t.spec[w].bind();
-          this.quad.draw();
-          src = t.spec[w].texture;
-          w = 1 - w;
+        // 2. Forward FFT → exact rotation → inverse FFT.
+        let src = t.state.read.texture;
+        let w = 0;
+        const pf = this.pFft.use();
+        pf.set('uN', n).set('uSign', -1);
+        for (const hz of [1, 0]) {
+          pf.set('uHorizontal', hz);
+          for (let s = 2; s <= n; s <<= 1) {
+            pf.set('uStage', s).tex('uSrc', src);
+            t.spec[w].bind();
+            this.quad.draw();
+            src = t.spec[w].texture;
+            w = 1 - w;
+          }
         }
-      }
-      this.pEvolve.use().set('uN', n).set('uDx', t.dx).set('uDt', dt).set('uDepth', t.depth)
-        .set('uDamping', cfg.damping).set('uViscosity', cfg.viscosity).tex('uSpec', src);
-      t.spec[w].bind();
-      this.quad.draw();
-      src = t.spec[w].texture;
-      w = 1 - w;
-      pf.use().set('uSign', 1);
-      for (const h of [1, 0]) {
-        pf.set('uHorizontal', h);
-        for (let s = 2; s <= n; s <<= 1) {
-          pf.set('uStage', s).tex('uSrc', src);
-          const dst = s === n && h === 0 ? t.state.write : t.spec[w];
-          dst.bind();
-          this.quad.draw();
-          src = dst.texture;
-          if (dst !== t.state.write) w = 1 - w;
+        this.pEvolve.use().set('uN', n).set('uDx', t.dx).set('uDt', h).set('uDepth', t.depth)
+          .set('uDamping', cfg.damping).set('uViscosity', cfg.viscosity).tex('uSpec', src);
+        t.spec[w].bind();
+        this.quad.draw();
+        src = t.spec[w].texture;
+        w = 1 - w;
+        pf.use().set('uSign', 1);
+        for (const hz of [1, 0]) {
+          pf.set('uHorizontal', hz);
+          for (let s = 2; s <= n; s <<= 1) {
+            pf.set('uStage', s).tex('uSrc', src);
+            const dst = s === n && hz === 0 ? t.state.write : t.spec[w];
+            dst.bind();
+            this.quad.draw();
+            src = dst.texture;
+            if (dst !== t.state.write) w = 1 - w;
+          }
         }
-      }
-      t.state.swap();
+        t.state.swap();
 
-      // 3. Limiter + sponge + foam (+ release accumulation).
-      this.pLimit.use().set('uN', n).set('uDx', t.dx).set('uDt', dt).set('uMaxSlope', cfg.maxSlope).set('uRelax', cfg.relax)
-        .set('uLimiter', cfg.limiter ? 1 : 0).set('uSponge', n * 0.1).set('uFoamLife', cfg.foamLife).set('uOrigin', t.origin)
-        .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture)
-        .tex('uRelA', t.release.read.textures[0]).tex('uRelB', t.release.read.textures[1]);
-      this.mrtMany([t.state.write.fbo, t.aux.write.fbo, t.release.write.fbo], [t.state.write, t.aux.write, t.release.write]);
-      t.state.swap();
-      t.aux.swap();
-      t.release.swap();
+        // 3. Limiter + sponge + foam (+ release accumulation over the substeps).
+        this.pLimit.use().set('uN', n).set('uDx', t.dx).set('uDt', h).set('uMaxSlope', cfg.maxSlope).set('uRelax', cfg.relax)
+          .set('uLimiter', cfg.limiter ? 1 : 0).set('uSponge', n * 0.1).set('uFoamLife', cfg.foamLife).set('uOrigin', t.origin)
+          .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture)
+          .tex('uRelA', t.release.read.textures[0]).tex('uRelB', t.release.read.textures[1]);
+        this.mrtMany([t.state.write.fbo, t.aux.write.fbo, t.release.write.fbo], [t.state.write, t.aux.write, t.release.write]);
+        t.state.swap();
+        t.aux.swap();
+        t.release.swap();
+      }
 
       // 4. Output for rendering.
       this.pOutput.use().set('uN', n).set('uDx', t.dx).set('uFade', t.fade)
@@ -366,9 +411,33 @@ export class InteractionTiles {
         t.reduceEta.bind();
         this.quad.draw();
         t.readEta.request(t.reduceEta.fbo);
+        t.etaPendingOrigin = [t.origin[0], t.origin[1]];
       }
     }
+    for (const b of bodies) this.prevPose.set(b.id, { pos: [b.pos[0], b.pos[1], b.pos[2]], rot: [b.rot[0], b.rot[1], b.rot[2], b.rot[3]] });
+    if (this.prevPose.size > bodies.length) {
+      const live = new Set(bodies.map((b) => b.id));
+      for (const id of [...this.prevPose.keys()]) if (!live.has(id)) this.prevPose.delete(id);
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /**
+   * Synchronous read of a tile's state for validation and the cockpit: η (water + solid
+   * above the open ocean), φ, and the occupancy σ. Stalls the pipeline — not for per-frame use.
+   */
+  readField(t: InteractionTile): { n: number; dx: number; origin: [number, number]; depth: number; eta: Float32Array; phi: Float32Array; occ: Float32Array; substeps: number; kappa: number } {
+    const gl = this.gl, n = this.cfg.n;
+    const px = new Float32Array(n * n * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.state.read.fbo);
+    gl.readPixels(0, 0, n, n, gl.RGBA, gl.FLOAT, px);
+    const eta = new Float32Array(n * n), phi = new Float32Array(n * n), occ = new Float32Array(n * n);
+    for (let i = 0; i < n * n; i++) { eta[i] = px[i * 4]; phi[i] = px[i * 4 + 1]; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.aux.read.fbo);
+    gl.readPixels(0, 0, n, n, gl.RGBA, gl.FLOAT, px);
+    for (let i = 0; i < n * n; i++) occ[i] = px[i * 4];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { n, dx: t.dx, origin: [t.origin[0], t.origin[1]], depth: t.depth, eta, phi, occ, substeps: t.substeps, kappa: t.kappa };
   }
 
   /** Draw into a single target that may have multiple attachments. */
@@ -394,7 +463,7 @@ export class InteractionTiles {
   }
 
   private consumeReadbacks(t: InteractionTile) {
-    if (t.readEta.poll()) t.etaGrid.set(t.readEta.data);
+    if (t.readEta.poll()) { t.etaGrid.set(t.readEta.data); t.etaOrigin = t.etaPendingOrigin; }
     if (t.readRel.poll()) {
       const d = t.readRel.data;
       const cells = REL_GRID * REL_GRID;
@@ -415,7 +484,7 @@ export class InteractionTiles {
   sampleHeight(x: number, z: number): number {
     let h = 0;
     for (const t of this.tiles) {
-      const u = ((x - t.origin[0]) / t.size) * t.etaGridN - 0.5, v = ((z - t.origin[1]) / t.size) * t.etaGridN - 0.5;
+      const u = ((x - t.etaOrigin[0]) / t.size) * t.etaGridN - 0.5, v = ((z - t.etaOrigin[1]) / t.size) * t.etaGridN - 0.5;
       if (u < 0 || v < 0 || u >= t.etaGridN - 1 || v >= t.etaGridN - 1) continue;
       const x0 = Math.floor(u), z0 = Math.floor(v), fx = u - x0, fz = v - z0;
       const N = t.etaGridN, g = t.etaGrid;
