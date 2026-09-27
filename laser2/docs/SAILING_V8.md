@@ -185,8 +185,10 @@ authority adds:
 - the helm closes with the hull, works along it hand over hand, round the
   transom to the centreboard, hangs on the tip, climbs onto the board and
   leans back (U key: heave harder), less as the boat comes up so it is not
-  thrown over onto her; she stays on the board until the boat is within ~30°
-  of upright (or her feet go under) and then takes the high gunwale. The
+  thrown over onto her — unless it has stopped coming up (not 3° in 4 s,
+  e.g. the wind on the rig in a breeze), when she leans all the way out; she
+  stays on the board until the boat is within ~30° of upright (or her feet
+  go under) and then takes the high gunwale. The
   weight on the board is a carried mass at its real lever, so the boat comes
   up by physics, not animation;
 - after a recovery the crew settle the boat for 6 s: the sheets come in

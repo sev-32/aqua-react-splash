@@ -1015,9 +1015,17 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     } else {
       // Lean back hard to start the boat up, less as she comes up (the board is
       // then nearer horizontal and her weight has more leverage) so the boat
-      // is not thrown over onto the righter.
-      const need = 0.45 + 0.55 * P.smooth((frame.heelDeg - 30) / 45);
-      const maxLean = Math.min(1.25, this.maxLeanRad + 0.25 * this.heaveBoost) * need;
+      // is not thrown over onto the righter — unless she has stopped coming
+      // up (not 3° in 4 s: wind on the rig in a breeze), then all the way
+      // out, as with the U key.
+      if (frame.heelDeg > 30) {
+        if (agent.stallS === 0) agent.stallRef = frame.heelDeg;
+        agent.stallS += dt;
+        if (frame.heelDeg < agent.stallRef - 3) { agent.stallS = dt; agent.stallRef = frame.heelDeg; }
+      } else agent.stallS = 0;
+      const stalled = agent.stallS > 4;
+      const need = stalled ? 1 : 0.45 + 0.55 * P.smooth((frame.heelDeg - 30) / 45);
+      const maxLean = Math.min(1.25, this.maxLeanRad + 0.25 * (stalled ? 1 : this.heaveBoost)) * need;
       agent.lean += Math.max(-dt * 0.6, Math.min(dt * 0.45, maxLean - agent.lean));
       const target = this.worldToDesign(pose.com, P.v3());
       agent.comDesign.x = target.x; agent.comDesign.y = target.y; agent.comDesign.z = target.z;
