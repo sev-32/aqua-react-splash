@@ -56,6 +56,27 @@ vec3 tileField(vec2 q){
   }
   return f;
 }
+/**
+ * The same field low-passed to "scale" metres (the carpet mips): for estimators that
+ * difference the surface over that distance. The caustic focus is 1/det of a 0.46 m finite
+ * difference; fed 10 cm carpet detail it amplified grid-scale ripples into a speckle over
+ * the refracted sea floor. The carpet also fades out over its outer third here: its waves
+ * die in the absorbing rim, and without the fade the sun caustics they cast on the floor
+ * ended in the carpet's straight edges.
+ */
+vec3 tileFieldAt(vec2 q, float scale){
+  vec3 f = vec3(0.0);
+  float texN = float(textureSize(uTileArr, 0).x);
+  for (int t = 0; t < ${MAX_TILES}; t++){
+    if (t >= uTileCount) break;
+    vec2 tuv; float w = tileWeight(q, uTileRect[t], tuv);
+    float lod = max(log2(scale*texN/uTileRect[t].z), 0.0);
+    vec2 e = min(tuv, 1.0 - tuv);
+    w *= smoothstep(0.08, 0.34, min(e.x, e.y));
+    if (w > 0.0) f += w*textureLod(uTileArr, vec3(tuv, uTileRect[t].w), lod).xyz;
+  }
+  return f;
+}
 
 // ── T1 depth-limited shoaling + seabed (terrain heights) ──
 uniform int uTerrainOn;
@@ -461,7 +482,7 @@ vec3 sunGlitter(vec3 n, vec3 V, vec4 mom, float d){
 
 // ── the water column (POSEIDON integrateVolume / traceFloor / caustics) ──
 float surfaceHeightRel(vec2 q){
-  float h = tileField(q).x;
+  float h = tileFieldAt(q, 0.46).x;
   for (int c = 0; c < 4; c++){ if (c >= uCascadeCount) break; h += textureLod(uDispArr, vec3(cascadeUv(q, c), float(c)), 0.0).y; }
   return seaLevelAt(q) + h;
 }
@@ -472,8 +493,9 @@ vec3 normalAt(vec2 q){
     vec4 dv = textureLod(uDerivArr, vec3(cascadeUv(q, c), float(c)), 0.0);
     Sx += dv.x; Sz += dv.y; Dxx += dv.z; Dzz += dv.w;
   }
-  // The interaction field focuses light too (the pool's caustic rings).
-  vec3 tf = tileField(q);
+  // The interaction field focuses light too (the pool's caustic rings), at the scale the
+  // caustic estimator resolves.
+  vec3 tf = tileFieldAt(q, 0.46);
   Sx += tf.y; Sz += tf.z;
   vec2 sl = vec2(Sx/max(1.0 + Dxx, 0.16), Sz/max(1.0 + Dzz, 0.16));
   return normalize(vec3(-sl.x, 1.0, -sl.y));

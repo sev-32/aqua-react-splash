@@ -4,6 +4,7 @@ import { CAMERA_PRESETS } from '../ocean/engine/cameraPresets';
 import { OceanPanel } from '../components/ocean/OceanPanel';
 import { installCaptureApi } from '../ocean/engine/captureApi';
 import { installStandardModules } from '../ocean/engine/modules';
+import { AsyncReader } from '../ocean/gl/asyncReader';
 
 /**
  * THALASSA ocean engine host page (/ocean).
@@ -27,6 +28,9 @@ const Ocean = () => {
       eng.camera.setPose(preset.pose);
       eng.attachControls();
       installCaptureApi(eng);
+      // Deterministic captures at any quality: readbacks land the next frame, as on a GPU
+      // (fences only signal between browser tasks, and scripts step many frames per task).
+      if (params.get('capture')) AsyncReader.sync = true;
       if (!params.get('capture')) eng.start();
       setEngine(eng);
     } catch (e) {

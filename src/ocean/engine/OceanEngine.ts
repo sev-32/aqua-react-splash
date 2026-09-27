@@ -94,6 +94,8 @@ export class OceanEngine {
   telemetry: EngineTelemetry;
   /** When true (captures/tests), time advances by exactly fixedDt per frame. */
   fixedDt = 0;
+  /** Captures/tests: advance the simulation without drawing (filmstrips render only the frames shown). */
+  skipRender = false;
   onPick: ((world: Vec3 | null, e: MouseEvent) => void) | null = null;
   readonly quality: QualityName;
   /**
@@ -300,6 +302,7 @@ export class OceanEngine {
     if (this.ocean.mirror.ready) this.ocean.mirror.evaluate(this.time);
 
     for (const m of this.modules) m.update?.(this, this.time, dt);
+    if (this.skipRender) return;
 
     // ── render ──
     const post = this.post;

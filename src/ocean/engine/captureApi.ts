@@ -14,6 +14,8 @@ export interface ThalassaApi {
   engine: OceanEngine;
   /** Render n frames at a fixed dt (seconds). */
   step(n?: number, dt?: number): void;
+  /** Advance n frames at a fixed dt without drawing them (then `step(1)` to see the result). */
+  simulate(n?: number, dt?: number): void;
   setPose(p: Partial<CameraPose> | string): void;
   set(path: string, value: unknown): void;
   get(path: string): unknown;
@@ -45,6 +47,12 @@ export function installCaptureApi(engine: OceanEngine) {
       for (let i = 0; i < n; i++) engine.frame(performance.now() + i * dt * 1000);
       engine.fixedDt = 0;
       engine.gl.finish();
+    },
+    simulate(n = 1, dt = 1 / 30) {
+      engine.fixedDt = dt;
+      engine.skipRender = true;
+      try { for (let i = 0; i < n; i++) engine.frame(performance.now() + i * dt * 1000); }
+      finally { engine.skipRender = false; engine.fixedDt = 0; }
     },
     setPose(p) {
       if (typeof p === 'string') {
