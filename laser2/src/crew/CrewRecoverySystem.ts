@@ -158,6 +158,16 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   gustPeak = 1.9;
   private readonly gust = { active: false, t: 0, rampS: 0.7, holdS: 2.6, decayS: 1.6 };
   private gustFactor = 1;
+  /**
+   * After a recovery the crew settle the boat on a close reach, sheets coming
+   * in slowly, before the helm is left to the player (seconds left). Any
+   * tiller key hands it over at once.
+   */
+  private settleS = 0;
+  private settleLastErr = 0;
+  /** Heel-limited ceiling on the mainsheet (gust relief) and the heel it last saw. */
+  private mainCeiling = 1;
+  private trimLastHeel = 0;
   /** Remaining seconds the crew is caught out by the gust. */
   private knockdownS = 0;
   private knockdownElapsed = 0;
@@ -489,7 +499,11 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       this.capsizeActive = false;
       this.recoveryCount++;
       this.lastRecoveryDurationS = time - this.capsizeStartTime;
+      this.settleS = this.autoRecovery ? 6 : 0;
+      this.settleLastErr = Number.NaN;
+      this.mainCeiling = 1;
     }
+    if (this.settleS > 0) this.settle(master, frame, dt);
   }
 
   private phiAway(agent: CrewAgent, frame: HullFrame): number {
@@ -637,6 +651,30 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     }
   }
 
+  /**
+   * Post-recovery settle: righted beam-on with the sheets free, a crew luffs
+   * onto a close reach (TWA ~55°) and brings the sheets in slowly before
+   * bearing away; sheeting straight in beam-on to a breeze put the boat back
+   * over (18 kn: capsize loop).
+   */
+  private settle(master: any, frame: HullFrame, dt: number): void {
+    const input = master.input?.state;
+    const keys = master.input?.keys ?? {};
+    const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+    if (!input || !wind || keys.KeyA || keys.KeyD || keys.ArrowLeft || keys.ArrowRight || frame.heelDeg > 60) { this.settleS = 0; return; }
+    this.settleS -= dt;
+    const fromX = -wind.x, fromZ = -wind.z;
+    const fl = Math.hypot(fromX, fromZ), hl = Math.hypot(frame.fwd.x, frame.fwd.z);
+    if (fl < 0.3 || hl < 0.2) return;
+    const twa = (Math.acos(Math.max(-1, Math.min(1, (fromX * frame.fwd.x + fromZ * frame.fwd.z) / (fl * hl)))) * 180) / Math.PI;
+    // + yaw turns the bow towards the wind when this is positive; + tiller turns the bow towards − yaw.
+    const towardsWind = frame.fwd.z * fromX - frame.fwd.x * fromZ > 0 ? 1 : -1;
+    const e = (towardsWind * (twa - 55) * Math.PI) / 180;
+    const de = Number.isFinite(this.settleLastErr) ? (e - this.settleLastErr) / Math.max(dt, 1e-3) : 0;
+    this.settleLastErr = e;
+    input.tiller = this.settleS > 0 ? Math.max(-1, Math.min(1, -(1.4 * e + 0.45 * de))) : 0;
+  }
+
   private manageSheets(master: any, frame: HullFrame, dt: number): void {
     const input = master.input?.state;
     if (!input || !this.releaseSheetsWhenCapsized) return;
@@ -691,18 +729,29 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     this.lastAlpha.main = alphaMain ?? Number.NaN;
     this.lastAlpha.jib = alphaJib ?? Number.NaN;
     const fullyHiked = this.agents.every((a) => a.mode !== 'aboard' || a.hikeCommand > 0.88);
-    const threshold = fullyHiked ? 21 : 27;
-    const ease = Math.min(0.65, Math.max(0, frame.heelDeg - threshold) / 22);
+    const settling = this.settleS > 0;
+    // Playing the main against the heel once hiking cannot hold her: a
+    // ceiling on the mainsheet comes down with the excess heel (and how fast
+    // it is growing) and goes back up slowly, so a gust is eased through
+    // instead of the main being dumped and re-trimmed in a cycle (in 18 kn
+    // that cycle peaked at 40° every few seconds until she went over).
+    const heelLimit = settling ? 10 : fullyHiked ? 16 : 24;
+    const heelRate = (frame.heelDeg - this.trimLastHeel) / Math.max(dt, 1e-3);
+    this.trimLastHeel = frame.heelDeg;
+    const excess = frame.heelDeg - heelLimit;
+    if (excess > 0) this.mainCeiling = Math.min(this.mainCeiling, input.mainScope) - (0.05 * excess + 0.015 * Math.max(0, heelRate)) * dt;
+    else if (excess < -4) this.mainCeiling += 0.07 * dt;
+    this.mainCeiling = Math.max(0.03, Math.min(1, this.mainCeiling));
     const work = (value: number, alpha: number | null, target: number, fallback: number): number => {
       if (alpha === null) return value + Math.max(-dt * 1.1, Math.min(dt * 0.45, fallback - value));
       const error = target - alpha; // positive → sheet in
-      const rate = Math.max(-0.55, Math.min(0.28, error * 0.028));
+      const rate = Math.max(-0.55, Math.min(settling ? 0.12 : 0.28, error * 0.028));
       return Math.max(0.02, Math.min(1, value + rate * dt));
     };
     if (!keys.KeyW && !keys.KeyS) {
       const trimmed = work(input.mainScope, alphaMain, 14, 1 - (awa - 30) / 118);
       // Gust relief overrides the telltales.
-      input.mainScope = ease > 0 ? Math.min(trimmed, input.mainScope - ease * dt * 1.6) : trimmed;
+      input.mainScope = Math.min(trimmed, this.mainCeiling);
     }
     if (!keys.KeyQ && !keys.KeyE) input.jibScope = work(input.jibScope, alphaJib, 12, 1 - (awa - 32) / 104);
     // Kicker hard on the wind (it, not the centre mainsheet, holds the leech
@@ -1623,6 +1672,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       capsizes: this.capsizeCount,
       recoveries: this.recoveryCount,
       lastRecoveryDurationS: this.lastRecoveryDurationS,
+      settleS: +this.settleS.toFixed(1),
       heelDeg: frame.heelDeg,
       agents: this.agents.map((a) => ({
         id: a.id, role: a.role, mode: a.mode, task: a.task, taskTime: +a.taskTime.toFixed(2),

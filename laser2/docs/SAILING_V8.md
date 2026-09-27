@@ -169,8 +169,11 @@ authority adds:
   (targets 14° main, 12° jib), easing faster than trimming in, over the full
   sheet range (the jib clew can be hauled onto its fairlead) — the kicker is
   hard on the wind (it holds the leech; a centre mainsheet mostly sets the
-  boom angle), firm reaching and eased on a run, and the main is eased in
-  gusts beyond what full hiking can hold; any W/S or Q/E key press overrides;
+  boom angle), firm reaching and eased on a run; the main is played against
+  the heel once hiking cannot hold her — a ceiling on the mainsheet comes
+  down with the heel beyond 16° (24° while not yet fully hiked) and its rate,
+  and goes back up at 0.07/s, so gusts are eased through instead of the main
+  being dumped and re-trimmed in a cycle; any W/S or Q/E key press overrides;
 - capsize: sheets released, bracing, then either a **dry capsize** (the helm
   steps over the high gunwale onto the centreboard; HUD `DRY`) or falling in;
   in a leeward capsize the crew drops into the flooded cockpit holding the toe
@@ -186,6 +189,10 @@ authority adds:
   of upright (or her feet go under) and then takes the high gunwale. The
   weight on the board is a carried mass at its real lever, so the boat comes
   up by physics, not animation;
+- after a recovery the crew settle the boat for 6 s: the helm luffs onto a
+  close reach (TWA ~55°) while the sheets come in slowly (0.12/s, heel limit
+  10°), then hands the tiller back (any tiller key takes it at once). Sheeted
+  straight in beam-on to 18 kn, the boat went back over after each recovery;
 - a righting that stalls (boat hanging at 35–80° with the rig in the water)
   has the sailor on the high gunwale haul herself aboard (below ~50°, where
   the board is already under water; her weight coming in finishes the
