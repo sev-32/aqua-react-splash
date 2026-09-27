@@ -189,14 +189,16 @@ authority adds:
   of upright (or her feet go under) and then takes the high gunwale. The
   weight on the board is a carried mass at its real lever, so the boat comes
   up by physics, not animation;
-- after a recovery the crew settle the boat for 6 s: the helm luffs onto a
-  close reach (TWA ~55°) while the sheets come in slowly (0.12/s, heel limit
-  10°), then hands the tiller back (any tiller key takes it at once). Sheeted
-  straight in beam-on to 18 kn, the boat went back over after each recovery;
-- a righting that stalls (boat hanging at 35–80° with the rig in the water)
-  has the sailor on the high gunwale haul herself aboard (below ~50°, where
-  the board is already under water; her weight coming in finishes the
-  righting) or sends her back to the board;
+- after a recovery the crew settle the boat for 6 s: the sheets come in
+  slowly (0.12/s) against a 10° heel limit before normal trimming resumes
+  (any sheet key ends it). Sheeted straight in beam-on to 18 kn, the boat
+  went back over after each recovery; steering her up onto a close reach
+  with the sheets still free was tried and rolled her over to windward;
+- a righting that stalls (boat hanging at 35–80° with the rig in the water,
+  not 3° further up after 5 s — a trend, since in a breeze the waves rock
+  her faster than she comes up) has the sailor on the high gunwale haul
+  herself aboard (below ~50°, where the board is already under water; her
+  weight coming in finishes the righting) or sends her back to the board;
 - turtle: the righter climbs onto the upturned hull and pulls the board until
   the boat is on its side, then continues from the board;
 - scoop: as the boat rises the low gunwale sinks beneath the floating crew,

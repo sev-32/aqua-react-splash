@@ -83,11 +83,9 @@ class CrewAgent {
   gripTarget = 0.8;
   /** Lowest recent heel (deg) while waiting for the scoop; detects the boat rising. */
   scoopHeelMark = 180;
-  /** Low-passed heel rate (deg/s) and the heel it was taken from. */
-  heelRate = 0;
-  lastHeel = 0;
-  /** Time the righting has made no progress while this sailor waits (s). */
+  /** Time the righting has made no progress while this sailor waits (s), from heel stallRef. */
   stallS = 0;
+  stallRef = 0;
   /** Scooped crew's seat, design-x sign blended between the sides, and its target. */
   seatBlend = 0;
   seatWant = 0;
@@ -159,12 +157,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private readonly gust = { active: false, t: 0, rampS: 0.7, holdS: 2.6, decayS: 1.6 };
   private gustFactor = 1;
   /**
-   * After a recovery the crew settle the boat on a close reach, sheets coming
-   * in slowly, before the helm is left to the player (seconds left). Any
-   * tiller key hands it over at once.
+   * After a recovery the crew bring the sheets in slowly before normal
+   * trimming resumes (seconds left). Any sheet key ends it.
    */
   private settleS = 0;
-  private settleLastErr = 0;
   /** Heel-limited ceiling on the mainsheet (gust relief) and the heel it last saw. */
   private mainCeiling = 1;
   private trimLastHeel = 0;
@@ -500,7 +496,6 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       this.recoveryCount++;
       this.lastRecoveryDurationS = time - this.capsizeStartTime;
       this.settleS = this.autoRecovery ? 6 : 0;
-      this.settleLastErr = Number.NaN;
       this.mainCeiling = 1;
     }
     if (this.settleS > 0) this.settle(master, frame, dt);
@@ -515,8 +510,6 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   private stepAgent(agent: CrewAgent, frame: HullFrame, dt: number): void {
     const other = this.agents.find((a) => a !== agent) ?? null;
     const heel = frame.heelDeg;
-    agent.heelRate += ((heel - agent.lastHeel) / Math.max(dt, 1e-3) - agent.heelRate) * Math.min(1, dt / 0.6);
-    agent.lastHeel = heel;
     const s = agent.swimmer;
     if (!['swimToBoard', 'swimToHull', 'swimToCockpit', 'swimToGunwale', 'treading'].includes(agent.task)) s.hold = 0;
     switch (agent.task) {
@@ -652,27 +645,16 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   }
 
   /**
-   * Post-recovery settle: righted beam-on with the sheets free, a crew luffs
-   * onto a close reach (TWA ~55°) and brings the sheets in slowly before
-   * bearing away; sheeting straight in beam-on to a breeze put the boat back
-   * over (18 kn: capsize loop).
+   * Post-recovery settle: righted beam-on with the sheets free, the crew bring
+   * the sheets in slowly (0.12/s) against a low heel limit (10°) before normal
+   * trimming resumes; sheeted straight in beam-on to a breeze the boat went
+   * back over (18 kn: capsize loop). The helm is left alone: luffing her up
+   * with the sheets free overshot and rolled her over to windward.
    */
   private settle(master: any, frame: HullFrame, dt: number): void {
-    const input = master.input?.state;
     const keys = master.input?.keys ?? {};
-    const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
-    if (!input || !wind || keys.KeyA || keys.KeyD || keys.ArrowLeft || keys.ArrowRight || frame.heelDeg > 60) { this.settleS = 0; return; }
+    if (keys.KeyW || keys.KeyS || keys.KeyQ || keys.KeyE || frame.heelDeg > 60) { this.settleS = 0; return; }
     this.settleS -= dt;
-    const fromX = -wind.x, fromZ = -wind.z;
-    const fl = Math.hypot(fromX, fromZ), hl = Math.hypot(frame.fwd.x, frame.fwd.z);
-    if (fl < 0.3 || hl < 0.2) return;
-    const twa = (Math.acos(Math.max(-1, Math.min(1, (fromX * frame.fwd.x + fromZ * frame.fwd.z) / (fl * hl)))) * 180) / Math.PI;
-    // + yaw turns the bow towards the wind when this is positive; + tiller turns the bow towards − yaw.
-    const towardsWind = frame.fwd.z * fromX - frame.fwd.x * fromZ > 0 ? 1 : -1;
-    const e = (towardsWind * (twa - 55) * Math.PI) / 180;
-    const de = Number.isFinite(this.settleLastErr) ? (e - this.settleLastErr) / Math.max(dt, 1e-3) : 0;
-    this.settleLastErr = e;
-    input.tiller = this.settleS > 0 ? Math.max(-1, Math.min(1, -(1.4 * e + 0.45 * de))) : 0;
   }
 
   private manageSheets(master: any, frame: HullFrame, dt: number): void {
@@ -752,6 +734,10 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
       const trimmed = work(input.mainScope, alphaMain, 14, 1 - (awa - 30) / 118);
       // Gust relief overrides the telltales.
       input.mainScope = Math.min(trimmed, this.mainCeiling);
+    } else {
+      // The player is trimming: the ceiling follows their sheet so it does
+      // not snap the main out when the key is released.
+      this.mainCeiling = Math.max(this.mainCeiling, input.mainScope);
     }
     if (!keys.KeyQ && !keys.KeyE) input.jibScope = work(input.jibScope, alphaJib, 12, 1 - (awa - 32) / 104);
     // Kicker hard on the wind (it, not the centre mainsheet, holds the leech
@@ -1319,10 +1305,15 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // side). Nearly up, the board is already under water: she hauls herself
     // aboard over the high gunwale and her weight finishes the righting.
     // Further over, she goes back to the centreboard for leverage.
-    if (frame.heelDeg > 34 && agent.heelRate > -1.2) agent.stallS += dt;
-    else agent.stallS = Math.max(0, agent.stallS - 2 * dt);
+    // Stalled: not 3° further up after 5 s (a trend, not the heel rate — in a
+    // breeze the waves rock her faster than she comes up).
+    if (frame.heelDeg > 34) {
+      if (agent.stallS === 0) agent.stallRef = frame.heelDeg;
+      agent.stallS += dt;
+      if (frame.heelDeg < agent.stallRef - 3) { agent.stallS = dt; agent.stallRef = frame.heelDeg; }
+    } else agent.stallS = 0;
     const canRight = agent.role === 'righter' || !other || other.mode !== 'overboard';
-    if (this.autoRecovery && canRight && agent.stallS > 4 && agent.taskTime > 3) {
+    if (this.autoRecovery && canRight && agent.stallS > 5 && agent.taskTime > 3) {
       if (frame.heelDeg < 50 && agent.holdSide === -this.lowerStrapSide() && !otherBusy) {
         this.attach(agent, 'climbIn');
         agent.progress = 0;

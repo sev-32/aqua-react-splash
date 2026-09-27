@@ -66,8 +66,8 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
 - Full hiking: backside over the gunwale edge; a fully hiked sailor's centre
   of mass is ~0.78 m off the centreline (legacy seat: 0.63 m).
 - Strong wind: the trim assist plays the main against the heel (a
-  heel-limited sheet ceiling instead of dump-and-retrim) and the crew settle
-  the boat on a close reach after a recovery. In 18 kn the boat now sails at
+  heel-limited sheet ceiling instead of dump-and-retrim) and after a
+  recovery the crew bring the sheets in slowly against a low heel limit. In 18 kn the boat now sails at
   every angle at 13–14° heel (45/60/90/135° TWA: 3.3/4.7/6.6/6.0 kn;
   before: 30° heel upwind, capsized reaching, capsize loop after recovery).
 - Synthesised swimming, treading, hanging, board, climbing and scoop poses,
