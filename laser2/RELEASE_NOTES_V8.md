@@ -58,10 +58,13 @@ Architecture and exact boundary: `docs/SAILING_V8.md`.
   as the low gunwale sinks under them; re-boarding with counter-balance.
 - Recovery robustness: the righter stays on the board until the boat is
   within ~30° of upright (lean eased as it comes up); a stalled righting
-  (boat hanging at 35–80°) sends the sailor on the gunwale back to the board;
-  the scooped crew shifts her weight against the heel and resumes seated
-  sailing only once the helm is aboard (previously a boat could hang at ~45°
-  for 40 s, or go back over after re-boarding).
+  (boat hanging at 35–80°) has the sailor on the high gunwale climb in, or
+  sends her back to the board when the boat is further over;
+  the scooped crew shifts her weight against the heel, moves to windward once
+  the helm is aboard and only then resumes seated sailing (previously a boat
+  could hang at ~45° for 40 s, or go back over after re-boarding).
+- Full hiking: backside over the gunwale edge; a fully hiked sailor's centre
+  of mass is ~0.78 m off the centreline (legacy seat: 0.63 m).
 - Synthesised swimming, treading, hanging, board, climbing and scoop poses,
   blended into the seated biomechanics.
 - Trim assist sails to the telltales: each sheet is worked to a target angle

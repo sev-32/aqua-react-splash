@@ -146,6 +146,8 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
   dryCapsize = true;
   /** Maximum lean-back angle on the board (rad); U key raises it. */
   maxLeanRad = 1.0;
+  /** How far past the legacy seat a fully hiked sailor's pelvis goes (m). */
+  hikeOverGunwaleM = 0.16;
   heaveBoost = 0;
   /**
    * Knockdown gust (O key / API): a real gust — the wind speed ramps to
@@ -339,7 +341,20 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // Negative hike beyond the legacy range moves the sailor inboard onto the
     // centreline and then onto the leeward side deck (light air / runs).
     actor.seatAnchor = (side: number, hike: number, aft: number): any => {
-      if (hike >= -0.35) return originalSeat(side, hike, aft);
+      if (hike >= -0.35) {
+        const seat = originalSeat(side, hike, aft);
+        // Full hiking puts the backside over the gunwale edge, thighs on the
+        // deck edge. The legacy anchor stops 25 mm inside the gunwale, which
+        // left a fully hiked sailor's centre of mass ~0.63 m off the
+        // centreline; real hiking is ~0.8 m. Not on the trapeze.
+        const over = this.hikeOverGunwaleM * P.smooth((hike - 0.55) / 0.45) * (1 - Math.min(1, Math.max(0, actor.trapB ?? 0)));
+        if (over > 1e-4) {
+          const out = Math.sign(seat.x) || 1;
+          seat.x += out * over;
+          actor.seatContactPoint?.set?.(actor.seatContactPoint.x + out * over, actor.seatContactPoint.y, actor.seatContactPoint.z);
+        }
+        return seat;
+      }
       const inboard = originalSeat(side, -0.35, aft);
       const contact = actor.seatContactPoint?.clone?.();
       const t = Math.min(1, (-0.35 - hike) / 0.65);
@@ -1116,6 +1131,18 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     }
   }
 
+  /** Design-x sign of the side the wind comes from. */
+  private windwardSide(): number {
+    const master = this.context!.legacy.master;
+    const w = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+    if (!w) return -this.lowerStrapSide();
+    const c = this.frame.center;
+    const a = this.worldToDesign({ x: c.x, y: c.y, z: c.z }, P.v3());
+    const b = this.worldToDesign({ x: c.x + w.x, y: c.y + w.y, z: c.z + w.z }, P.v3());
+    // The wind blows towards +x: it comes from the −x side.
+    return b.x - a.x > 0 ? -1 : 1;
+  }
+
   private lowerStrapSide(): number {
     const a = this.designToWorld(this.strapDesign(1), P.v3());
     const b = this.designToWorld(this.strapDesign(-1), P.v3());
@@ -1196,8 +1223,12 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // is still well over (it helps the righting) or when the climber's pull
     // is not yet balanced, and opposite the swimmer climbing in once the boat
     // is nearly upright.
+    // Once the other sailor is aboard she moves to the windward side before
+    // the sheets come in (the sheets stay free while she is scooped).
     const high = -this.lowerStrapSide();
-    if (frame.heelDeg > 12) agent.seatWant = high;
+    const otherAboard = !other || (other.mode === 'aboard' && other.task !== 'climbIn');
+    if (otherAboard && frame.heelDeg < 20) agent.seatWant = this.windwardSide();
+    else if (frame.heelDeg > 12) agent.seatWant = high;
     else if (frame.heelDeg < 5) agent.seatWant = counterSide;
     if (agent.progress < 0.5) { agent.seatBlend = agent.holdSide; agent.seatWant = frame.heelDeg > 12 ? high : counterSide; }
     agent.seatBlend += Math.max(-dt * 1.1, Math.min(dt * 1.1, agent.seatWant - agent.seatBlend));
@@ -1211,7 +1242,6 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // Seated sailing resumes once the other sailor is aboard too (handing her
     // back while the helm still hangs on the gunwale put her weight on the low
     // side with nobody balancing it, and the boat went back over).
-    const otherAboard = !other || (other.mode === 'aboard' && other.task !== 'climbIn');
     const side = Math.sign(agent.seatBlend) || counterSide;
     if (agent.progress >= 1 && frame.heelDeg < 20 && otherAboard && Math.abs(agent.seatBlend - agent.seatWant) < 0.15) this.handBackToLegacy(agent, side, 'scooped and seated');
   }
@@ -1235,17 +1265,24 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     s.treading = 0.6;
     s.verticality += (1 - s.verticality) * Math.min(1, dt * 2);
     if (frame.heelDeg > 80 && this.autoRecovery) { this.releaseGrip(agent); agent.setTask('treading', 'capsized again'); return; }
+    const otherBusy = other && (other.task === 'climbIn');
     // The boat has stopped coming up (rig in the water, weight on the low
-    // side): the sailor in the water goes back to the centreboard for leverage.
+    // side). Nearly up, the board is already under water: she hauls herself
+    // aboard over the high gunwale and her weight finishes the righting.
+    // Further over, she goes back to the centreboard for leverage.
     if (frame.heelDeg > 34 && agent.heelRate > -1.2) agent.stallS += dt;
     else agent.stallS = Math.max(0, agent.stallS - 2 * dt);
     const canRight = agent.role === 'righter' || !other || other.mode !== 'overboard';
     if (this.autoRecovery && canRight && agent.stallS > 4 && agent.taskTime > 3) {
-      this.releaseGrip(agent);
-      agent.setTask('swimToBoard', 'righting stalled');
+      if (frame.heelDeg < 50 && agent.holdSide === -this.lowerStrapSide() && !otherBusy) {
+        this.attach(agent, 'climbIn');
+        agent.progress = 0;
+      } else {
+        this.releaseGrip(agent);
+        agent.setTask('swimToBoard', 'righting stalled');
+      }
       return;
     }
-    const otherBusy = other && (other.task === 'climbIn');
     // Only climb when the boat is upright and someone aboard (or nobody else
     // to wait for) can counter-balance.
     const balanced = !other || other.mode !== 'overboard' || other.task === 'holdGunwale';

@@ -152,7 +152,10 @@ Both sailors keep the legacy biomechanics while seated and hiking. The crew
 authority adds:
 
 - balance: hike command from heel and heel rate, inboard/leeward seating in
-  light air, trapeze for the crew when fully hiked;
+  light air, trapeze for the crew when fully hiked. Full hiking puts the
+  backside over the gunwale edge (the legacy seat stopped 25 mm inside it):
+  a fully hiked sailor's centre of mass is ~0.78 m off the centreline (was
+  0.63 m), the trapezing crew's ~1.4 m;
 - trim assist (HUD `TRIM`): each sheet is worked to the telltales — the
   signed angle of attack of the apparent flow on the chord at ~40 % height
   (targets 14° main, 12° jib), easing faster than trimming in, over the full
@@ -176,15 +179,18 @@ authority adds:
   weight on the board is a carried mass at its real lever, so the boat comes
   up by physics, not animation;
 - a righting that stalls (boat hanging at 35–80° with the rig in the water)
-  sends the sailor holding the gunwale back to the board;
+  has the sailor on the high gunwale haul herself aboard (below ~50°, where
+  the board is already under water; her weight coming in finishes the
+  righting) or sends her back to the board;
 - turtle: the righter climbs onto the upturned hull and pulls the board until
   the boat is on its side, then continues from the board;
 - scoop: as the boat rises the low gunwale sinks beneath the floating crew,
   who is carried in over it and works her weight against the heel — to the
   high side while the boat is still well over, opposite the helm climbing in
-  once it is nearly up — and only returns to seated sailing when the helm is
-  aboard too (seated on the low side with the helm still in the water, her
-  weight put the boat back over);
+  once it is nearly up, then to windward once the helm is aboard — and only
+  then returns to seated sailing and lets the sheets be trimmed (seated on
+  the low side with the helm still in the water, or on the leeward side as
+  the sheets came in, her weight put the boat back over);
 - re-boarding over the gunwale with the other sailor counter-balancing, then
   control returns to the legacy seated biomechanics.
 
@@ -326,9 +332,6 @@ WIND −/+, RESET.
   Laser 2 (≈3.9 kn at 45° TWA in 12 kn): the remaining sail twist (leech roach
   under modest leech tension) and the strip aerodynamics (no jib–main slot
   interaction) are the limiting factors.
-- A fully hiked sailor's centre of mass (legacy seated biomechanics) sits
-  ~0.63 m from the centreline, somewhat inboard of a real hiking position, so
-  the crew's righting moment is on the low side.
 - The rendered water surface is a height field: no overturning breakers,
   no spray particles; cockpit flooding is not simulated as a separate water
   volume (hydrostatics treats the cockpit as open to the sea).
