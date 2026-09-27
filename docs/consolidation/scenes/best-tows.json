@@ -1,0 +1,27 @@
+{
+  "url": "http://127.0.0.1:8095/originals/heightfieldBEST.html",
+  "out": "captures/best-tows",
+  "setup": "window.__U=2.0; window.updateAuto=function(dt){sphere.t+=dt;sphere.px=sphere.x;sphere.pz=sphere.z;sphere.py=sphere.y;sphere.x=-4.5+Math.min(sphere.t*window.__U,8.0);sphere.z=0;sphere.y=params.y;sphere.vx=(sphere.x-sphere.px)/dt;sphere.vz=0;sphere.vy=(sphere.y-sphere.py)/dt;}; reset();",
+  "shots": [
+    {
+      "name": "tow_U2.0",
+      "until": "sphere.x > 1.2",
+      "probe": "({t: sphere.t, x: sphere.x, vx: sphere.vx, maxEta: metrics.maxEta, particles: metrics.particles, jitVol: metrics.jitVol})",
+      "field": "({n: N, field: Array.from(eta), marks: [[(sphere.x/SZ+0.5)*N, (sphere.z/SZ+0.5)*N, params.radius/SZ*N]]})"
+    },
+    {
+      "name": "tow_U4.5",
+      "js": "window.__U=4.5; reset();",
+      "until": "sphere.x > 1.2",
+      "probe": "({t: sphere.t, x: sphere.x, vx: sphere.vx, maxEta: metrics.maxEta, particles: metrics.particles, jitVol: metrics.jitVol})",
+      "field": "({n: N, field: Array.from(eta), marks: [[(sphere.x/SZ+0.5)*N, (sphere.z/SZ+0.5)*N, params.radius/SZ*N]]})"
+    },
+    {
+      "name": "tow_U1.0",
+      "js": "window.__U=1.0; reset();",
+      "until": "sphere.x > 1.2",
+      "probe": "({t: sphere.t, x: sphere.x, vx: sphere.vx, maxEta: metrics.maxEta, particles: metrics.particles, jitVol: metrics.jitVol})",
+      "field": "({n: N, field: Array.from(eta), marks: [[(sphere.x/SZ+0.5)*N, (sphere.z/SZ+0.5)*N, params.radius/SZ*N]]})"
+    }
+  ]
+}

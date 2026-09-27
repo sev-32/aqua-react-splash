@@ -1,0 +1,26 @@
+{
+  "url": "http://127.0.0.1:8095/developer-lab/JIT-DEVELOPER-LAB.html",
+  "out": "captures/lab-splash",
+  "setup": "window.__JIT__.setScene('sidefast'); [...document.querySelectorAll('button')].find(b=>/above water/i.test(b.textContent))?.click();",
+  "shots": [
+    {
+      "name": "sidefast_above",
+      "until": "(window.__JIT__.snapshot().time||0) > 1.2",
+      "timeoutMs": 900000,
+      "probe": "(()=>{const s=window.__JIT__.snapshot(); return {t: s.time, particles: s.particles, emitted: s.emitted, returned: s.returned, residual: s.globalVolumeResidual, tri: s.surface?.triangles, necks: s.surface?.connections, charts: s.surface?.membraneCharts}})()"
+    },
+    {
+      "name": "sidefast_top",
+      "js": "[...document.querySelectorAll('button')].find(b=>/top view/i.test(b.textContent))?.click();",
+      "waitMs": 4000,
+      "probe": "(()=>{const s=window.__JIT__.snapshot(); return {t: s.time, particles: s.particles, tri: s.surface?.triangles}})()"
+    },
+    {
+      "name": "drop_close",
+      "js": "window.__JIT__.setScene('drop'); [...document.querySelectorAll('button')].find(b=>/close wake/i.test(b.textContent))?.click();",
+      "until": "(window.__JIT__.snapshot().time||0) > 0.75",
+      "timeoutMs": 900000,
+      "probe": "(()=>{const s=window.__JIT__.snapshot(); return {t: s.time, particles: s.particles, emitted: s.emitted, tri: s.surface?.triangles}})()"
+    }
+  ]
+}

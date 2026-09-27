@@ -1,0 +1,36 @@
+# Reference map: the best of each, and where its code lives
+
+Every capability of the engine has a **champion**: the reference that is best at it and forms the quality floor. THALASSA must meet or beat it and never fall below it. Paths are relative to the unpacked corpus (`01_CURRENT/JIT_M3_R22/…` = the workspace zip; `ocean/…` = ocean.zip; uploads by name). Status is THALASSA vs the champion; see `references/thalassa.md`.
+
+| # | Capability | Champion (best) | Where the code is | What to carry | THALASSA |
+|---|---|---|---|---|---|
+| 1 | Open-ocean waves, spectrum, sea states | **POSEIDON** (R9 lead; R6.4.5) | `OCEAN_LEAD_R9/candidate/POSEIDON_OPEN_R9_NIMBUS_NATIVE.html`; `originals/Poseidon.html` | FFT cascades, sea-state library, wind scenarios | at |
+| 2 | Water optics (Fresnel, refraction, reflection, glitter, transparency, underwater) | **POSEIDON**; pool receiver: **T4R** | as above; T4R `02_BASELINES/TERRAFORGE_T4R_CHECKPOINT/` (*not uploaded*) | Anisotropic glitter NDF, volumetric transparency, below-water branch; T4R receiver caustics | at POSEIDON; T4R pending |
+| 3 | Distant LOD, horizon, globe | **THALASSA** (built on POSEIDON + Nimbus) | `src/ocean/render/cdlod.ts`, `oceanShaders.ts` | — | champion |
+| 4 | Atmosphere, clouds, weather, lighting | **Nimbus R9** (compare **HELIXION NIMBUS V59**) | `START_NIMBUS_R9_V1_8_4.html`; `OCEAN_LEAD_R9/source/…V1_8_6…`; `deep_research/procedural_earth…/HELIXION_NIMBUS_V59…html` | Planetary scattering, morphology-family clouds, weather | at (V59 not yet compared) |
+| 5 | **Body → water reaction (real wake)** | **heightfieldBEST** | `originals/heightfieldBEST.html` → `computeObstacle`, `step` (flux `m·u`, gate `m/H`) | Occupancy σ, liquid depth `m`, flux blocking, swept transit, void collapse | **below** (no blocking) |
+| 6 | Dispersive wake propagation (Kelvin) | **THALASSA eWave tiles**; reference **WaveLab Wake Lab** (analytic Kelvin overlay) | `src/ocean/sim/interactionShaders.ts`; `wavelab_v50.html` | Exact dispersion; the Kelvin overlay as the validation target | at (needs BEST coupling) |
+| 7 | **Heightfield → splash: accounting** | **JIT Developer Lab R22** (M2/M3 design) | `developer-lab/core/coupling.mjs` (`candidates`, `admit`, `makeSkin`, `returnParticle`), `core/events.mjs` | Finite events, ledger debit/credit, work-bounded kick, temporal ribbons, zero-impulse return | below |
+| 8 | **Heightfield → splash: launch semantics** | **AQUA passes 1–13** (design); **THALASSA** entry physics | `ocean/AQUA_*_NOTES.md` (*source not uploaded*); `src/ocean/modules/splashModule.ts`, `physics/bodies.ts` | SF genesis + NMS, whitecap/spill/plunge/slam, crest ribbons, two thresholds, ride window, energy drain; Froude jet / Wagner / cavity | mixed |
+| 9 | Detached liquid (splash, tendrils, surface tension) | **Particles4All** (PBF + Akinci, 2 cm, GPU) | `originals/Particles4All/src/sim.js`, `wgsl.js` (`tensionWGSL`, `lambda/delta`) | Surface tension, scorr, XSPH, unified rigid bodies | far below (dx 0.32 m CPU) |
+| 10 | GPU MLS-MPM implementations | **HybridSplash GPU MPM**; **"Splash"** | `ocean/hybridsplashFable_planet_dev_pages_v43.html` (`WG_P2G1/2`, `WG_GRID`, `WG_G2P`); `public/mlsmpm-webgpu.html` | 64 k particles, riding phase, SSFR | — (candidates for §5 test) |
+| 11 | Splash surface rendering | **Particles4All** (anisotropic SSFR + narrow-range filter); lifecycle vocabulary **AQUA** | `originals/Particles4All/src/ssfr*.js`, `aniso_wgsl.js`; AQUA notes pass 4, tendril passes | Anisotropic kernels, NRF, thickness absorption; sheet → ligament → bead lifecycle | below |
+| 12 | Splash → water return | **AQUA canonical BFT** + **JIT return** | AQUA notes (BFT scenario canon, feedback stability); `coupling.mjs::returnParticle` | Droplet/blob/sheet/pour/rain footprints, zero-mean, budgets; radial pulse with zero net impulse | below |
+| 13 | Air entrainment, bubbles, plume → foam | **Foam Foundry V4.3** + **AQUA subsurface** | `OCEAN_FOAM_FOUNDRY_V4_3_RISING_PLUME.html`; AQUA subsurface pass 1–2 notes | Downward plume on strong breaking, surfacing → foam, fresh-aeration glow | below |
+| 14 | Foam as a material (surface) | **Foam Foundry V4.3** (close-up); **HybridSplash v43** (dissipation-born, swash apex rope, residue) | Foundry HTML; `ocean/hybridsplashFable_planet_dev_pages_v43.html` (`WG_HF` foam block) | Extensive storage, mass-weighted age; apex rope, strand fade, residue | below |
+| 15 | Nearshore shallow water (breaking, runup, overtopping into new basins) | **HybridSplash v43** (physics terms) on **THALASSA T2** numerics | `WG_HF` (NSWE correction, γ(slope), roller, longshore, infiltration), `WG_BREAK` (edge film, overtop/recede/lip); `src/ocean/sim/shoreShaders.ts` | The `∂η_B/∂t` subtraction; breaking γ(bed slope) + roller; longshore; settled infiltration; film | numerics above, physics below |
+| 16 | Breaking-wave overturn (plunging lip) | **WaveLab v50** | `wavelab_v50.html` (break tex, plunge clock, lip momentum, lip reduction) | Plunge clock with the front, lip momentum, lip → splash events | at (from M4) — extend to the launch |
+| 17 | Floating-body dynamics | **gptwaves-v7 / AQUA sphere dynamics**; **Lab R21 contact** | `docs/reference/pool1_mlsmpm.txt` (bundle: planing, skim, slam, slope slide); `developer-lab/core/water-object-contact.mjs` | Planing lift/drag, skim-bounce, slam, slope slide, telemetry receipts | below |
+| 18 | Body wetness (film) | **JIT Lab R21 metric film**; **BEST film** | `developer-lab/core/wetness-state.mjs`; BEST `updateObjectFilm` | Metric film ledger, drain, drip, evaporation | below |
+| 19 | Local high-detail zone (magic carpet) | **JIT Lab R21–R22** (moving causal page, spectral boundary, managed pages) | `developer-lab/core/physics-worker.mjs::maybeShiftPage`, `managed-water-pages.mjs`, `sea-boundary.mjs` | Exact-cell recentering, strip accounting, world hydro memory, tiers by risk | missing |
+| 20 | Scheduling / JIT tiers / LOD doctrine | **Fable 5.1 research report** + **Lab R22** + **OCEAN_LEAD_R1 architecture** | `deep-research-report_LOD_waves-water-Fable5.1.md`; `OCEAN_LEAD_R1/ARCHITECTURE.md` | TruthRisk tiers, hysteresis, budgets, receipts | below (M6) |
+| 21 | Developer cockpit / telemetry | **AQUA cockpit**; **Lab inspector** | AQUA notes passes 7, 10, 11, 13; lab right-panel field monitor | Live alerts, 2D field drawer, HF Lab, receipts | below |
+| 22 | Hybrid architecture doctrine | **HybridSplash paper** (`η_total = η_base + δ_sim + δ_breach`), **Multi-Regime-Water**, **Hybriddeepthink**, **SFX treatises**, **Water Master Encyclopedia** | `deep_research/hybridsplash_water_engine_technical_paper.md`; uploads | L0–L5 ladder, one water truth | adopted |
+
+## Superseded or not champions (kept for provenance)
+
+- **Repo pool** (`src/components`, Wallace WebGL Water + CPU MLS-MPM): the ancestor. Superseded by everything above.
+- **Archipelago Pinnacle V3**: its splash is disabled and its horizon aliases. A donor for island composition only.
+- **jit_infinite**: an early JIT attempt. Its BEST transplant and unit fix fed the JIT lineage.
+- **MinimalWaves `oceansimv1` wake** (Froude-curve dipole): parameterised; BEST's reaction supersedes it. Its **sphere dynamics** remain champion (#17).
+- **HybridSplash spawn** (`WG_SPAWN`): stochastic. Superseded by #7/#8.
