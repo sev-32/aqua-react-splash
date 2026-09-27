@@ -11,13 +11,20 @@ import { Program, Target, LayerTarget, Quad, FULLSCREEN_VS, createTexture, creat
 import { AsyncReader } from '../gl/asyncReader';
 import {
   TILE_SOURCE_FS, TILE_FFT_FS, TILE_EVOLVE_FS, TILE_LIMIT_FS, TILE_OUTPUT_FS, TILE_SHIFT_FS,
-  TILE_REDUCE_REL_FS, TILE_REDUCE_ETA_FS, SPLAT_VS, SPLAT_FS, MAX_BODIES,
+  TILE_REDUCE_REL_FS, TILE_REDUCE_ETA_FS, TILE_RING_FS, SPLAT_VS, SPLAT_FS, MAX_BODIES,
 } from './interactionShaders';
 import type { SpectralOcean } from '../ocean/SpectralOcean';
 import type { Body } from '../physics/bodies';
 import { quatToMat3, quatNormalize, type Quat, type Vec3 } from '../math/mat4';
 import { pmod } from '../math/scalar';
-import { CARPET_SMOOTH, carpetSubsteps, stableKappa } from './carpetParams';
+import { CARPET_SMOOTH, RING_OCC, carpetSubsteps, stableKappa } from './carpetParams';
+
+/**
+ * The free surface at a body's waterline, fitted by its carpet: η ≈ a + b·(x − cx) + c·(z − cz)
+ * in tile height (m above the open ocean), with its slope. The body floats against this plane
+ * instead of the undisturbed sea: its own bow wave, stern trough and radiated rings push back.
+ */
+export interface BodySurface { a: number; b: number; c: number; cx: number; cz: number; t: number; count: number }
 
 export interface TileConfig {
   n: number;
@@ -72,6 +79,10 @@ export interface InteractionTile {
   kappa: number;
   /** False until the first source pass has recorded the occupancy of bodies already in the water. */
   primed: boolean;
+  /** Waterline-ring sums for the followed bodies (two-way coupling) and their async read. */
+  ring: Target;
+  readRing: AsyncReader;
+  ringReq: { ids: number[]; centers: [number, number][]; t: number };
   fade: number;
   retiring: boolean;
   lastActive: number;
@@ -98,6 +109,9 @@ export class InteractionTiles {
   private pSource: Program; private pFft: Program; private pEvolve: Program; private pLimit: Program;
   private pOutput: Program; private pShift: Program; private pReduceRel: Program; private pReduceEta: Program;
   private pSplat: Program;
+  private pRing: Program;
+  /** Latest waterline plane per body id (see BodySurface). */
+  readonly bodySurfaces = new Map<number, BodySurface>();
   private splatVao: WebGLVertexArrayObject;
   private splatBuf: WebGLBuffer;
   private impactsTarget: Target;
@@ -118,6 +132,7 @@ export class InteractionTiles {
     this.pReduceRel = new Program(gl, 'tile.reduceRel', FULLSCREEN_VS, TILE_REDUCE_REL_FS);
     this.pReduceEta = new Program(gl, 'tile.reduceEta', FULLSCREEN_VS, TILE_REDUCE_ETA_FS);
     this.pSplat = new Program(gl, 'tile.splat', SPLAT_VS, SPLAT_FS);
+    this.pRing = new Program(gl, 'tile.ring', FULLSCREEN_VS, TILE_RING_FS);
     const n = cfg.n;
     this.impactsTarget = new Target(gl, n, n, [createTexture(gl, n, n, FMT.rgba16f(gl))]);
     this.zeroTex = createTexture(gl, 1, 1, { ...FMT.rgba16f(gl), data: new Uint16Array(4) });
@@ -181,6 +196,9 @@ export class InteractionTiles {
       substeps: 1,
       kappa: 0,
       primed: false,
+      ring: new Target(gl, MAX_BODIES, 1, [0, 1, 2].map(() => createTexture(gl, MAX_BODIES, 1, f32))),
+      readRing: new AsyncReader(gl, MAX_BODIES, 1, 3),
+      ringReq: { ids: [], centers: [], t: 0 },
       fade: 0,
       retiring: false,
       lastActive: now,
@@ -306,7 +324,7 @@ export class InteractionTiles {
         const sp = Math.hypot(vx, vz), lead = sp > 0.3 ? (t.size * 0.2) / sp : 0;
         this.recenter(t, [cx - vx * lead, cz - vz * lead]);
       }
-      this.consumeReadbacks(t);
+      this.consumeReadbacks(t, now);
       if (dt <= 0) continue;
       this.drawImpacts(t);
 
@@ -415,6 +433,20 @@ export class InteractionTiles {
         t.readEta.request(t.reduceEta.fbo);
         t.etaPendingOrigin = [t.origin[0], t.origin[1]];
       }
+      // 6. The waterline plane of each followed free body (two-way coupling).
+      const coupled = near.filter((b) => t.followIds.includes(b.id) && !b.script && !b.fixed).slice(0, MAX_BODIES);
+      if (coupled.length && !t.readRing.busy) {
+        const cen = new Float32Array(MAX_BODIES * 3);
+        coupled.forEach((b, i) => {
+          const he = b.shape.kind === 'sphere' ? b.shape.radius ?? 1 : b.shape.kind === 'hull' ? 0.5 * (b.shape.length ?? 8) : Math.max(...(b.shape.half ?? [1, 1, 1]));
+          cen.set([b.pos[0] - t.origin[0], b.pos[2] - t.origin[1], he + 4 * t.dx], i * 3);
+        });
+        this.pRing.use().set('uN', n).set('uDx', t.dx).set('uBodyCount', coupled.length).set('uCenter', cen).set('uRingOcc', RING_OCC)
+          .tex('uState', t.state.read.texture).tex('uAux', t.aux.read.texture);
+        this.mrtMany([t.ring.fbo], [t.ring]);
+        t.readRing.request(t.ring.fbo);
+        t.ringReq = { ids: coupled.map((b) => b.id), centers: coupled.map((b) => [b.pos[0], b.pos[2]] as [number, number]), t: now };
+      }
     }
     for (const b of bodies) this.prevPose.set(b.id, { pos: [b.pos[0], b.pos[1], b.pos[2]], rot: [b.rot[0], b.rot[1], b.rot[2], b.rot[3]] });
     if (this.prevPose.size > bodies.length) {
@@ -464,7 +496,23 @@ export class InteractionTiles {
     this.quad.draw();
   }
 
-  private consumeReadbacks(t: InteractionTile) {
+  private consumeReadbacks(t: InteractionTile, now: number) {
+    if (t.readRing.poll()) {
+      const d = t.readRing.data, px = MAX_BODIES * 4;
+      t.ringReq.ids.forEach((id, i) => {
+        const A = d.subarray(i * 4, i * 4 + 4), B = d.subarray(px + i * 4, px + i * 4 + 4), C = d.subarray(2 * px + i * 4, 2 * px + i * 4 + 4);
+        const [s1, sx, sz, sxx] = A, [sxz, szz, se, sxe] = B, sze = C[0];
+        if (s1 < 3) return;
+        const M = [[s1, sx, sz], [sx, sxx, sxz], [sz, sxz, szz]], r = [se, sxe, sze];
+        const det = (m: number[][]) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        const D = det(M);
+        const col = (k: number) => M.map((row, a) => row.map((v, b) => (b === k ? r[a] : v)));
+        const [cx, cz] = t.ringReq.centers[i];
+        this.bodySurfaces.set(id, Math.abs(D) < 1e-9
+          ? { a: se / s1, b: 0, c: 0, cx, cz, t: now, count: s1 }
+          : { a: det(col(0)) / D, b: det(col(1)) / D, c: det(col(2)) / D, cx, cz, t: now, count: s1 });
+      });
+    }
     if (t.readEta.poll()) { t.etaGrid.set(t.readEta.data); t.etaOrigin = t.etaPendingOrigin; }
     if (t.readRel.poll()) {
       const d = t.readRel.data;
@@ -512,6 +560,8 @@ export class InteractionTiles {
     t.reduceEta.dispose();
     t.readRel.dispose();
     t.readEta.dispose();
+    t.ring.dispose();
+    t.readRing.dispose();
     this.tiles.splice(this.tiles.indexOf(t), 1);
   }
 

@@ -235,13 +235,29 @@ export function entryJetFlux(Q: number, U: number, a: number): number {
   return Q > 0 && a > 1e-3 && U > c ? Q * (1 - c / U) : 0;
 }
 
+/**
+ * Two-way coupling with the body's carpet: the free surface at its waterline, fitted as a
+ * plane (tile height a + b·(x − cx) + c·(z − cz) above the open ocean). The body floats
+ * against the open ocean plus this plane instead of against the carpet under its own hull
+ * (which the hull holds). Its own bow wave lifts the bow, the stern trough lets the stern
+ * sink (trim), the water around a descending body rises and pushes back, and the phase lag
+ * of the rings it radiates damps its bobbing. The plane's slope pushes the body downhill
+ * (Froude–Krylov, −ρ·g·V·∇η): the bow-high, stern-low surface of its own wave is its wave
+ * resistance.
+ */
+export interface CarpetCoupling {
+  /** The carpet layers' height at a point (what to replace with the plane). */
+  tileAt: (x: number, z: number) => number;
+  a: number; b: number; c: number; cx: number; cz: number;
+}
+
 export interface StepStats {
   submergedVolume: number;
   waterlineSpeed: number;
 }
 
 /** Advance one body by dt against the water query. */
-export function stepBody(b: Body, water: WaterQuery, dt: number): StepStats {
+export function stepBody(b: Body, water: WaterQuery, dt: number, coupling?: CarpetCoupling): StepStats {
   b.age += dt;
   if (b.fixed) return { submergedVolume: 0, waterlineSpeed: 0 };
   const F: Vec3 = [0, -G * b.mass, 0];
@@ -255,6 +271,7 @@ export function stepBody(b: Body, water: WaterQuery, dt: number): StepStats {
     const r = quatRotate(b.rot, c.local);
     const px = b.pos[0] + r[0], pz = b.pos[2] + r[2];
     const ws = water.sample(px, pz);
+    if (coupling) ws.height += coupling.a + coupling.b * (px - coupling.cx) + coupling.c * (pz - coupling.cz) - coupling.tileAt(px, pz);
     // Column span along world vertical (tilted by the body's up vector).
     const yb = b.pos[1] + r[1] + c.bottom * up[1];
     const yt = b.pos[1] + r[1] + c.top * up[1];
@@ -278,7 +295,9 @@ export function stepBody(b: Body, water: WaterQuery, dt: number): StepStats {
     const cf = 0.012 * colDrag, cs = 0.55 * colDrag, cu = 0.9;
     const df = -0.5 * RHO_WATER * cf * A * Math.abs(rf) * rf * wet;
     const ds = -0.5 * RHO_WATER * cs * A * Math.abs(rs) * rs * wet * 0.4;
-    const du = -0.5 * RHO_WATER * cu * A * Math.abs(ru) * ru * wet - 350 * A * ru * wet; // + linear radiation damping
+    // Heave: quadratic form drag, plus a stand-in for wave radiation when no carpet carries the
+    // body (with a carpet the radiated rings themselves push back).
+    const du = -0.5 * RHO_WATER * cu * A * Math.abs(ru) * ru * wet - (coupling ? 0 : 350 * A * ru * wet);
     const fd: Vec3 = [
       fwd[0] * df + side[0] * ds + up[0] * du,
       fwd[1] * df + side[1] * ds + up[1] * du,
@@ -290,6 +309,12 @@ export function stepBody(b: Body, water: WaterQuery, dt: number): StepStats {
     T[0] += t[0]; T[1] += t[1]; T[2] += t[2];
     relSpeedAcc += Math.hypot(rel[0], rel[2]) * wet;
     relW += wet;
+  }
+
+  // Froude–Krylov: the slope of the carpet's surface pushes the body downhill.
+  if (coupling && subVol > 0) {
+    F[0] -= RHO_WATER * G * subVol * coupling.b;
+    F[2] -= RHO_WATER * G * subVol * coupling.c;
   }
 
   // Propulsion + rudder (hulls with an autopilot).

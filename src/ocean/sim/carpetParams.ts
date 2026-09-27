@@ -27,15 +27,19 @@ export const CARPET_SMOOTH = 0.5;
  * is negligible: a Kelvin wake persists for hundreds of metres. The old defaults (0.06 /s
  * plus 0.004 m²/s × k²) removed the short divergent waves within seconds, and the S2 cusp
  * could no longer be measured 14–20 m behind the body. Now: water's own viscous term, a
- * small uniform leak (100 s e-folding) so a tile never rings forever, and a hyperviscosity
- * that kills grid-scale noise (4 /s at the Nyquist) while leaving a 1 m wave at 10 cm cells
- * almost untouched (0.006 /s).
+ * small uniform leak (100 s e-folding) so a tile never rings forever, and a spectral filter
+ * on under-resolved scales only: 20 /s at the grid Nyquist falling as (k/k_N)⁶ (λ = 4 cells:
+ * 0.3 /s; a 1 m wave at 10 cm cells: 0.002 /s). With a (k/k_N)⁴ filter at 4 /s, ripples of
+ * 2–4 cells left by breaking lived long enough to sparkle in the refracted sea floor.
  */
 export const CARPET_DAMPING = 0.01;
 export const CARPET_VISCOSITY = 2e-6;
-export const CARPET_HYPER = 4;
+export const CARPET_HYPER = 20;
 export const CARPET_MAX_SLOPE = 0.62;
 export const CARPET_RELAX = 0.5;
+
+/** Occupancy (m) above which a column counts as under the body for the waterline ring. */
+export const RING_OCC = 0.005;
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 

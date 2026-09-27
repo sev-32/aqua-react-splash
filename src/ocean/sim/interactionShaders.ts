@@ -155,7 +155,7 @@ uniform float uDt;
 uniform float uDepth;
 uniform float uDamping;
 uniform float uViscosity;
-uniform float uHyper;          // damping rate at the grid Nyquist, ∝ (k/k_N)⁴
+uniform float uHyper;          // spectral filter: damping rate at the grid Nyquist, ∝ (k/k_N)⁶
 out vec4 outZ;
 void main(){
   ivec2 p = ivec2(gl_FragCoord.xy);
@@ -175,7 +175,8 @@ void main(){
     float w = sqrt(K*gk);
     float c = cos(w*uDt), s = sin(w*uDt);
     float kn = k*uDx/3.141592653589793;
-    float damp = exp(-(uDamping + uViscosity*k*k + uHyper*kn*kn*kn*kn)*uDt);
+    float kn2 = kn*kn;
+    float damp = exp(-(uDamping + uViscosity*k*k + uHyper*kn2*kn2*kn2)*uDt);
     ne = (e*c + (K/w)*f*s)*damp;
     nf = (f*c - (w/K)*e*s)*damp;
   }
@@ -414,5 +415,55 @@ void main(){
   // exact splats (water handed to the fluid) stay Gaussian so the volume removed is dEta·πr².
   float shape = vData.x < 0.0 && vData.w < 0.5 ? g - 0.55*exp(-4.0*(sqrt(r2) - 0.6)*(sqrt(r2) - 0.6)*8.0) : g;
   o = vec4(vData.x*shape, vData.y*g, vData.z*g, 0.0);
+}
+`;
+
+/**
+ * 6. The free surface around each followed body (two-way coupling): least-squares sums for
+ * the plane η ≈ a + b·x + c·z over the open cells at its waterline (no occupancy, with an
+ * occupied neighbour, within uReach[i] of the body centre). One fragment per body; MRT of
+ * three RGBA sums: (n, Σx, Σz, Σx²), (Σxz, Σz², Ση, Σxη), (Σzη, -, -, -). Mirrors
+ * CarpetCpu.ringPlane (sim/carpetCpu.ts).
+ */
+export const TILE_RING_FS = /* glsl */ `#version 300 es
+precision highp float;
+precision highp int;
+${TILE_COMMON}
+uniform sampler2D uState;
+uniform sampler2D uAux;
+uniform int uBodyCount;
+uniform vec3 uCenter[${MAX_BODIES}];   // tile-local x, z (m), reach (m)
+uniform float uRingOcc;
+layout(location=0) out vec4 outA;
+layout(location=1) out vec4 outB;
+layout(location=2) out vec4 outC;
+bool held(ivec2 c){ return texelFetch(uAux, clamp(c, ivec2(0), ivec2(uN - 1)), 0).x > uRingOcc; }
+void main(){
+  int i = int(gl_FragCoord.x);
+  outA = vec4(0.0); outB = vec4(0.0); outC = vec4(0.0);
+  if (i >= uBodyCount) return;
+  vec3 b = uCenter[i];
+  ivec2 lo = clamp(ivec2(floor((b.xy - b.z)/uDx)), ivec2(1), ivec2(uN - 2));
+  ivec2 hi = clamp(ivec2(ceil((b.xy + b.z)/uDx)), ivec2(1), ivec2(uN - 2));
+  float s1 = 0.0, sx = 0.0, sz = 0.0, sxx = 0.0, sxz = 0.0, szz = 0.0, se = 0.0, sxe = 0.0, sze = 0.0;
+  for (int j = 0; j < 128; j++){
+    int cy = lo.y + j;
+    if (cy > hi.y) break;
+    for (int k = 0; k < 128; k++){
+      int cx = lo.x + k;
+      if (cx > hi.x) break;
+      ivec2 c = ivec2(cx, cy);
+      if (held(c)) continue;
+      if (!(held(c + ivec2(1,0)) || held(c - ivec2(1,0)) || held(c + ivec2(0,1)) || held(c - ivec2(0,1)))) continue;
+      vec2 d = (vec2(c) + 0.5)*uDx - b.xy;
+      if (dot(d, d) > b.z*b.z) continue;
+      float e = texelFetch(uState, c, 0).x;
+      s1 += 1.0; sx += d.x; sz += d.y; sxx += d.x*d.x; sxz += d.x*d.y; szz += d.y*d.y;
+      se += e; sxe += d.x*e; sze += d.y*e;
+    }
+  }
+  outA = vec4(s1, sx, sz, sxx);
+  outB = vec4(sxz, szz, se, sxe);
+  outC = vec4(sze, 0.0, 0.0, 0.0);
 }
 `;

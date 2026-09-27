@@ -41,6 +41,12 @@ export class InteractionModule implements EngineModule {
    * wide coarse field their wakes need.
    */
   requestTile(center: [number, number], reason: string, followId?: number, dx?: number) {
+    // A body already carried by a live carpet keeps it: a second tile would simulate the same
+    // wake twice and the two would be summed.
+    if (followId !== undefined) {
+      const own = this.tiles.tiles.find((x) => !x.retiring && x.followIds.includes(followId) && (dx === undefined || Math.abs(x.dx - dx) < 1e-6));
+      if (own) { own.lastActive = this.engine.time; return own; }
+    }
     const t = this.tiles.ensure(center, reason, this.engine.time, dx);
     if (t && followId !== undefined && !t.followIds.includes(followId)) t.followIds.push(followId);
     return t;

@@ -22,8 +22,9 @@ export interface EwaveParams {
   damping: number;
   viscosity: number;
   /**
-   * Hyperviscosity: damping rate (1/s) at the grid Nyquist, falling off as (k/k_N)⁴, so grid
-   * noise dies within a fraction of a second while resolved waves are barely touched.
+   * Spectral filter: damping rate (1/s) at the grid Nyquist, falling off as (k/k_N)⁶, so
+   * under-resolved ripples (λ ≲ 4 cells) die within a second while resolved waves are
+   * barely touched.
    */
   hyper?: number;
 }
@@ -68,7 +69,7 @@ export class EwaveCpu {
           const gk = G + SIGMA_OVER_RHO * k * k;
           const w = Math.sqrt(K * gk);
           const c = Math.cos(w * dt), s = Math.sin(w * dt);
-          const damp = Math.exp(-(damping + viscosity * k * k + hyper * (k / kN) ** 4) * dt);
+          const damp = Math.exp(-(damping + viscosity * k * k + hyper * (k / kN) ** 6) * dt);
           nr = (er * c + (K / w) * pr * s) * damp;
           ni = (ei * c + (K / w) * pi * s) * damp;
           qr = (pr * c - (w / K) * er * s) * damp;

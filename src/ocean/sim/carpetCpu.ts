@@ -26,9 +26,9 @@
  */
 import { EwaveCpu, limitRepresentability, type EwaveParams } from './ewaveCpu';
 import { G, clamp } from '../math/scalar';
-import { stableKappa } from './carpetParams';
+import { stableKappa, RING_OCC } from './carpetParams';
 
-export { KAPPA_TARGET, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_HYPER, CARPET_MAX_SLOPE, CARPET_RELAX, stableKappa, carpetSubsteps, carpetDx } from './carpetParams';
+export { RING_OCC, KAPPA_TARGET, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_HYPER, CARPET_MAX_SLOPE, CARPET_RELAX, stableKappa, carpetSubsteps, carpetDx } from './carpetParams';
 
 export interface CarpetSphere { x: number; y: number; z: number; r: number }
 
@@ -59,6 +59,12 @@ export class CarpetCpu {
   private etaPrev: Float64Array;
   private wPrev: Float64Array;
   private scratch: Float64Array;
+  /**
+   * The hold's pressure head on the hull, κ·χ·η (m of water), from the last source pass: the
+   * dynamic part of the pressure the water exerts on the body (the hydrostatic part is the
+   * occupancy σ itself). GPU twin: the hold texture written by TILE_SOURCE_FS.
+   */
+  hold: Float64Array;
   /** Ledger (m³): volume added by bodies, removed by the sponge and by the limiter. */
   ledger = { source: 0, sponge: 0, released: 0, shifted: 0 };
 
@@ -73,6 +79,7 @@ export class CarpetCpu {
     this.etaPrev = new Float64Array(n2);
     this.wPrev = new Float64Array(n2);
     this.scratch = new Float64Array(n2);
+    this.hold = new Float64Array(n2);
   }
 
   get eta() { return this.wave.eta; }
@@ -133,6 +140,7 @@ export class CarpetCpu {
         src += d;
         this.occ[o] = occ[o];
         const c = this.chi[o];
+        this.hold[o] = kappa * c * eta[o];
         if (c <= 0) continue;
         if (sm > 0 && i > 0 && j > 0 && i < n - 1 && j < n - 1)
           phi[o] = old[o] + 0.25 * sm * c * (old[o - 1] + old[o + 1] + old[o - n] + old[o + n] - 4 * old[o]);
@@ -181,6 +189,64 @@ export class CarpetCpu {
     }
     this.origin = [this.origin[0] + sx * this.dx, this.origin[1] + sz * this.dx];
     this.ledger.shifted += before - this.wave.volume();
+  }
+
+  /**
+   * Force and torque (about `center`) of the water's dynamic pressure on the bodies: the
+   * hold head H = κχη acting on the hull bottom, F = ρg·Σ H·(∂σ/∂x, 1, ∂σ/∂z)·Δx². Over a
+   * pierced column −∇y_bottom = ∇σ, so a higher pressure on a bottom rising toward the bow
+   * pushes back (wave resistance) and a bow-high / stern-low pressure pitches the hull
+   * (trim). The hydrostatic head σ adds no horizontal force (Σσ∇σ is a boundary term).
+   * Lever arm at the wet column's centroid, ref − σ/2 (ref = 0 here: calm ocean).
+   */
+  holdForce(center: [number, number, number], rho = 1025): { F: [number, number, number]; T: [number, number, number] } {
+    const { n, dx } = this;
+    const F: [number, number, number] = [0, 0, 0], T: [number, number, number] = [0, 0, 0];
+    const k = rho * G * dx * dx;
+    for (let j = 1; j < n - 1; j++)
+      for (let i = 1; i < n - 1; i++) {
+        const o = j * n + i, H = this.hold[o];
+        if (H === 0) continue;
+        const gx = (this.occ[o + 1] - this.occ[o - 1]) / (2 * dx), gz = (this.occ[o + n] - this.occ[o - n]) / (2 * dx);
+        const f: [number, number, number] = [k * H * gx, k * H, k * H * gz];
+        const r: [number, number, number] = [this.origin[0] + (i + 0.5) * dx - center[0], -0.5 * this.occ[o] - center[1], this.origin[1] + (j + 0.5) * dx - center[2]];
+        F[0] += f[0]; F[1] += f[1]; F[2] += f[2];
+        T[0] += r[1] * f[2] - r[2] * f[1]; T[1] += r[2] * f[0] - r[0] * f[2]; T[2] += r[0] * f[1] - r[1] * f[0];
+      }
+    return { F, T };
+  }
+
+  /**
+   * The free surface around a body: a least-squares plane η ≈ a + b·(x − cx) + c·(z − cz)
+   * fitted to the open cells at its waterline (no occupancy, with an occupied neighbour,
+   * within `reach` of the centre; occupancy rather than χ, as the GPU pass reads aux.x). The body feels this plane: its buoyancy is measured against it
+   * and its slope pushes it downhill. Its own bow wave, stern trough and radiated rings are
+   * in it, delayed by the water's own dynamics rather than by a stiff penalty.
+   */
+  ringPlane(cx: number, cz: number, reach: number): { a: number; b: number; c: number; count: number } {
+    const { n, dx } = this;
+    let s1 = 0, sx = 0, sz = 0, sxx = 0, sxz = 0, szz = 0, se = 0, sxe = 0, sze = 0;
+    const i0 = Math.max(1, Math.floor((cx - reach - this.origin[0]) / dx)), i1 = Math.min(n - 2, Math.ceil((cx + reach - this.origin[0]) / dx));
+    const j0 = Math.max(1, Math.floor((cz - reach - this.origin[1]) / dx)), j1 = Math.min(n - 2, Math.ceil((cz + reach - this.origin[1]) / dx));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const o = j * n + i;
+        const held = (q: number) => this.occ[q] > RING_OCC;
+        if (held(o)) continue;
+        if (!(held(o - 1) || held(o + 1) || held(o - n) || held(o + n))) continue;
+        const x = this.origin[0] + (i + 0.5) * dx - cx, z = this.origin[1] + (j + 0.5) * dx - cz;
+        if (x * x + z * z > reach * reach) continue;
+        const e = this.eta[o];
+        s1++; sx += x; sz += z; sxx += x * x; sxz += x * z; szz += z * z; se += e; sxe += x * e; sze += z * e;
+      }
+    if (s1 < 3) return { a: 0, b: 0, c: 0, count: s1 };
+    // Solve the 3×3 normal equations [[s1,sx,sz],[sx,sxx,sxz],[sz,sxz,szz]]·(a,b,c) = (se,sxe,sze).
+    const M = [[s1, sx, sz], [sx, sxx, sxz], [sz, sxz, szz]], r = [se, sxe, sze];
+    const det = (m: number[][]) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    const D = det(M);
+    if (Math.abs(D) < 1e-12) return { a: se / s1, b: 0, c: 0, count: s1 };
+    const col = (k: number) => M.map((row, i) => row.map((v, j) => (j === k ? r[i] : v)));
+    return { a: det(col(0)) / D, b: det(col(1)) / D, c: det(col(2)) / D, count: s1 };
   }
 
   /** Volume now in the field (m³). Ledger closure: volume = source − sponge − released − shifted. */

@@ -3,7 +3,7 @@
  * (boats, rocks, buoys) and rendering.
  */
 import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/OceanEngine';
-import { createBody, stepBody, scriptPose, type Body, type BodyScript } from '../physics/bodies';
+import { createBody, stepBody, scriptPose, type Body, type BodyScript, type CarpetCoupling } from '../physics/bodies';
 import { BodiesRenderer } from '../render/bodiesRender';
 import type { Vec3 } from '../math/mat4';
 
@@ -16,6 +16,8 @@ export class BodiesModule implements EngineModule {
   /** Bodies that entered the water hard this frame (for splash/impact emitters). */
   entries: { body: Body; speed: number; at: Vec3 }[] = [];
   private prevImmersion = new Map<number, number>();
+  /** Two-way coupling with a body's carpet (set by the interaction module when installed). */
+  coupling: ((b: Body) => CarpetCoupling | undefined) | null = null;
   /** Water depth below sea level (m) — set by the world; the open ocean when absent. */
   depthAt: ((x: number, z: number) => number) | null = null;
 
@@ -83,7 +85,7 @@ export class BodiesModule implements EngineModule {
     while (this.acc >= this.step) {
       for (const b of this.bodies) {
         if (!b.alive) continue;
-        stepBody(b, engine.water, this.step);           // (immersion stats; integration overridden below if scripted)
+        stepBody(b, engine.water, this.step, b.script ? undefined : this.coupling?.(b)); // (immersion stats; integration overridden below if scripted)
         if (b.script) {
           const k = scriptPose(b.script, b.age);
           b.pos = k.pos; b.vel = k.vel; b.angVel = [0, 0, 0];

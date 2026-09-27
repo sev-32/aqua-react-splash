@@ -28,6 +28,12 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
   const interaction = engine.addModule(new InteractionModule(engine, bodies)) as InteractionModule;
   const shore = engine.addModule(new ShoreModule(engine, world)) as ShoreModule;
   interaction.tiles.depthAt = (x, z) => -world.world.sampleProduct('height', x, z);
+  // Two-way coupling: a free body carried by a carpet floats against the water it disturbs.
+  bodies.coupling = (b) => {
+    const s = interaction.tiles.bodySurfaces.get(b.id);
+    if (!s || engine.time - s.t > 0.25) return undefined;
+    return { ...s, tileAt: (x, z) => interaction.tiles.sampleHeight(x, z) };
+  };
   bodies.depthAt = interaction.tiles.depthAt;
 
   const directTiles = {
@@ -139,7 +145,9 @@ export function installStandardModules(engine: OceanEngine): StandardModules {
       const b = bodies.spawnSphere([x, 3, z], R);
       b.vel = [0, -2, 0];
     }
-    interaction.requestTile([x, z], `lab:${scene}`, bodies.bodies[0]?.id, carpetDx(2 * R));
+    // The carpet starts where the body is (a towed sphere starts 9 m from the lab centre).
+    const b0 = bodies.bodies[0];
+    interaction.requestTile(b0 ? [b0.pos[0], b0.pos[2]] : [x, z], `lab:${scene}`, b0?.id, carpetDx(2 * R));
     const dist = 12, h = 3.2;
     e.camera.setPose({
       position: [x - fwd[0] * dist, h, z - fwd[1] * dist],
