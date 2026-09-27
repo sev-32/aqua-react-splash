@@ -121,6 +121,10 @@ export function trackWavelength(v: FieldView, body: { x: number; z: number }, di
  * the track (both sides) over radii [r0, r1]. Supercritical flow in finite depth cannot
  * radiate outside the Mach wedge asin(√(gH)/U): `th99` (the angle holding 99 % of the
  * energy in 0–90°) is the causality check; `peakDeg` is where the dominant arm lies.
+ * In deep water the same profile shows the Kelvin caustic: energy falls by an order of
+ * magnitude across 19.47° (`edge10`: the widest angle still at ≥ 10 % of the peak). That
+ * edge is robust where the arm's envelope peak is not (near the body the transverse waves
+ * on the track outweigh the cusps).
  * `y0`: rays start at this lateral offset on each side (the body's shoulders, where the
  * wedge begins for a body of finite width) instead of at the centre.
  */
@@ -142,5 +146,8 @@ export function angularEnergy(v: FieldView, body: { x: number; z: number }, dir:
   const tot = E.reduce((a, b) => a + b, 0);
   let acc = 0, th95 = 90, th99 = 90;
   for (let i = E.length - 1; i >= 0; i--) { acc += E[i]; if (acc > 0.01 * tot && th99 === 90) th99 = i; if (acc > 0.05 * tot && th95 === 90) th95 = i; }
-  return { energy: E, peakDeg: E.indexOf(Math.max(...E)), th95, th99 };
+  const top = E.reduce((m, x) => Math.max(m, x), 0);
+  let edge10 = 0;
+  for (let i = 0; i < E.length; i++) if (E[i] >= 0.1 * top) edge10 = i;
+  return { energy: E, peakDeg: E.indexOf(top), th95, th99, edge10 };
 }

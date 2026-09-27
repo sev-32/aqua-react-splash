@@ -21,6 +21,11 @@ export interface EwaveParams {
   /** Uniform damping rate (1/s) and viscous-like k² damping (m²/s). */
   damping: number;
   viscosity: number;
+  /**
+   * Hyperviscosity: damping rate (1/s) at the grid Nyquist, falling off as (k/k_N)⁴, so grid
+   * noise dies within a fraction of a second while resolved waves are barely touched.
+   */
+  hyper?: number;
 }
 
 export class EwaveCpu {
@@ -39,6 +44,7 @@ export class EwaveCpu {
   /** Spectral step (the same algebra as EWAVE_EVOLVE_FS). */
   step(dt: number) {
     const { n, dx, depth, damping, viscosity } = this.p;
+    const hyper = this.p.hyper ?? 0, kN = Math.PI / dx;
     const { re, im } = this;
     for (let i = 0; i < n * n; i++) { re[i] = this.eta[i]; im[i] = this.phi[i]; }
     fft2d(re, im, n, false);
@@ -62,7 +68,7 @@ export class EwaveCpu {
           const gk = G + SIGMA_OVER_RHO * k * k;
           const w = Math.sqrt(K * gk);
           const c = Math.cos(w * dt), s = Math.sin(w * dt);
-          const damp = Math.exp(-(damping + viscosity * k * k) * dt);
+          const damp = Math.exp(-(damping + viscosity * k * k + hyper * (k / kN) ** 4) * dt);
           nr = (er * c + (K / w) * pr * s) * damp;
           ni = (ei * c + (K / w) * pi * s) * damp;
           qr = (pr * c - (w / K) * er * s) * damp;

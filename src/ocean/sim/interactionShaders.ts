@@ -155,6 +155,7 @@ uniform float uDt;
 uniform float uDepth;
 uniform float uDamping;
 uniform float uViscosity;
+uniform float uHyper;          // damping rate at the grid Nyquist, ∝ (k/k_N)⁴
 out vec4 outZ;
 void main(){
   ivec2 p = ivec2(gl_FragCoord.xy);
@@ -173,7 +174,8 @@ void main(){
     float gk = 9.81 + 7.28e-5*k*k;
     float w = sqrt(K*gk);
     float c = cos(w*uDt), s = sin(w*uDt);
-    float damp = exp(-(uDamping + uViscosity*k*k)*uDt);
+    float kn = k*uDx/3.141592653589793;
+    float damp = exp(-(uDamping + uViscosity*k*k + uHyper*kn*kn*kn*kn)*uDt);
     ne = (e*c + (K/w)*f*s)*damp;
     nf = (f*c - (w/K)*e*s)*damp;
   }

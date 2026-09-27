@@ -25,6 +25,8 @@ export interface TileConfig {
   depth: number;
   damping: number;
   viscosity: number;
+  /** Hyperviscosity rate at the grid Nyquist (1/s). */
+  hyper: number;
   sourceGain: number;
   limiter: boolean;
   maxSlope: number;
@@ -362,7 +364,7 @@ export class InteractionTiles {
           }
         }
         this.pEvolve.use().set('uN', n).set('uDx', t.dx).set('uDt', h).set('uDepth', t.depth)
-          .set('uDamping', cfg.damping).set('uViscosity', cfg.viscosity).tex('uSpec', src);
+          .set('uDamping', cfg.damping).set('uViscosity', cfg.viscosity).set('uHyper', cfg.hyper).tex('uSpec', src);
         t.spec[w].bind();
         this.quad.draw();
         src = t.spec[w].texture;

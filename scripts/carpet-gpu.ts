@@ -110,7 +110,7 @@ for (const U of U_LIST) {
     return {
       n: f.n, dx: f.dx, origin: f.origin, depth: f.depth, substeps: f.substeps, kappa: f.kappa, eta: Array.from(f.eta as Float32Array),
       body: { x: b.pos[0], y: b.pos[1], z: b.pos[2], vx: b.vel[0], vz: b.vel[2] }, start, frames, glError: api.glError(),
-      damping: cfg.damping, viscosity: cfg.viscosity, maxSlope: cfg.maxSlope, relax: cfg.relax, released: tiles.releasedVolume,
+      damping: cfg.damping, viscosity: cfg.viscosity, hyper: cfg.hyper, maxSlope: cfg.maxSlope, relax: cfg.relax, released: tiles.releasedVolume,
     };
   }, { U, R, YC, TRAVEL, DT, LIMITER });
   const gpuMs = Date.now() - t0;
@@ -119,7 +119,7 @@ for (const U of U_LIST) {
 
   // CPU mirror with the engine's numerics, following rule and limiter, in the tow frame.
   const n = g.n, dx = g.dx;
-  const cpu = new CarpetCpu({ n, dx, depth: 1, damping: g.damping, viscosity: g.viscosity, smooth: CARPET_SMOOTH, limiter: LIMITER, maxSlope: g.maxSlope, relax: g.relax },
+  const cpu = new CarpetCpu({ n, dx, depth: 1, damping: g.damping, viscosity: g.viscosity, hyper: g.hyper, smooth: CARPET_SMOOTH, limiter: LIMITER, maxSlope: g.maxSlope, relax: g.relax },
     [Math.round((-9 + 9 - (n * dx) / 2) / dx) * dx, Math.round(-(n * dx) / 2 / dx) * dx]);
   const body: CarpetSphere = { x: -9, y: YC, z: 0, r: R };
   cpu.occupancy([body], () => 0, cpu.occ, cpu.chi);

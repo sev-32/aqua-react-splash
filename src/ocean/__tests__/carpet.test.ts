@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { CarpetCpu, carpetSubsteps, stableKappa, carpetDx, CARPET_SMOOTH, KAPPA_TARGET, type CarpetSphere } from '../sim/carpetCpu';
-import { sampleField, armAngle, trackWavelength } from '../sim/wakeMetrics';
+import {
+  CarpetCpu, carpetSubsteps, stableKappa, carpetDx, CARPET_SMOOTH, KAPPA_TARGET, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_HYPER, CARPET_MAX_SLOPE, CARPET_RELAX,
+  type CarpetSphere,
+} from '../sim/carpetCpu';
+import { sampleField, trackWavelength, angularEnergy } from '../sim/wakeMetrics';
 
 /** A carpet with the production numerics (hold stiffness and substeps from carpetParams). */
 function carpet(n: number, dx: number, depth: number, blocked = true, origin: [number, number] = [-(n / 2) * dx, -(n / 2) * dx]) {
-  return new CarpetCpu({ n, dx, depth, damping: 0.02, viscosity: 0.0005, kappa: blocked ? undefined : 0, smooth: blocked ? CARPET_SMOOTH : 0 }, origin);
+  return new CarpetCpu({ n, dx, depth, damping: CARPET_DAMPING, viscosity: CARPET_VISCOSITY, hyper: CARPET_HYPER, kappa: blocked ? undefined : 0, smooth: blocked ? CARPET_SMOOTH : 0 }, origin);
 }
 function runTow(c: CarpetCpu, body: CarpetSphere, U: number, T: number, follow = false, dt = 1 / 60) {
   const sub = carpetSubsteps(c.dx, dt, U);
@@ -93,7 +96,10 @@ describe('carpet kernel (CPU mirror of the GPU tile)', () => {
 
   it('a fast tow does not drain the sea through its bow wave (breaking dissipates, spray stays bounded)', () => {
     const n = 128, dx = 0.1, U = 4.5;
-    const c = new CarpetCpu({ n, dx, depth: 1, damping: 0.06, viscosity: 0.004, smooth: CARPET_SMOOTH, limiter: true, maxSlope: 0.62, relax: 0.5 }, [-(n / 2) * dx, -(n / 2) * dx]);
+    const c = new CarpetCpu({
+      n, dx, depth: 1, damping: CARPET_DAMPING, viscosity: CARPET_VISCOSITY, hyper: CARPET_HYPER, smooth: CARPET_SMOOTH,
+      limiter: true, maxSlope: CARPET_MAX_SLOPE, relax: CARPET_RELAX,
+    }, [-(n / 2) * dx, -(n / 2) * dx]);
     const b: CarpetSphere = { x: -4, y: 0.12, z: 0, r: 0.68 };
     c.occupancy([b], () => 0, c.occ, c.chi);
     runTow(c, b, U, 1.2, true);
@@ -153,7 +159,7 @@ describe('carpet kernel (CPU mirror of the GPU tile)', () => {
 });
 
 describe('carpet wake physics (short runs; the full S1/S2 numbers come from scripts/carpet-validate.ts)', () => {
-  it('deep water: Kelvin cusps near 19.5° and transverse waves at 2πU²/g', () => {
+  it('deep water: the Kelvin wedge edge at 19.5° and transverse waves at 2πU²/g', () => {
     const U = 1.5, lam = (2 * Math.PI * U * U) / 9.81;
     const c = carpet(128, 0.15, 60);
     const b: CarpetSphere = { x: 0, y: 0.1, z: 0, r: 0.6 };
@@ -162,8 +168,12 @@ describe('carpet wake physics (short runs; the full S1/S2 numbers come from scri
     const v = { field: c.eta, n: c.n, dx: c.dx, origin: c.origin };
     const tw = trackWavelength(v, b, [1, 0], 1.5, 8);
     expect(Math.abs(tw.lambda - lam) / lam).toBeLessThan(0.05);
-    const k = armAngle(v, b, [1, 0], { s0: 3 * lam, s1: 8, mode: 'envelope', win: lam / 2, yMin: (s) => s * 0.14, yMax: (s) => s * 0.7 });
-    expect(Math.abs(k.angleDeg - 19.47)).toBeLessThan(3);
-    expect(Math.abs(k.sides[0] - k.sides[1])).toBeLessThan(1);
+    // The wake's energy stops at the caustic: ≥ 10 % of the peak out to ~19.5°, then an
+    // order of magnitude less (measured 18–21° across damping choices).
+    const a = angularEnergy(v, b, [1, 0], 4, 8);
+    expect(Math.abs(a.edge10 - 19.47)).toBeLessThan(2.5);
+    expect(Math.abs(a.th95 - 19.47)).toBeLessThan(2.5);
+    const beyond = a.energy.slice(25).reduce((s, e) => s + e, 0) / a.energy.reduce((s, e) => s + e, 0);
+    expect(beyond).toBeLessThan(0.03);
   });
 });

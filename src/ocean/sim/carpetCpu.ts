@@ -28,7 +28,7 @@ import { EwaveCpu, limitRepresentability, type EwaveParams } from './ewaveCpu';
 import { G, clamp } from '../math/scalar';
 import { stableKappa } from './carpetParams';
 
-export { KAPPA_TARGET, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_MAX_SLOPE, CARPET_RELAX, stableKappa, carpetSubsteps, carpetDx } from './carpetParams';
+export { KAPPA_TARGET, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_HYPER, CARPET_MAX_SLOPE, CARPET_RELAX, stableKappa, carpetSubsteps, carpetDx } from './carpetParams';
 
 export interface CarpetSphere { x: number; y: number; z: number; r: number }
 

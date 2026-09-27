@@ -8,7 +8,7 @@ import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/Ocean
 import { InteractionTiles, type ReleasePatch } from '../sim/InteractionTiles';
 import { QUALITY } from '../engine/settings';
 import type { BodiesModule } from './bodiesModule';
-import { CARPET_VISCOSITY, CARPET_RELAX } from '../sim/carpetParams';
+import { CARPET_VISCOSITY, CARPET_HYPER, CARPET_RELAX } from '../sim/carpetParams';
 
 export class InteractionModule implements EngineModule {
   name = 'interaction';
@@ -25,6 +25,7 @@ export class InteractionModule implements EngineModule {
       depth: 60,
       damping: s.dispersionDamping,
       viscosity: CARPET_VISCOSITY,
+      hyper: CARPET_HYPER,
       sourceGain: s.sourceGain,
       limiter: s.limiterEnabled,
       maxSlope: s.maxSlope,

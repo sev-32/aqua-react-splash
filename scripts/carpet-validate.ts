@@ -9,9 +9,10 @@
  *       energy 5–9 m from the body, past its non-radiating near field (causality:
  *       ≤ asin(√(gH)/U)), and the dominant arm.
  *   S2  the same sphere in deep water at 1.5 m/s (Fr_L = 0.41) for 26 s on a 512² carpet
- *       following the body. Measured: the Kelvin arm angle in distance bands behind the body
- *       (the envelope maximum approaches the 19.47° caustic from inside, as the Airy scaling
- *       of the cusp predicts), and the transverse wavelength on the track (2πU²/g).
+ *       following the body. Measured: the wedge edge in distance bands behind the body (the
+ *       angle where the wake energy falls to 10 % of its peak, and the 95 % angle; expected
+ *       at the 19.47° caustic), the arm's envelope peak (which approaches 19.47° from inside
+ *       only far behind: the Airy scaling of the cusp), and the transverse wavelength.
  * All runs use the engine's numerics: carpetDx for the sphere, carpetSubsteps, stableKappa,
  * CARPET_SMOOTH, the default damping and the limiter (breaking + ballistic release).
  *   Ledger: field volume = source − sponge − released − shifted, every run.
@@ -23,7 +24,7 @@
  * <outDir>/carpet-validate.json.
  */
 import {
-  CarpetCpu, stableKappa, carpetSubsteps, carpetDx, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_MAX_SLOPE, CARPET_RELAX, type CarpetSphere,
+  CarpetCpu, stableKappa, carpetSubsteps, carpetDx, CARPET_SMOOTH, CARPET_DAMPING, CARPET_VISCOSITY, CARPET_HYPER, CARPET_MAX_SLOPE, CARPET_RELAX, type CarpetSphere,
 } from '../src/ocean/sim/carpetCpu';
 import { armAngle, trackWavelength, sampleField, angularEnergy, type FieldView } from '../src/ocean/sim/wakeMetrics';
 // (field maps: blue = down, white = 0, red = up; each map scaled to its own ±max|η|)
@@ -98,7 +99,7 @@ function tow(scene: 'S1' | 'S1m' | 'S2', U: number, variant: string) {
   const sub = carpetSubsteps(dx, dt, U);
   const kappa = blocked ? stableKappa(dx, dt / sub) : 0;
   const c = new CarpetCpu({
-    n, dx, depth, damping: CARPET_DAMPING, viscosity: CARPET_VISCOSITY, kappa, smooth: blocked ? CARPET_SMOOTH : 0,
+    n, dx, depth, damping: CARPET_DAMPING, viscosity: CARPET_VISCOSITY, hyper: CARPET_HYPER, kappa, smooth: blocked ? CARPET_SMOOTH : 0,
     limiter: true, maxSlope: CARPET_MAX_SLOPE, relax: CARPET_RELAX,
   }, [-(n / 2) * dx, -(n / 2) * dx]);
   const start = scene === 'S2' ? -20 : -4.5;
@@ -152,8 +153,14 @@ function tow(scene: 'S1' | 'S1m' | 'S2', U: number, variant: string) {
       const k = armAngle(v, body, [1, 0], { s0, s1, mode: 'envelope', win: lam / 2, yMin: (s) => s * Math.tan((8 * Math.PI) / 180), yMax: (s) => s * Math.tan((35 * Math.PI) / 180) });
       bands[`${s0}-${s1} m`] = { fitDeg: +k.angleDeg.toFixed(2), sides: k.sides.map((x) => +x.toFixed(2)) };
     }
-    run.kelvin = { bands, expectedDeg: 19.47 };
-    const tw = trackWavelength(v, body, [1, 0], 2, 16);
+    const edges: Record<string, { edge10: number; th95: number; th99: number; beyond25: number }> = {};
+    for (const [r0, r1] of [[4, 8], [8, 14], [14, 20]]) {
+      const a = angularEnergy(v, body, [1, 0], r0, r1);
+      const tot = a.energy.reduce((s, e) => s + e, 0);
+      edges[`${r0}-${r1} m`] = { edge10: a.edge10, th95: a.th95, th99: a.th99, beyond25: +(a.energy.slice(25).reduce((s, e) => s + e, 0) / tot).toFixed(4) };
+    }
+    run.kelvin = { edges, bands, expectedDeg: 19.47 };
+    const tw = trackWavelength(v, body, [1, 0], 2 * lam, 16);
     run.lambda = { measured: tw.lambda, expected: lam, crests: tw.crests.map((x) => +x.toFixed(2)) };
   }
   run.png = name;
