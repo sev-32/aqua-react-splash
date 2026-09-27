@@ -194,7 +194,7 @@ authority adds:
   (any sheet key ends it). Sheeted straight in beam-on to 18 kn, the boat
   went back over after each recovery; steering her up onto a close reach
   with the sheets still free was tried and rolled her over to windward;
-- a righting that stalls (boat hanging at 35–80° with the rig in the water,
+- a righting that stalls (boat hanging at 28–80° with the rig in the water,
   not 3° further up after 5 s — a trend, since in a breeze the waves rock
   her faster than she comes up) has the sailor on the high gunwale haul
   herself aboard (below ~50°, where the board is already under water; her
@@ -355,6 +355,10 @@ WIND −/+, RESET.
   Laser 2 (≈3.9 kn at 45° TWA in 12 kn): the remaining sail twist (leech roach
   under modest leech tension) and the strip aerodynamics (no jib–main slot
   interaction) are the limiting factors.
+- In 18 kn a boat righted beam-on often goes over again (with the sails
+  flogging, their drag alone roughly matches the crew's righting moment);
+  the crew keep recovering, but a swim-round recovery can then take minutes.
+  Real crews hold the bow into the wind first; the crew AI does not yet.
 - The rendered water surface is a height field: no overturning breakers,
   no spray particles; cockpit flooding is not simulated as a separate water
   volume (hydrostatics treats the cockpit as open to the sea).

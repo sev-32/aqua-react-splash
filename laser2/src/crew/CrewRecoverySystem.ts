@@ -1307,7 +1307,7 @@ export class CrewRecoverySystem implements AppSystem, SailingAuthority, CrewMass
     // Further over, she goes back to the centreboard for leverage.
     // Stalled: not 3° further up after 5 s (a trend, not the heel rate — in a
     // breeze the waves rock her faster than she comes up).
-    if (frame.heelDeg > 34) {
+    if (frame.heelDeg > 28) {
       if (agent.stallS === 0) agent.stallRef = frame.heelDeg;
       agent.stallS += dt;
       if (frame.heelDeg < agent.stallRef - 3) { agent.stallS = dt; agent.stallRef = frame.heelDeg; }
