@@ -1,0 +1,1 @@
+{"version":3,"file":"LightingState.js","sourceRoot":"","sources":["../../../src/lighting/LightingState.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,UAAU,EAAE,MAAM,uBAAuB,CAAC;AACnD,OAAO,EAAE,yBAAyB,EAAyB,MAAM,uBAAuB,CAAC;AAEzF,MAAM,OAAO,aAAc,SAAQ,UAA4B;IAC7D,gBAAgB,KAAK,CAAC,yBAAyB,CAAC,CAAC,CAAC,CAAC;CACpD"}

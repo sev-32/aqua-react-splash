@@ -2,11 +2,11 @@
   "project": "LASER2_LIGHTING_FOUNDRY_V7",
   "test": "pure CPU worker-job atmosphere LUT",
   "firstOrder": {
-    "computeMs": 20.354081,
+    "computeMs": 22.487884,
     "finalEnergy": 327.4916057768278
   },
   "fourthOrder": {
-    "computeMs": 11.616177000000008,
+    "computeMs": 17.325644999999994,
     "firstOrderEnergy": 327.4916057768278,
     "finalEnergy": 336.68185677053407
   },

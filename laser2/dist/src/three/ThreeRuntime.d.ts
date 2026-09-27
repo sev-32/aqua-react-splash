@@ -1,0 +1,91 @@
+export interface ThreeR160 {
+    readonly REVISION: string;
+    readonly Vector2: any;
+    readonly Vector3: any;
+    readonly Vector4: any;
+    readonly Quaternion: any;
+    readonly Matrix3: any;
+    readonly Matrix4: any;
+    readonly Color: any;
+    readonly Euler: any;
+    readonly Box3: any;
+    readonly Sphere: any;
+    readonly Plane: any;
+    readonly Object3D: any;
+    readonly Group: any;
+    readonly Mesh: any;
+    readonly Scene: any;
+    readonly Camera: any;
+    readonly PerspectiveCamera: any;
+    readonly OrthographicCamera: any;
+    readonly BufferGeometry: any;
+    readonly BufferAttribute: any;
+    readonly Float32BufferAttribute: any;
+    readonly Uint16BufferAttribute: any;
+    readonly Uint32BufferAttribute: any;
+    readonly ShaderMaterial: any;
+    readonly MeshStandardMaterial: any;
+    readonly MeshPhysicalMaterial: any;
+    readonly MeshBasicMaterial: any;
+    readonly Material: any;
+    readonly Texture: any;
+    readonly DataTexture: any;
+    readonly CanvasTexture: any;
+    readonly DepthTexture: any;
+    readonly WebGLRenderTarget: any;
+    readonly PlaneGeometry: any;
+    readonly SphereGeometry: any;
+    readonly CylinderGeometry: any;
+    readonly BoxGeometry: any;
+    readonly TorusGeometry?: any;
+    readonly SkinnedMesh: any;
+    readonly Bone: any;
+    readonly DirectionalLight: any;
+}
+/** three.js r160 enum values used by native systems (stable across r15x-r16x). */
+export declare const GL: Readonly<{
+    FrontSide: 0;
+    BackSide: 1;
+    DoubleSide: 2;
+    NoBlending: 0;
+    NormalBlending: 1;
+    AdditiveBlending: 2;
+    CustomBlending: 5;
+    UnsignedByteType: 1009;
+    UnsignedShortType: 1012;
+    UnsignedIntType: 1014;
+    FloatType: 1015;
+    HalfFloatType: 1016;
+    UnsignedInt248Type: 1020;
+    RedFormat: 1028;
+    RGBAFormat: 1023;
+    DepthFormat: 1026;
+    DepthStencilFormat: 1027;
+    RepeatWrapping: 1000;
+    ClampToEdgeWrapping: 1001;
+    NearestFilter: 1003;
+    LinearFilter: 1006;
+    LinearMipmapLinearFilter: 1008;
+    NeverDepth: 0;
+    AlwaysDepth: 1;
+    LessDepth: 2;
+    LessEqualDepth: 3;
+    NoToneMapping: 0;
+    ACESFilmicToneMapping: 4;
+    SRGBColorSpace: "srgb";
+    LinearSRGBColorSpace: "srgb-linear";
+    NoColorSpace: "";
+    EquirectangularReflectionMapping: 303;
+    OneFactor: 201;
+    OneMinusSrcAlphaFactor: 205;
+    SrcAlphaFactor: 204;
+    AddEquation: 100;
+}>;
+export declare function three(): ThreeR160;
+/** InstancedBufferGeometry (tree-shaken from the legacy bundle). */
+export declare function InstancedBufferGeometry(): any;
+/** InstancedBufferAttribute (tree-shaken from the legacy bundle). */
+export declare function InstancedBufferAttribute(): any;
+/** Minimal Points object; the r160 renderer selects GL_POINTS through isPoints. */
+export declare function Points(): any;
+//# sourceMappingURL=ThreeRuntime.d.ts.map

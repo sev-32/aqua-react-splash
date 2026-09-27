@@ -1,0 +1,43 @@
+import type { AppContext, AppSystem } from '../core/System.js';
+export declare class NativeHullAssetSystem implements AppSystem {
+    readonly id = "scene.native-static-hull";
+    readonly phase: "postPhysics";
+    enabled: boolean;
+    root: any;
+    readonly bySemanticId: Map<string, any>;
+    readonly sourceBySemanticId: Map<string, any>;
+    private context;
+    private asset;
+    private binaryBuffer;
+    private manifestBytes;
+    private loadMs;
+    private buildMs;
+    private sourceTriangles;
+    private nativeTriangles;
+    private sourceVertices;
+    private nativeVertices;
+    private nativeMaterialInstances;
+    private retiredLegacyMeshes;
+    private releasedGeometryResources;
+    private releasedMaterialResources;
+    private estimatedReleasedGeometryBytes;
+    private emptyLegacyGeometry;
+    private retiredLegacyMaterial;
+    private readonly pooledMaterials;
+    private readonly errors;
+    init(context: AppContext): Promise<void>;
+    private typedArray;
+    private triangleCount;
+    private vertexCount;
+    private geometryBytes;
+    private materialKey;
+    private pooledMaterial;
+    private build;
+    private retireLegacyResources;
+    update(_dtSeconds: number, _context: AppContext): void;
+    private syncTransform;
+    get(id: string): any | null;
+    dispose(): void;
+    telemetry(): Record<string, unknown>;
+}
+//# sourceMappingURL=NativeHullAssetSystem.d.ts.map

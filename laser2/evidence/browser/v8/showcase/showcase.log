@@ -1,0 +1,19 @@
+[harness] ready after 8985 ms
+[stage 0 setup] 20912 ms "ok"
+[stage 1 chase_quarter] 43874 ms {"t":10,"heel":9,"sog":6.07,"agents":["helm:sailing","crew:sailing"]}
+[stage 2 windward_beam] 17094 ms {"t":10.5,"heel":8,"sog":6.03,"agents":["helm:sailing","crew:sailing"]}
+[stage 3 bow_quarter] 17586 ms {"t":11,"heel":6,"sog":5.75,"agents":["helm:sailing","crew:sailing"]}
+[stage 4 crew_close] 28326 ms {"t":11.5,"heel":8,"sog":5.48,"agents":["helm:sailing","crew:sailing"]}
+[stage 5 leeward_sails] 19669 ms {"t":12,"heel":8,"sog":5.66,"agents":["helm:sailing","crew:sailing"]}
+[stage 6 knockdown] 19426 ms {"t":14,"heel":51,"sog":4.09,"agents":["helm:sailing","crew:sailing"]}
+[stage 7 going_over] 21218 ms {"t":15.8,"heel":67,"sog":2.11,"agents":["helm:dryCapsize","crew:falling"]}
+[stage 8 in_water] 24385 ms {"t":17.3,"heel":44,"sog":0.35,"agents":["helm:standBoard","crew:scooped"]}
+[stage 9 on_the_board] 22494 ms {"t":18,"heel":31,"sog":0.21,"agents":["helm:standBoard","crew:scooped"]}
+[stage 10 righting] 16163 ms {"t":18,"heel":30,"sog":0.32,"agents":["helm:standBoard","crew:scooped"]}
+[stage 11 coming_up] 18375 ms {"t":18,"heel":29,"sog":1.06,"agents":["helm:holdGunwale","crew:scooped"]}
+[stage 12 climb_in] 22268 ms {"t":19.4,"heel":5,"sog":0.68,"agents":["helm:climbIn","crew:scooped"]}
+[stage 13 back_aboard] 50127 ms {"t":23.5,"heel":6,"sog":1.17,"agents":["helm:sailing","crew:sailing"]}
+[stage 14 sailing_again] 44910 ms {"t":29.5,"heel":11,"sog":5.03,"agents":["helm:sailing","crew:sailing"]}
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[error] Failed to load resource: the server responded with a status of 404 (Not Found)

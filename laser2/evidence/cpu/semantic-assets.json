@@ -2,13 +2,13 @@
   "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
   "lane": "Node CPU-only manifest and serialized BufferGeometry validation; no browser or GPU required",
   "semanticManifest": {
-    "path": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/semantic-manifest.v2.json",
+    "path": "/home/user/aqua-react-splash/laser2/public/assets/boat/semantic-manifest.v2.json",
     "sha256": "9a0235059ec14c4931ff122b73753ded3ef64335069404503e70807fcb833eb7",
     "boatBindings": 32,
     "rigBindings": 9
   },
   "hullAsset": {
-    "path": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v2.json",
+    "path": "/home/user/aqua-react-splash/laser2/public/assets/boat/hull-static-v2.json",
     "sha256": "44bfa93de0d4ef94bec0af4d947a2a58f80e850d61b399b028c76057cd3553e3",
     "meshes": 27,
     "vertices": 5571,

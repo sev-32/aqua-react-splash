@@ -1,0 +1,44 @@
+export interface LightingSettings {
+    atmosphereEnabled: boolean;
+    sunElevationDeg: number;
+    sunAzimuthDeg: number;
+    sunIlluminanceLux: number;
+    sunIntensity: number;
+    sunAngularRadiusDeg: number;
+    skyIntensity: number;
+    rayleighDensity: number;
+    aerosolDensity: number;
+    mieAnisotropy: number;
+    turbidity: number;
+    ozoneDensity: number;
+    multipleScatteringFactor: number;
+    spectralSolarEnabled: boolean;
+    groundAlbedo: number;
+    groundBounce: number;
+    cameraAltitudeM: number;
+    exposureEv: number;
+    autoExposureEnabled: boolean;
+    autoExposureReferenceLux: number;
+    autoExposureStrength: number;
+    autoExposureMinEv: number;
+    autoExposureMaxEv: number;
+    whiteBalanceKelvin: number;
+    toneMappingShoulder: number;
+    aerialPerspectiveEnabled: boolean;
+    aerialPerspectiveStrength: number;
+    aerialPerspectiveMaxDistanceM: number;
+    diffuseEnvironmentIntensity: number;
+    specularEnvironmentIntensity: number;
+    localProbesEnabled: boolean;
+    localDiffuseBounceStrength: number;
+    localSpecularProbeStrength: number;
+    shadowsEnabled: boolean;
+    sailTransmission: number;
+    sailAbsorption: number;
+    sailShadowSoftnessMm: number;
+    vinylTransmission: number;
+    aluminumRoughness: number;
+    hullGelcoatRoughness: number;
+}
+export declare const DEFAULT_LIGHTING_SETTINGS: LightingSettings;
+//# sourceMappingURL=LightingSettings.d.ts.map

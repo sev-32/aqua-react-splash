@@ -1,0 +1,11 @@
+[harness] ready after 12101 ms
+[stage 0 setup] 19878 ms "ok"
+[stage 1 t14dry] 325457 ms "{\"tws\":14,\"dry\":true,\"over\":true,\"maxHeel\":84,\"recoveredS\":17.1,\"done\":true,\"maxStallS\":0.7,\"trace\":\"2,65,41,17\",\"events\":[\"helm: sailing→bracing (heel 58°) > bracing→dryCapsize (heel 62°) > dryCapsize→standBoard (on the board (dry)) > standBoard→holdGunwale > holdGunwale→climbIn > climbIn→sailing (back aboard)\",\"crew: sailing→bracing (heel 58°) > bracing→falling (leeward capsize) > falling→holdStrap (caught the toe strap) > holdStrap→scooped > scooped→sailing (scooped and seated)\"]}"
+[stage 2 t14wet] 718104 ms "{\"tws\":14,\"dry\":false,\"over\":true,\"maxHeel\":105,\"recoveredS\":35.1,\"done\":true,\"maxStallS\":0.4,\"trace\":\"19,101,97,94,98,53,31,4\",\"events\":[\"helm: sailing→bracing (heel 59°) > bracing→falling (leeward capsize) > falling→treading > treading→swimToBoard (to centreboard) > swimToBoard→hangBoard (tip 0.69 m above water) > hangBoard→climbBoard > climbBoard→standBoard > standBoard→holdGunwale > holdGunwale→climbIn > climbIn→sailing (back aboard)\",\"crew: sailing→bracing (heel 59°) > bracing→falling (leeward capsize) > falling→holdStrap (caught the toe strap) > holdStrap→scooped > scooped→sailing (scooped and seated)\"]}"
+[stage 3 t18dry] 1923887 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 4 t10wet] 1 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 5 t18wet] 0 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 6 t12dry] 0 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[error] Failed to load resource: the server responded with a status of 404 (Not Found)

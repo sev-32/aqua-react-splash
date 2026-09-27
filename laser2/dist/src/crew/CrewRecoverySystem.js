@@ -1,0 +1,1846 @@
+// Crew authority for sailing mode: active balance while sailing, falling out
+// in a capsize, swimming, righting the boat from the centreboard (including
+// turtle recovery from the upturned hull), the scoop method for the second
+// crew, and climbing back aboard.
+//
+// Physics coupling:
+// - Aboard / attached crew are carried by the hull: their mass, inertia and
+//   weight moment enter the composite rigid body through CrewMassProvider
+//   (and their buoyancy when partly immersed, e.g. climbing out of the water).
+//   A righter standing on the board and leaning back therefore produces the
+//   exact righting moment of their weight at that lever.
+// - Overboard crew are SwimmerBody point masses integrated in the XPBD
+//   sub-steps with tension-only grip ropes (board tip, toe strap, gunwale)
+//   and hull/spar contact, so hanging on the board or being dragged aboard by
+//   the strap is resolved by the solver, not scripted.
+//
+// Legacy integration: each legacy crew actor's update() is wrapped. While a
+// crew member is seated/hiking the legacy biomechanics still produce the pose
+// (with the balance controller's hike command, including new inboard and
+// leeward seating via a wrapped seatAnchor); in every other state the legacy
+// update is skipped and CrewPoseSynth drives the same skinned ProceduralHuman.
+import { SwimmerBody, HullGripConstraint, HullContactConstraint, SparContactConstraint } from './SwimmerBody.js';
+import { hullSignedDistance, HULL_POINTS, sheerY, sheerHalfBreadth, uOfZ, COCKPIT_SOLE_Y } from '../sailing/HullGeometry.js';
+import * as P from './CrewPoseSynth.js';
+import { three } from '../three/ThreeRuntime.js';
+const OVERBOARD_TASKS = new Set(['falling', 'treading', 'swimToBoard', 'hangBoard', 'swimToHull', 'swimToCockpit', 'holdStrap', 'swimToGunwale', 'holdGunwale']);
+const ATTACHED_TASKS = new Set(['dryCapsize', 'scooped', 'climbBoard', 'standBoard', 'climbHull', 'standHull', 'climbIn']);
+class CrewAgent {
+    id;
+    actor;
+    mode = 'aboard';
+    task = 'sailing';
+    taskTime = 0;
+    role;
+    swimmer;
+    grip;
+    contact;
+    mastContact;
+    boomContact;
+    comDesign = { x: 0, y: 0.74, z: 0 };
+    hikeCommand = 0.2;
+    hikeSaturatedS = 0;
+    hikeSlackS = 0;
+    lastPhiAway = 0;
+    lean = 0;
+    progress = 0;
+    attachStartDesign = { x: 0, y: 0, z: 0 };
+    /** Feet (design frame) when a dry capsize started. */
+    dryStartFeet = { x: 0, y: 0, z: 0 };
+    /** Rope length the current grip is drawn in to (m). */
+    gripTarget = 0.8;
+    /** Lowest recent heel (deg) while waiting for the scoop; detects the boat rising. */
+    scoopHeelMark = 180;
+    /** Time the righting has made no progress while this sailor waits (s), from heel stallRef. */
+    stallS = 0;
+    stallRef = 0;
+    /** Scooped crew's seat, design-x sign blended between the sides, and its target. */
+    seatBlend = 0;
+    seatWant = 0;
+    holdSide = 1; // design x sign of the gunwale/strap used
+    heading = { x: 1, y: 0, z: 0 };
+    waypoint = 0;
+    wetness = 0;
+    poseTime = 0;
+    blendFrom = null;
+    blendT = 1;
+    lastSkeleton = null;
+    dims;
+    forceWorld = { x: 0, y: 0, z: 0 };
+    forcePoint = { x: 0, y: 0, z: 0 };
+    carriedBuoyancyN = 0;
+    events = [];
+    constructor(id, actor, role) {
+        this.id = id;
+        this.actor = actor;
+        this.role = role;
+        const height = actor.human?.H ?? 1.76;
+        this.swimmer = new SwimmerBody({ massKg: 75, statureM: height });
+        this.swimmer.active = false;
+        this.dims = P.dimsFromLegacy(actor);
+    }
+    setTask(task, note = '') {
+        if (task === this.task)
+            return;
+        this.events.push(`${this.task}→${task}${note ? ` (${note})` : ''}`);
+        if (this.events.length > 24)
+            this.events.shift();
+        this.task = task;
+        this.taskTime = 0;
+        this.waypoint = 0;
+        this.scoopHeelMark = 180;
+        this.stallS = 0;
+        this.mode = OVERBOARD_TASKS.has(task) ? 'overboard' : ATTACHED_TASKS.has(task) ? 'attached' : 'aboard';
+        this.swimmer.active = this.mode === 'overboard';
+    }
+}
+export class CrewRecoverySystem {
+    ocean;
+    physics;
+    bus;
+    id = 'crew.recovery';
+    phase = 'postPhysics';
+    enabled = true;
+    /** Crew perform the full capsize recovery automatically. */
+    autoRecovery = true;
+    /** Crew actively balance the boat (hiking, inboard/leeward seating). */
+    balanceAssist = true;
+    /** Crew uses the trapeze when fully hiked in a breeze. */
+    trapezeAssist = true;
+    /** Ease sheets while capsized so the boat does not sail off on righting. */
+    releaseSheetsWhenCapsized = true;
+    /** Crew trim main and jib to the apparent wind (and ease in gusts) unless keys are held. */
+    trimAssist = true;
+    lastAwaDeg = 0;
+    /** Helm steps over the high side onto the board in a leeward capsize. */
+    dryCapsize = true;
+    /** Maximum lean-back angle on the board (rad); U key raises it. */
+    maxLeanRad = 1.0;
+    /** How far past the legacy seat a fully hiked sailor's pelvis goes (m). */
+    hikeOverGunwaleM = 0.16;
+    heaveBoost = 0;
+    /**
+     * Knockdown gust (O key / API): a real gust — the wind speed ramps to
+     * `gustPeak` × for a few seconds — that catches the crew out: sheets held,
+     * no extra hiking, and on a broad course the helm luffs into it. Whether the
+     * boat goes over is decided by the sail forces and the righting moment.
+     */
+    gustPeak = 1.9;
+    gust = { active: false, t: 0, rampS: 0.7, holdS: 2.6, decayS: 1.6 };
+    gustFactor = 1;
+    /**
+     * After a recovery the crew bring the sheets in slowly before normal
+     * trimming resumes (seconds left). Any sheet key ends it.
+     */
+    settleS = 0;
+    /** Heel-limited ceiling on the mainsheet (gust relief) and the heel it last saw. */
+    mainCeiling = 1;
+    trimLastHeel = 0;
+    /** Remaining seconds the crew is caught out by the gust. */
+    knockdownS = 0;
+    knockdownElapsed = 0;
+    luffSign = 0;
+    agents = [];
+    context = null;
+    installed = false;
+    removers = [];
+    originals = new Map();
+    tmp = {};
+    savedTrim = null;
+    restoreTrimS = 0;
+    recoveryCount = 0;
+    capsizeCount = 0;
+    capsizeActive = false;
+    capsizeStartTime = 0;
+    lastRecoveryDurationS = 0;
+    simTime = 0;
+    frame = {
+        r: new Float64Array(9), pos: P.v3(), refY: 0.3, refZ: -0.15, up: P.v3(0, 1, 0), fwd: P.v3(0, 0, 1), right: P.v3(1, 0, 0),
+        heelDeg: 0, worldUpInDesign: P.v3(0, 1, 0), center: P.v3(), vel: P.v3(), omega: P.v3(),
+    };
+    carried = [];
+    constructor(ocean, physics, bus) {
+        this.ocean = ocean;
+        this.physics = physics;
+        this.bus = bus;
+    }
+    init(context) {
+        this.context = context;
+        const master = context.legacy.master;
+        if (master.helm)
+            this.agents.push(new CrewAgent('helm', master.helm, 'righter'));
+        if (master.crew)
+            this.agents.push(new CrewAgent('crew', master.crew, 'scoop'));
+        const T = three();
+        this.tmp = { a: new T.Vector3(), b: new T.Vector3(), q: new T.Quaternion() };
+        for (const agent of this.agents) {
+            const body = master.body;
+            const toDesign = (w, out) => this.worldToDesign(w, out);
+            const nToWorld = (n, out) => this.rotateToWorld(n, out);
+            agent.grip = new HullGripConstraint(body, agent.swimmer, { x: 0, y: 0, z: 0 }, 0.8, 2e-6, T.Vector3);
+            agent.grip.enabled = false;
+            agent.contact = new HullContactConstraint(body, agent.swimmer, toDesign, nToWorld, hullSignedDistance, T.Vector3);
+            agent.mastContact = new SparContactConstraint(agent.swimmer, master.rig?.mast ?? [], 0.035);
+            agent.boomContact = new SparContactConstraint(agent.swimmer, master.rig?.boom ?? [], 0.045);
+        }
+    }
+    // --------------------------------------------------------------------------
+    // SailingAuthority
+    // --------------------------------------------------------------------------
+    install(context) {
+        if (this.installed)
+            return;
+        const master = context.legacy.master;
+        const world = master.physics;
+        this.physics.crewProvider = this;
+        for (const agent of this.agents)
+            this.wrapActor(agent);
+        const forceHook = (dt) => {
+            for (const a of this.agents)
+                if (a.swimmer.active)
+                    a.swimmer.computeForces(this.ocean, dt);
+        };
+        // The gust acts through the wind itself: every consumer (sails, spars,
+        // windage) sees the same stronger air.
+        const wind = master.wind;
+        if (wind?.update) {
+            const hadOwn = Object.prototype.hasOwnProperty.call(wind, 'update');
+            const originalUpdate = wind.update;
+            wind.update = (dt) => {
+                originalUpdate.call(wind, dt);
+                if (this.gustFactor !== 1)
+                    wind.curSpeed *= this.gustFactor;
+            };
+            this.removers.push(() => { if (hadOwn)
+                wind.update = originalUpdate;
+            else
+                delete wind.update; });
+        }
+        const predict = (dt) => { for (const a of this.agents)
+            if (a.swimmer.active)
+                a.swimmer.predict(dt); };
+        const finish = (dt) => { for (const a of this.agents)
+            if (a.swimmer.active)
+                a.swimmer.finish(dt); };
+        world.forceHooks.push(forceHook);
+        world.preSolveHooks.push(predict);
+        world.postHooks.push(finish);
+        const constraints = [];
+        for (const agent of this.agents)
+            constraints.push(agent.grip, agent.contact, agent.mastContact, agent.boomContact);
+        for (const c of constraints)
+            world.constraints.push(c);
+        this.removers.push(() => {
+            const remove = (list, item) => { const i = list.indexOf(item); if (i >= 0)
+                list.splice(i, 1); };
+            remove(world.forceHooks, forceHook);
+            remove(world.preSolveHooks, predict);
+            remove(world.postHooks, finish);
+            for (const c of constraints)
+                remove(world.constraints, c);
+        });
+        this.removers.push(this.bus.onBefore((dt, _substeps, time) => this.beforeStep(dt, time)));
+        const onKey = (event, down) => {
+            const target = event.target?.tagName?.toLowerCase();
+            if (target && ['input', 'select', 'textarea'].includes(target))
+                return;
+            if (event.code === 'KeyU')
+                this.heaveBoost = down ? 1 : 0;
+            if (!down || event.repeat)
+                return;
+            if (event.code === 'KeyO')
+                this.forceCapsize();
+            if (event.code === 'KeyI')
+                this.autoRecovery = !this.autoRecovery;
+        };
+        const keydown = (event) => onKey(event, true);
+        const keyup = (event) => onKey(event, false);
+        window.addEventListener('keydown', keydown);
+        window.addEventListener('keyup', keyup);
+        this.removers.push(() => { window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); });
+        this.removers.push(this.bus.onAfter((dt) => this.afterStep(dt)));
+        this.resetAgents(context);
+        this.installed = true;
+    }
+    uninstall(context) {
+        if (!this.installed)
+            return;
+        for (const remove of this.removers.splice(0))
+            remove();
+        for (const agent of this.agents)
+            this.unwrapActor(agent);
+        this.resetAgents(context);
+        if (this.physics.crewProvider === this)
+            this.physics.crewProvider = null;
+        this.installed = false;
+    }
+    onSailingReset(context) {
+        this.resetAgents(context);
+    }
+    resetAgents(context) {
+        for (const agent of this.agents) {
+            agent.setTask('sailing', 'reset');
+            agent.mode = 'aboard';
+            agent.swimmer.active = false;
+            agent.grip.enabled = false;
+            agent.lean = 0;
+            agent.progress = 0;
+            agent.blendFrom = null;
+            agent.hikeCommand = 0.2;
+            agent.wetness = 0;
+            this.applyWetness(agent);
+        }
+        const input = context.legacy.master.input?.state;
+        if (this.savedTrim && input) {
+            input.mainScope = this.savedTrim.mainScope;
+            input.jibScope = this.savedTrim.jibScope;
+        }
+        this.savedTrim = null;
+        this.capsizeActive = false;
+    }
+    // --------------------------------------------------------------------------
+    // CrewMassProvider
+    // --------------------------------------------------------------------------
+    hullCarriedCrew() {
+        this.carried.length = 0;
+        for (const agent of this.agents) {
+            if (agent.mode === 'overboard')
+                continue;
+            const entry = { id: agent.id, massKg: agent.swimmer.spec.massKg, comDesign: agent.comDesign };
+            if (agent.carriedBuoyancyN > 1) {
+                entry.forceWorld = agent.forceWorld;
+                entry.forcePointWorld = agent.forcePoint;
+            }
+            this.carried.push(entry);
+        }
+        return this.carried;
+    }
+    // --------------------------------------------------------------------------
+    // Legacy actor wrapping
+    // --------------------------------------------------------------------------
+    wrapActor(agent) {
+        const actor = agent.actor;
+        if (this.originals.has(actor))
+            return;
+        const record = {
+            update: actor.update,
+            seatAnchor: actor.seatAnchor,
+            hadUpdate: Object.prototype.hasOwnProperty.call(actor, 'update'),
+            hadSeat: Object.prototype.hasOwnProperty.call(actor, 'seatAnchor'),
+        };
+        this.originals.set(actor, record);
+        const originalUpdate = record.update.bind(actor);
+        const originalSeat = record.seatAnchor.bind(actor);
+        actor.update = (e) => {
+            if (agent.mode !== 'aboard' || (agent.task !== 'sailing' && agent.task !== 'bracing'))
+                return;
+            const hike = this.balanceAssist ? agent.hikeCommand : e.hike;
+            originalUpdate({ ...e, hike, capsized: false, trapeze: e.trapeze && agent.task === 'sailing' });
+            const com = actor.articulatedComLocal;
+            if (actor.comValid && com) {
+                agent.comDesign.x = com.x;
+                agent.comDesign.y = com.y;
+                agent.comDesign.z = com.z;
+            }
+        };
+        // Negative hike beyond the legacy range moves the sailor inboard onto the
+        // centreline and then onto the leeward side deck (light air / runs).
+        actor.seatAnchor = (side, hike, aft) => {
+            if (hike >= -0.35) {
+                const seat = originalSeat(side, hike, aft);
+                // Full hiking puts the backside over the gunwale edge, thighs on the
+                // deck edge. The legacy anchor stops 25 mm inside the gunwale, which
+                // left a fully hiked sailor's centre of mass ~0.63 m off the
+                // centreline; real hiking is ~0.8 m. Not on the trapeze.
+                const over = this.hikeOverGunwaleM * P.smooth((hike - 0.55) / 0.45) * (1 - Math.min(1, Math.max(0, actor.trapB ?? 0)));
+                if (over > 1e-4) {
+                    const out = Math.sign(seat.x) || 1;
+                    seat.x += out * over;
+                    actor.seatContactPoint?.set?.(actor.seatContactPoint.x + out * over, actor.seatContactPoint.y, actor.seatContactPoint.z);
+                }
+                return seat;
+            }
+            const inboard = originalSeat(side, -0.35, aft);
+            const contact = actor.seatContactPoint?.clone?.();
+            const t = Math.min(1, (-0.35 - hike) / 0.65);
+            const centre = inboard.clone();
+            centre.x = inboard.x * 0.18;
+            centre.y = COCKPIT_SOLE_Y + 0.2;
+            let result = inboard.clone().lerp(centre, P.smooth(t));
+            if (hike < -1) {
+                const leeward = originalSeat(-side, -0.35, aft);
+                result = centre.clone().lerp(leeward, P.smooth(Math.min(1, (-1 - hike) / 0.6)));
+            }
+            if (contact && actor.seatContactPoint)
+                actor.seatContactPoint.set(result.x, result.y - 0.105, result.z);
+            return result;
+        };
+    }
+    unwrapActor(agent) {
+        const actor = agent.actor;
+        const record = this.originals.get(actor);
+        if (!record)
+            return;
+        if (record.hadUpdate)
+            actor.update = record.update;
+        else
+            delete actor.update;
+        if (record.hadSeat)
+            actor.seatAnchor = record.seatAnchor;
+        else
+            delete actor.seatAnchor;
+        this.originals.delete(actor);
+        actor.human.group.visible = true;
+    }
+    // --------------------------------------------------------------------------
+    // Frames and conversions
+    // --------------------------------------------------------------------------
+    updateFrame() {
+        const master = this.context.legacy.master;
+        const body = master.body;
+        const f = this.frame;
+        const q = body.quat;
+        const x = q.x, y = q.y, z = q.z, w = q.w;
+        const r = f.r;
+        r[0] = 1 - 2 * (y * y + z * z);
+        r[1] = 2 * (x * y - w * z);
+        r[2] = 2 * (x * z + w * y);
+        r[3] = 2 * (x * y + w * z);
+        r[4] = 1 - 2 * (x * x + z * z);
+        r[5] = 2 * (y * z - w * x);
+        r[6] = 2 * (x * z - w * y);
+        r[7] = 2 * (y * z + w * x);
+        r[8] = 1 - 2 * (x * x + y * y);
+        f.pos.x = body.pos.x;
+        f.pos.y = body.pos.y;
+        f.pos.z = body.pos.z;
+        const ref = master.bodyReference;
+        f.refY = ref?.y ?? 0.3;
+        f.refZ = ref?.z ?? -0.15;
+        f.right = { x: r[0], y: r[3], z: r[6] };
+        f.up = { x: r[1], y: r[4], z: r[7] };
+        f.fwd = { x: r[2], y: r[5], z: r[8] };
+        f.worldUpInDesign = { x: r[3], y: r[4], z: r[5] };
+        f.heelDeg = (Math.acos(Math.max(-1, Math.min(1, f.up.y))) * 180) / Math.PI;
+        f.center = this.designToWorld({ x: 0, y: 0.12, z: -0.2 }, P.v3());
+        f.vel = { x: body.vel.x, y: body.vel.y, z: body.vel.z };
+        f.omega = { x: body.omega.x, y: body.omega.y, z: body.omega.z };
+        return f;
+    }
+    designToWorld(d, out) {
+        const f = this.frame, r = f.r;
+        const lx = d.x, ly = d.y - f.refY, lz = d.z - f.refZ;
+        out.x = f.pos.x + r[0] * lx + r[1] * ly + r[2] * lz;
+        out.y = f.pos.y + r[3] * lx + r[4] * ly + r[5] * lz;
+        out.z = f.pos.z + r[6] * lx + r[7] * ly + r[8] * lz;
+        return out;
+    }
+    worldToDesign(w, out) {
+        const f = this.frame, r = f.r;
+        const dx = w.x - f.pos.x, dy = w.y - f.pos.y, dz = w.z - f.pos.z;
+        out.x = r[0] * dx + r[3] * dy + r[6] * dz;
+        out.y = r[1] * dx + r[4] * dy + r[7] * dz + f.refY;
+        out.z = r[2] * dx + r[5] * dy + r[8] * dz + f.refZ;
+        return out;
+    }
+    rotateToWorld(n, out) {
+        const r = this.frame.r;
+        out.x = r[0] * n.x + r[1] * n.y + r[2] * n.z;
+        out.y = r[3] * n.x + r[4] * n.y + r[5] * n.z;
+        out.z = r[6] * n.x + r[7] * n.y + r[8] * n.z;
+        return out;
+    }
+    rotateToDesign(w, out) {
+        const r = this.frame.r;
+        out.x = r[0] * w.x + r[3] * w.y + r[6] * w.z;
+        out.y = r[1] * w.x + r[4] * w.y + r[7] * w.z;
+        out.z = r[2] * w.x + r[5] * w.y + r[8] * w.z;
+        return out;
+    }
+    pointVelocity(world) {
+        const f = this.frame;
+        const rx = world.x - f.pos.x, ry = world.y - f.pos.y, rz = world.z - f.pos.z;
+        return { x: f.vel.x + f.omega.y * rz - f.omega.z * ry, y: f.vel.y + f.omega.z * rx - f.omega.x * rz, z: f.vel.z + f.omega.x * ry - f.omega.y * rx };
+    }
+    /** Body-frame (rigid body local) point from a design point. */
+    designToBody(d) {
+        return { x: d.x, y: d.y - this.frame.refY, z: d.z - this.frame.refZ };
+    }
+    surfaceAt(p) { return this.ocean.height(p.x, p.z); }
+    // Key hull points (design frame).
+    boardTipDesign() { return { x: 0, y: HULL_POINTS.boardTipY + 0.06, z: HULL_POINTS.boardZ }; }
+    boardRootDesign() { return { x: 0, y: HULL_POINTS.boardRootY - 0.08, z: HULL_POINTS.boardZ }; }
+    gunwaleDesign(side, z = -0.75) { return { x: side * sheerHalfBreadth(uOfZ(z)) * 0.98, y: sheerY(uOfZ(z)) + 0.02, z }; }
+    strapDesign(side) { return { x: side * HULL_POINTS.toeStrapX, y: HULL_POINTS.toeStrapY, z: -0.62 }; }
+    // --------------------------------------------------------------------------
+    // Step logic
+    // --------------------------------------------------------------------------
+    beforeStep(dt, time) {
+        if (!this.context || !this.enabled)
+            return;
+        this.simTime = time;
+        const context = this.context;
+        const master = context.legacy.master;
+        const frame = this.updateFrame();
+        const capsizedNow = frame.heelDeg > 80;
+        if (capsizedNow && !this.capsizeActive) {
+            this.capsizeActive = true;
+            this.capsizeCount++;
+            this.capsizeStartTime = time;
+            context.events.emit('sailing:capsize', { state: frame.heelDeg > 140 ? 'turtled' : 'capsized', heelDeg: frame.heelDeg });
+        }
+        this.manageSheets(master, frame, dt);
+        this.advanceGust(master, frame, dt);
+        for (const agent of this.agents) {
+            agent.taskTime += dt;
+            this.stepAgent(agent, frame, dt);
+        }
+        if (this.capsizeActive && this.agents.every((a) => a.mode === 'aboard' && a.task === 'sailing') && frame.heelDeg < 30) {
+            this.capsizeActive = false;
+            this.recoveryCount++;
+            this.lastRecoveryDurationS = time - this.capsizeStartTime;
+            this.settleS = this.autoRecovery ? 6 : 0;
+            this.mainCeiling = 1;
+        }
+        if (this.settleS > 0)
+            this.settle(master, frame, dt);
+    }
+    phiAway(agent, frame) {
+        // Positive when the agent's side (design x sign = −side) is up.
+        const sigma = -Math.sign(agent.actor.side || -1);
+        return (Math.asin(Math.max(-1, Math.min(1, frame.right.y * sigma))) * 180) / Math.PI;
+    }
+    stepAgent(agent, frame, dt) {
+        const other = this.agents.find((a) => a !== agent) ?? null;
+        const heel = frame.heelDeg;
+        const s = agent.swimmer;
+        if (!['swimToBoard', 'swimToHull', 'swimToCockpit', 'swimToGunwale', 'treading'].includes(agent.task))
+            s.hold = 0;
+        switch (agent.task) {
+            case 'sailing': {
+                const phi = this.phiAway(agent, frame);
+                // Caught out by a gust: no time to react (hiking stays where it was).
+                if (this.knockdownS <= 0)
+                    this.balance(agent, phi, dt);
+                else
+                    agent.lastPhiAway = phi;
+                if (phi > 58 || phi < -42 || heel > 70)
+                    agent.setTask('bracing', `heel ${heel.toFixed(0)}°`);
+                break;
+            }
+            case 'bracing': {
+                const phi = this.phiAway(agent, frame);
+                const phiRate = (phi - agent.lastPhiAway) / Math.max(dt, 1e-3);
+                agent.lastPhiAway = phi;
+                agent.hikeCommand = phi > 0 ? 1 : -1.6;
+                // Going over to leeward with this sailor on the high side: a skilled
+                // helm steps over the gunwale onto the centreboard without getting wet.
+                if (agent.role === 'righter' && this.dryCapsize && this.autoRecovery && phi > 62 && heel > 58 && (phiRate > 4 || phi > 76)) {
+                    this.beginDryCapsize(agent, frame);
+                    break;
+                }
+                const comWorld = this.designToWorld(agent.comDesign, P.v3());
+                const dunked = comWorld.y < this.surfaceAt(comWorld) + 0.05;
+                if (phi > 82 || phi < -65 || heel > 100 || (dunked && heel > 45))
+                    this.fall(agent, frame, phi);
+                else if (heel < 42)
+                    agent.setTask('sailing', 'recovered from knockdown');
+                break;
+            }
+            case 'falling':
+                s.treading = 0.2;
+                s.swimThrottle = 0;
+                s.verticality = Math.min(1, s.verticality + dt * 1.5);
+                if (s.inWater && agent.taskTime > 0.7) {
+                    // Fell into the flooded cockpit holding a toe strap: stay for the scoop.
+                    if (agent.grip.enabled)
+                        agent.setTask('holdStrap', 'caught the toe strap');
+                    else
+                        agent.setTask('treading');
+                }
+                break;
+            case 'dryCapsize':
+                this.stepDryCapsize(agent, frame, dt);
+                break;
+            case 'treading':
+                this.tread(agent, dt);
+                if (this.autoRecovery && agent.taskTime > (agent.role === 'righter' ? 0.9 : 1.3))
+                    this.chooseRecoveryTask(agent, frame, other);
+                break;
+            case 'swimToBoard':
+                this.swimToBoard(agent, frame, dt);
+                break;
+            case 'hangBoard': {
+                const grip = agent.grip;
+                s.verticality = Math.min(1, s.verticality + dt * 2);
+                s.swimThrottle = 0;
+                s.treading = 0.6;
+                grip.length = Math.max(0.72, grip.length - dt * 0.12);
+                if (heel < 32) {
+                    this.releaseGrip(agent);
+                    agent.setTask('swimToGunwale', 'boat came up');
+                    break;
+                }
+                if (heel > 140) {
+                    this.releaseGrip(agent);
+                    agent.setTask('swimToHull', 'turtled');
+                    break;
+                }
+                if (agent.taskTime > 1.1)
+                    this.attach(agent, 'climbBoard');
+                break;
+            }
+            case 'climbBoard':
+            case 'standBoard':
+                this.onBoard(agent, frame, dt);
+                break;
+            case 'swimToHull':
+                this.swimToHull(agent, frame, dt);
+                break;
+            case 'climbHull':
+            case 'standHull':
+                this.onUpturnedHull(agent, frame, dt);
+                break;
+            case 'swimToCockpit':
+                this.swimToCockpit(agent, frame, dt);
+                break;
+            case 'holdStrap':
+                this.holdStrap(agent, frame, dt);
+                break;
+            case 'scooped':
+                this.scooped(agent, frame, dt, other);
+                break;
+            case 'swimToGunwale':
+                this.swimToGunwale(agent, frame, dt);
+                break;
+            case 'holdGunwale':
+                this.holdGunwale(agent, frame, dt, other);
+                break;
+            case 'climbIn':
+                this.climbIn(agent, frame, dt, other);
+                break;
+        }
+        // Hands work along a held line at a human pace (no rope snap).
+        if (agent.grip.enabled && agent.mode === 'overboard' && agent.task !== 'hangBoard') {
+            agent.grip.length = Math.max(agent.gripTarget, agent.grip.length - dt * 0.35);
+        }
+        // Carried crew partly in the water get buoyancy on the hull.
+        agent.carriedBuoyancyN = 0;
+        if (agent.mode === 'attached') {
+            const com = this.designToWorld(agent.comDesign, P.v3());
+            const depth = this.surfaceAt(com) - com.y;
+            const saved = s.verticality;
+            s.verticality = 1;
+            const frac = s.submergedFraction(depth);
+            s.verticality = saved;
+            const buoyancy = 1025 * 9.81 * s.volumeM3 * frac;
+            if (buoyancy > 1) {
+                agent.carriedBuoyancyN = buoyancy;
+                agent.forceWorld.x = 0;
+                agent.forceWorld.y = buoyancy;
+                agent.forceWorld.z = 0;
+                agent.forcePoint.x = com.x;
+                agent.forcePoint.y = com.y;
+                agent.forcePoint.z = com.z;
+            }
+        }
+        if (s.active && s.inWater)
+            agent.wetness = 1;
+        else
+            agent.wetness *= Math.exp(-dt / 240);
+    }
+    /** Aboard balance: hike command from heel away from the crew side. */
+    balance(agent, phi, dt) {
+        const input = this.context.legacy.master.input?.state;
+        const user = input?.hike ?? 0.2;
+        const rate = (phi - agent.lastPhiAway) / Math.max(dt, 1e-3);
+        agent.lastPhiAway = phi;
+        const gain = agent.id === 'crew' ? 1.15 : 0.95;
+        const target = 5;
+        let command = 0.25 * (user - 0.2) + gain * ((phi - target) / 10 + rate / 30);
+        command = Math.max(-1.6, Math.min(1, command));
+        const maxStep = 1.4 * dt;
+        agent.hikeCommand += Math.max(-maxStep, Math.min(maxStep, command - agent.hikeCommand));
+        if (agent.id === 'crew' && this.trapezeAssist && input) {
+            if (agent.hikeCommand > 0.97) {
+                agent.hikeSaturatedS += dt;
+                agent.hikeSlackS = 0;
+            }
+            else if (agent.hikeCommand < 0.3) {
+                agent.hikeSlackS += dt;
+                agent.hikeSaturatedS = 0;
+            }
+            else {
+                agent.hikeSaturatedS = 0;
+                agent.hikeSlackS = 0;
+            }
+            if (!input.trapeze && agent.hikeSaturatedS > 1.2)
+                input.trapeze = true;
+            if (input.trapeze && agent.hikeSlackS > 2.2)
+                input.trapeze = false;
+        }
+    }
+    /**
+     * Post-recovery settle: righted beam-on with the sheets free, the crew bring
+     * the sheets in slowly (0.12/s) against a low heel limit (10°) before normal
+     * trimming resumes; sheeted straight in beam-on to a breeze the boat went
+     * back over (18 kn: capsize loop). The helm is left alone: luffing her up
+     * with the sheets free overshot and rolled her over to windward.
+     */
+    settle(master, frame, dt) {
+        const keys = master.input?.keys ?? {};
+        if (keys.KeyW || keys.KeyS || keys.KeyQ || keys.KeyE || frame.heelDeg > 60) {
+            this.settleS = 0;
+            return;
+        }
+        this.settleS -= dt;
+    }
+    manageSheets(master, frame, dt) {
+        const input = master.input?.state;
+        if (!input || !this.releaseSheetsWhenCapsized)
+            return;
+        const anyoneOff = this.agents.some((a) => a.mode !== 'aboard' || a.task === 'scooped');
+        if ((frame.heelDeg > 75 || anyoneOff) && this.autoRecovery) {
+            if (!this.savedTrim)
+                this.savedTrim = { mainScope: input.mainScope, jibScope: input.jibScope };
+            input.mainScope = Math.max(0, input.mainScope - dt * 1.5);
+            input.jibScope = Math.max(0, input.jibScope - dt * 1.5);
+            input.trapeze = false;
+            input.tiller = 0;
+            this.restoreTrimS = 0;
+        }
+        else if (this.savedTrim && this.trimAssist) {
+            // The trim assist sets the sheets for the new course from the eased
+            // position instead of restoring the pre-capsize trim blindly.
+            this.savedTrim = null;
+        }
+        else if (this.savedTrim) {
+            this.restoreTrimS += dt;
+            if (this.restoreTrimS > 1.5) {
+                const k = Math.min(1, dt * 0.6);
+                input.mainScope += (this.savedTrim.mainScope - input.mainScope) * k;
+                input.jibScope += (this.savedTrim.jibScope - input.jibScope) * k;
+                if (Math.abs(input.mainScope - this.savedTrim.mainScope) < 0.01)
+                    this.savedTrim = null;
+            }
+        }
+        else if (this.trimAssist && frame.heelDeg < 60 && this.knockdownS <= 0) {
+            this.autoTrim(master, frame, dt);
+        }
+    }
+    /**
+     * Sheet trim by the crew: sails set for the apparent wind angle (sheeted
+     * hard on the wind, eased progressively towards a run) and the main eased
+     * when a gust heels the boat beyond what full hiking can hold.
+     */
+    autoTrim(master, frame, dt) {
+        const input = master.input?.state;
+        const keys = master.input?.keys ?? {};
+        const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+        if (!input || !wind)
+            return;
+        const ax = -(wind.x - frame.vel.x), az = -(wind.z - frame.vel.z);
+        const al = Math.hypot(ax, az), fl = Math.hypot(frame.fwd.x, frame.fwd.z);
+        if (al < 0.3 || fl < 0.2)
+            return;
+        const cosA = (ax * frame.fwd.x + az * frame.fwd.z) / (al * fl);
+        const awa = (Math.acos(Math.max(-1, Math.min(1, cosA))) * 180) / Math.PI;
+        this.lastAwaDeg = awa;
+        // Sailing to the telltales: each sheet is worked until the flow meets the
+        // sail at the angle of best lift at ~40 % height (soft sails: ~14° main,
+        // ~12° jib), easing faster than trimming in. Falls back to an apparent-
+        // wind schedule when the sail geometry is unavailable.
+        const layout = window.LASER2_RIGGING_V16?.layout;
+        const alphaMain = this.sailAlpha(layout?.main, 0.4, master, frame);
+        const alphaJib = this.sailAlpha(layout?.jib, 0.45, master, frame);
+        this.lastAlpha.main = alphaMain ?? Number.NaN;
+        this.lastAlpha.jib = alphaJib ?? Number.NaN;
+        const fullyHiked = this.agents.every((a) => a.mode !== 'aboard' || a.hikeCommand > 0.88);
+        const settling = this.settleS > 0;
+        // Playing the main against the heel once hiking cannot hold her: a
+        // ceiling on the mainsheet comes down with the excess heel (and how fast
+        // it is growing) and goes back up slowly, so a gust is eased through
+        // instead of the main being dumped and re-trimmed in a cycle (in 18 kn
+        // that cycle peaked at 40° every few seconds until she went over).
+        const heelLimit = settling ? 10 : fullyHiked ? 16 : 24;
+        const heelRate = (frame.heelDeg - this.trimLastHeel) / Math.max(dt, 1e-3);
+        this.trimLastHeel = frame.heelDeg;
+        const excess = frame.heelDeg - heelLimit;
+        if (excess > 0)
+            this.mainCeiling = Math.min(this.mainCeiling, input.mainScope) - (0.05 * excess + 0.015 * Math.max(0, heelRate)) * dt;
+        else if (excess < -4)
+            this.mainCeiling += 0.07 * dt;
+        this.mainCeiling = Math.max(0.03, Math.min(1, this.mainCeiling));
+        const work = (value, alpha, target, fallback) => {
+            if (alpha === null)
+                return value + Math.max(-dt * 1.1, Math.min(dt * 0.45, fallback - value));
+            const error = target - alpha; // positive → sheet in
+            const rate = Math.max(-0.55, Math.min(settling ? 0.12 : 0.28, error * 0.028));
+            return Math.max(0.02, Math.min(1, value + rate * dt));
+        };
+        if (!keys.KeyW && !keys.KeyS) {
+            const trimmed = work(input.mainScope, alphaMain, 14, 1 - (awa - 30) / 118);
+            // Gust relief overrides the telltales.
+            input.mainScope = Math.min(trimmed, this.mainCeiling);
+        }
+        else {
+            // The player is trimming: the ceiling follows their sheet so it does
+            // not snap the main out when the key is released.
+            this.mainCeiling = Math.max(this.mainCeiling, input.mainScope);
+        }
+        if (!keys.KeyQ && !keys.KeyE)
+            input.jibScope = work(input.jibScope, alphaJib, 12, 1 - (awa - 32) / 104);
+        // Kicker hard on the wind (it, not the centre mainsheet, holds the leech
+        // and the twist), firm reaching; eased on a run so the boom can lift and
+        // the leech open (death-roll prevention).
+        if (!keys.KeyR && !keys.KeyF) {
+            const vangTarget = awa < 60 ? 1 : awa < 125 ? 0.88 : 0.62;
+            input.vang += Math.max(-dt * 0.3, Math.min(dt * 0.3, vangTarget - input.vang));
+        }
+    }
+    lastAlpha = { main: Number.NaN, jib: Number.NaN };
+    /**
+     * Signed angle of attack (deg) of the apparent flow on the chord of the
+     * sail row at `frac` of the height, positive when the wind loads the
+     * windward face (negative: backwinded / luffing). Mirrors the V16 strip
+     * aerodynamics' chord/normal construction.
+     */
+    sailAlpha(rows, frac, master, frame) {
+        if (!rows || rows.length < 3)
+            return null;
+        const r = Math.max(1, Math.min(rows.length - 2, Math.round(frac * (rows.length - 1))));
+        const row = rows[r], prev = rows[r - 1], next = rows[r + 1];
+        const luff = row[0].x, leech = row[row.length - 1].x;
+        let cx = leech.x - luff.x, cy = leech.y - luff.y, cz = leech.z - luff.z;
+        const cl = Math.hypot(cx, cy, cz);
+        if (cl < 0.05)
+            return null;
+        cx /= cl;
+        cy /= cl;
+        cz /= cl;
+        let sx = next[0].x.x + next[next.length - 1].x.x - prev[0].x.x - prev[prev.length - 1].x.x;
+        let sy = next[0].x.y + next[next.length - 1].x.y - prev[0].x.y - prev[prev.length - 1].x.y;
+        let sz = next[0].x.z + next[next.length - 1].x.z - prev[0].x.z - prev[prev.length - 1].x.z;
+        const sl = Math.hypot(sx, sy, sz);
+        if (sl < 1e-4)
+            return null;
+        sx /= sl;
+        sy /= sl;
+        sz /= sl;
+        let nx = sy * cz - sz * cy, ny = sz * cx - sx * cz, nz = sx * cy - sy * cx;
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        nx /= nl;
+        ny /= nl;
+        nz /= nl;
+        const T = three();
+        const center = this.tmp.b.set((luff.x + leech.x) / 2, (luff.y + leech.y) / 2, (luff.z + leech.z) / 2);
+        const w = master.wind.velocityAt(center, this.tmp.a);
+        const pv = row[Math.floor(row.length * 0.42)].v;
+        let fx = w.x - pv.x, fy = w.y - pv.y, fz = w.z - pv.z;
+        const along = fx * sx + fy * sy + fz * sz;
+        fx -= along * sx;
+        fy -= along * sy;
+        fz -= along * sz;
+        const flen = Math.hypot(fx, fy, fz);
+        if (flen < 0.2)
+            return null;
+        // Orient the normal to the sail's leeward face: towards the side the
+        // clew is sheeted out to, or downwind when sheeted to the centreline.
+        const outboard = (leech.x - luff.x) * frame.right.x + (leech.y - luff.y) * frame.right.y + (leech.z - luff.z) * frame.right.z;
+        let lee = Math.abs(outboard) > 0.08 * cl
+            ? (nx * frame.right.x + ny * frame.right.y + nz * frame.right.z) * Math.sign(outboard)
+            : nx * fx + ny * fy + nz * fz;
+        if (lee < 0) {
+            nx = -nx;
+            ny = -ny;
+            nz = -nz;
+            lee = -lee;
+        }
+        void T;
+        void lee;
+        const sinA = Math.max(-1, Math.min(1, (fx * nx + fy * ny + fz * nz) / flen));
+        return (Math.asin(sinA) * 180) / Math.PI;
+    }
+    fall(agent, frame, phi) {
+        const com = this.designToWorld(agent.comDesign, P.v3());
+        const v = this.pointVelocity(com);
+        // Leeward capsize (own side up): drop across the boat towards the water;
+        // windward capsize (own side down): fall backwards off the gunwale.
+        const sigma = -Math.sign(agent.actor.side || -1);
+        const away = phi > 0 ? P.scale(frame.right, -sigma) : P.scale(frame.right, sigma);
+        const pushH = P.normalize({ x: away.x, y: 0, z: away.z }, { x: 1, y: 0, z: 0 });
+        agent.lastSkeleton = this.currentSkeletonWorld(agent);
+        agent.blendFrom = agent.lastSkeleton;
+        agent.blendT = 0;
+        // In a leeward capsize the crew drops across the cockpit into the water
+        // filling the low side and grabs the toe strap on the way (scoop position).
+        const intoCockpit = phi > 0 && agent.role === 'scoop' && this.autoRecovery;
+        const push = intoCockpit ? 0.35 : 0.9;
+        const lift = intoCockpit ? 0.1 : 0.8;
+        agent.swimmer.place(com, { x: v.x + pushH.x * push, y: Math.max(v.y, 0) + lift, z: v.z + pushH.z * push });
+        agent.swimmer.verticality = 0.7;
+        agent.heading = P.scale(pushH, -1);
+        this.releaseGrip(agent);
+        if (intoCockpit) {
+            const side = this.lowerStrapSide();
+            agent.holdSide = side;
+            this.engageGrip(agent, this.strapDesign(side), 0.8);
+        }
+        agent.setTask('falling', phi > 0 ? 'leeward capsize' : 'windward capsize');
+        const input = this.context.legacy.master.input?.state;
+        if (input)
+            input.trapeze = false;
+    }
+    tread(agent, dt) {
+        const s = agent.swimmer;
+        s.swimThrottle = 0;
+        s.treading = 0.85;
+        s.verticality += (1 - s.verticality) * Math.min(1, dt * 2);
+        // Stay with the boat: grab it if within reach.
+        const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
+        s.hold = 1 - P.smooth((hullSignedDistance(d.x, d.y, d.z) - 0.55) / 0.5);
+        const v = this.pointVelocity(this.swimmerPos(agent));
+        s.holdAnchorVel.x = v.x;
+        s.holdAnchorVel.z = v.z;
+        s.holdRelative.x = 0;
+        s.holdRelative.z = 0;
+    }
+    chooseRecoveryTask(agent, frame, other) {
+        const heel = frame.heelDeg;
+        if (heel < 32) {
+            agent.setTask('swimToGunwale', 'boat upright');
+            return;
+        }
+        const righterBusy = other && other.role === 'righter' && other.mode !== 'aboard';
+        let role = agent.role;
+        // If the designated righter is back aboard (or missing), this agent rights.
+        if (role === 'scoop' && (!other || other.mode === 'aboard'))
+            role = 'righter';
+        if (role === 'righter' && agent.role === 'scoop' && righterBusy)
+            role = 'scoop';
+        if (role === 'righter')
+            agent.setTask(heel > 140 ? 'swimToHull' : 'swimToBoard', heel > 140 ? 'turtle recovery' : 'to centreboard');
+        else if (heel <= 140)
+            agent.setTask('swimToCockpit', 'scoop');
+    }
+    // Horizontal hull frame: along-hull axis L, board-side axis B (world).
+    hullPlane(frame) {
+        const L = P.normalize({ x: frame.fwd.x, y: 0, z: frame.fwd.z }, { x: 0, y: 0, z: 1 });
+        let B = { x: -frame.up.x, y: 0, z: -frame.up.z };
+        if (P.length(B) < 0.2)
+            B = P.normalize({ x: frame.right.x, y: 0, z: frame.right.z }, { x: 1, y: 0, z: 0 });
+        return { L, B: P.normalize(B) };
+    }
+    steer(agent, target, dt, arriveM) {
+        const s = agent.swimmer;
+        const dx = target.x - s.x.x, dz = target.z - s.x.z;
+        const dist = Math.hypot(dx, dz);
+        const desired = dist > 1e-6 ? { x: dx / dist, y: 0, z: dz / dist } : agent.heading;
+        // Turn towards the desired heading at ~1.8 rad/s.
+        const cross = agent.heading.x * desired.z - agent.heading.z * desired.x;
+        const dotv = agent.heading.x * desired.x + agent.heading.z * desired.z;
+        const angle = Math.atan2(cross, dotv);
+        const turn = Math.max(-1.8 * dt, Math.min(1.8 * dt, angle));
+        const c = Math.cos(turn), sn = Math.sin(turn);
+        agent.heading = P.normalize({ x: agent.heading.x * c - agent.heading.z * sn, y: 0, z: agent.heading.x * sn + agent.heading.z * c });
+        s.swimDir.x = agent.heading.x;
+        s.swimDir.y = 0;
+        s.swimDir.z = agent.heading.z;
+        const align = Math.max(0, dotv);
+        // Within arm's reach of the hull the swimmer holds on and works along it
+        // (hand-over-hand) at up to 0.55 m/s relative to the drifting boat.
+        const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
+        const clearance = hullSignedDistance(d.x, d.y, d.z);
+        const hold = 1 - P.smooth((clearance - 0.55) / 0.5);
+        s.hold = hold;
+        const v = this.pointVelocity(this.swimmerPos(agent));
+        s.holdAnchorVel.x = v.x;
+        s.holdAnchorVel.y = 0;
+        s.holdAnchorVel.z = v.z;
+        const rel = Math.min(0.7, dist * 0.9);
+        s.holdRelative.x = desired.x * rel;
+        s.holdRelative.y = 0;
+        s.holdRelative.z = desired.z * rel;
+        s.swimThrottle = (1 - 0.7 * hold) * Math.min(1, dist / Math.max(0.3, arriveM * 1.5)) * (0.35 + 0.65 * align);
+        s.treading = 0.25 + 0.4 * hold;
+        const wantVert = dist < arriveM * 1.3 || hold > 0.5 ? 0.85 : 0.15;
+        s.verticality += (wantVert - s.verticality) * Math.min(1, dt * 1.6);
+        return dist;
+    }
+    followPath(agent, points, dt, arriveM) {
+        while (agent.waypoint < points.length - 1) {
+            const p = points[agent.waypoint];
+            if (Math.hypot(p.x - agent.swimmer.x.x, p.z - agent.swimmer.x.z) < 0.55)
+                agent.waypoint++;
+            else
+                break;
+        }
+        const target = points[Math.min(agent.waypoint, points.length - 1)];
+        const dist = this.steer(agent, target, dt, arriveM);
+        return agent.waypoint >= points.length - 1 && dist < arriveM;
+    }
+    waterPoint(p) { return { x: p.x, y: this.surfaceAt(p), z: p.z }; }
+    swimToBoard(agent, frame, dt) {
+        if (frame.heelDeg < 32) {
+            agent.setTask('swimToGunwale', 'boat upright');
+            return;
+        }
+        if (frame.heelDeg > 140) {
+            agent.setTask('swimToHull', 'turtled');
+            return;
+        }
+        const { L, B } = this.hullPlane(frame);
+        const tip = this.designToWorld(this.boardTipDesign(), P.v3());
+        const approach = this.waterPoint(P.madd(P.madd(tip, B, 0.28), L, -0.18));
+        const rel = P.sub(this.swimmerPos(agent), frame.center);
+        const b = P.dot(rel, B);
+        const a = P.dot(rel, L);
+        const path = [];
+        if (b < 0.45) {
+            // Work round the transom (or the bow when closer) staying within arm's
+            // reach of the hull so the swimmer can hold on and move hand over hand.
+            const aroundBow = a > 1.2;
+            const endA = aroundBow ? 2.55 : -2.62;
+            // First close with the hull (within arm's reach it can be held and
+            // worked along hand over hand, independent of the drift).
+            if (b < -1.0)
+                path.push(this.waterPoint(P.madd(P.madd(frame.center, L, Math.max(-2.2, Math.min(2.0, a))), B, -0.8)));
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA * 0.92), B, -0.72)));
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA), B, -0.1)));
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, endA * 0.92), B, 0.75)));
+        }
+        path.push(approach);
+        if (this.followPath(agent, path, dt, 0.55)) {
+            const heightAbove = tip.y - this.surfaceAt(tip);
+            if (heightAbove < 1.3) {
+                this.engageGrip(agent, this.boardTipDesign(), 0.95);
+                agent.setTask('hangBoard', `tip ${heightAbove.toFixed(2)} m above water`);
+            }
+        }
+    }
+    swimmerPos(agent) { return { x: agent.swimmer.x.x, y: agent.swimmer.x.y, z: agent.swimmer.x.z }; }
+    engageGrip(agent, pointDesign, length) {
+        const local = this.designToBody(pointDesign);
+        agent.grip.setLocal(local);
+        const anchor = this.designToWorld(pointDesign, P.v3());
+        const current = P.length(P.sub(this.swimmerPos(agent), anchor));
+        // Start from the current reach: the line is drawn in gradually (see
+        // stepAgent) instead of snapping taut against a moving hull.
+        agent.grip.length = Math.max(length, current + 0.02);
+        agent.gripTarget = length;
+        agent.grip.lambda = 0;
+        agent.grip.enabled = true;
+    }
+    releaseGrip(agent) {
+        agent.grip.enabled = false;
+        agent.grip.tension = 0;
+    }
+    /** Swimmer → hull-carried transition (momentum of the swimmer goes to the hull). */
+    attach(agent, task) {
+        const master = this.context.legacy.master;
+        const body = master.body;
+        const s = agent.swimmer;
+        const com = this.swimmerPos(agent);
+        const vHull = this.pointVelocity(com);
+        const m = s.spec.massKg;
+        const mass = this.physics.compositeMassKg + m;
+        body.vel.x += (m * (s.v.x - vHull.x)) / mass;
+        body.vel.y += (m * (s.v.y - vHull.y)) / mass;
+        body.vel.z += (m * (s.v.z - vHull.z)) / mass;
+        this.worldToDesign(com, agent.attachStartDesign);
+        agent.comDesign.x = agent.attachStartDesign.x;
+        agent.comDesign.y = agent.attachStartDesign.y;
+        agent.comDesign.z = agent.attachStartDesign.z;
+        agent.progress = 0;
+        this.releaseGrip(agent);
+        agent.setTask(task);
+    }
+    /** Hull-carried → swimmer transition at the current COM. */
+    detach(agent, task, frame) {
+        // Release the swimmer outside the hull surface (the carried COM may pass
+        // close to or through the topsides while climbing).
+        const safe = this.pushOutOfHull(agent.comDesign, agent.swimmer.spec.radiusM + 0.03);
+        const com = this.designToWorld(safe, P.v3());
+        const v = this.pointVelocity(com);
+        agent.swimmer.place(com, v);
+        agent.swimmer.verticality = 1;
+        agent.setTask(task);
+        void frame;
+    }
+    /** Righter on the centreboard: climb from the tip onto the root, then lean back. */
+    onBoard(agent, frame, dt) {
+        if (frame.heelDeg > 140) {
+            this.detach(agent, 'swimToHull', frame);
+            return;
+        }
+        const standSide = this.boardStandSide(frame);
+        // Stay on the board while it has leverage: until the boat is nearly up or
+        // the board root (her feet) goes under, then slide off and grab the
+        // gunwale on this side to climb in.
+        const root = this.designToWorld({ x: 0, y: this.boardRootDesign().y, z: HULL_POINTS.boardZ - 0.12 }, P.v3());
+        const feetUnder = root.y < this.surfaceAt(root) - 0.3;
+        if (frame.heelDeg < 30 || (feetUnder && frame.heelDeg < 60)) {
+            this.detach(agent, 'holdGunwale', frame);
+            agent.holdSide = standSide;
+            this.engageGrip(agent, this.gunwaleDesign(standSide, -0.55), 0.75);
+            return;
+        }
+        const pose = this.boardPose(agent, frame, standSide);
+        if (agent.task === 'climbBoard') {
+            agent.progress = Math.min(1, agent.progress + dt / 2.3);
+            const p = P.smooth(agent.progress);
+            const target = this.worldToDesign(pose.com, P.v3());
+            agent.comDesign.x = agent.attachStartDesign.x + (target.x - agent.attachStartDesign.x) * p;
+            agent.comDesign.y = agent.attachStartDesign.y + (target.y - agent.attachStartDesign.y) * p;
+            agent.comDesign.z = agent.attachStartDesign.z + (target.z - agent.attachStartDesign.z) * p;
+            agent.lean = 0.15 * p;
+            if (agent.progress >= 1)
+                agent.setTask('standBoard');
+        }
+        else {
+            // Lean back hard to start the boat up, less as she comes up (the board is
+            // then nearer horizontal and her weight has more leverage) so the boat
+            // is not thrown over onto the righter — unless she has stopped coming
+            // up (not 3° in 4 s: wind on the rig in a breeze), then all the way
+            // out, as with the U key.
+            if (frame.heelDeg > 30) {
+                if (agent.stallS === 0)
+                    agent.stallRef = frame.heelDeg;
+                agent.stallS += dt;
+                if (frame.heelDeg < agent.stallRef - 3) {
+                    agent.stallS = dt;
+                    agent.stallRef = frame.heelDeg;
+                }
+            }
+            else
+                agent.stallS = 0;
+            const stalled = agent.stallS > 4;
+            const need = stalled ? 1 : 0.45 + 0.55 * P.smooth((frame.heelDeg - 30) / 45);
+            const maxLean = Math.min(1.25, this.maxLeanRad + 0.25 * (stalled ? 1 : this.heaveBoost)) * need;
+            agent.lean += Math.max(-dt * 0.6, Math.min(dt * 0.45, maxLean - agent.lean));
+            const target = this.worldToDesign(pose.com, P.v3());
+            agent.comDesign.x = target.x;
+            agent.comDesign.y = target.y;
+            agent.comDesign.z = target.z;
+        }
+    }
+    /** Which design-x side the righter's hands hold (the high gunwale). */
+    boardStandSide(frame) {
+        // The gunwale that is higher in the world.
+        const a = this.designToWorld(this.gunwaleDesign(1), P.v3());
+        const b = this.designToWorld(this.gunwaleDesign(-1), P.v3());
+        return a.y >= b.y ? 1 : -1;
+    }
+    boardPose(agent, frame, side) {
+        const feet = this.designToWorld({ x: 0, y: this.boardRootDesign().y, z: HULL_POINTS.boardZ - 0.12 }, P.v3());
+        const grip = this.designToWorld(this.gunwaleDesign(side, HULL_POINTS.boardZ - 0.1), P.v3());
+        const boardOut = P.scale(frame.up, -1);
+        const stand = agent.task === 'climbBoard' ? Math.min(1, agent.progress * 1.25) : 1;
+        const pose = P.boardStandPose({ feet, grip, boardOut, lean: agent.lean, stand, hullAxis: frame.fwd, t: this.simTime, dims: agent.dims });
+        const skeleton = P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
+        return { skeleton, com: P.skeletonCom(skeleton) };
+    }
+    /** Leeward capsize: helm climbs over the high gunwale onto the centreboard. */
+    beginDryCapsize(agent, frame) {
+        const skeleton = this.currentSkeletonWorld(agent);
+        agent.lastSkeleton = skeleton;
+        agent.blendFrom = skeleton;
+        agent.blendT = 0;
+        agent.holdSide = this.boardStandSide(frame);
+        const feet = P.lerp3(skeleton.ankleL, skeleton.ankleR, 0.5);
+        this.worldToDesign(feet, agent.dryStartFeet);
+        this.worldToDesign(P.skeletonCom(skeleton), agent.attachStartDesign);
+        agent.progress = 0;
+        agent.lean = 0.1;
+        agent.setTask('dryCapsize', `heel ${frame.heelDeg.toFixed(0)}°`);
+        const input = this.context.legacy.master.input?.state;
+        if (input)
+            input.trapeze = false;
+    }
+    stepDryCapsize(agent, frame, dt) {
+        if (frame.heelDeg > 140) {
+            this.detach(agent, 'swimToHull', frame);
+            return;
+        }
+        if (frame.heelDeg < 40 && agent.progress < 0.45) {
+            // The boat came back up before the helm was over the side: sit back in.
+            this.handBackToLegacy(agent, agent.holdSide, 'dry capsize aborted');
+            return;
+        }
+        // Over the gunwale takes most of the time; sliding down onto the board is quick.
+        const rate = agent.progress < 0.4 ? 1 / 2.4 : 1 / 1.4;
+        agent.progress = Math.min(1, agent.progress + dt * rate);
+        const skeleton = this.dryCapsizeSkeleton(agent, frame);
+        this.worldToDesign(P.skeletonCom(skeleton), agent.comDesign);
+        if (agent.progress >= 1) {
+            agent.lean = 0.12;
+            agent.setTask('standBoard', 'on the board (dry)');
+        }
+    }
+    dryCapsizeSkeleton(agent, frame) {
+        const side = agent.holdSide;
+        const p = agent.progress;
+        const zb = HULL_POINTS.boardZ;
+        const ub = uOfZ(zb - 0.2);
+        // Feet path (design frame): cockpit → topside just below the high gunwale
+        // → along the bottom → centreboard root, kept 4 cm outside the hull.
+        const f0 = agent.dryStartFeet;
+        const f1 = { x: side * (sheerHalfBreadth(ub) + 0.04), y: sheerY(ub) - 0.16, z: zb - 0.22 };
+        const f2 = { x: 0, y: this.boardRootDesign().y, z: zb - 0.12 };
+        let feetD = p < 0.4 ? P.lerp3(f0, f1, P.smooth(p / 0.4)) : P.lerp3(f1, f2, P.smooth((p - 0.4) / 0.6));
+        feetD = this.pushOutOfHull(feetD, 0.04);
+        const feet = this.designToWorld(feetD, P.v3());
+        const grip = this.designToWorld(this.gunwaleDesign(side, zb - 0.1), P.v3());
+        const stand = p < 0.4 ? 0.22 : 0.22 + 0.78 * P.smooth((p - 0.4) / 0.6);
+        const pose = P.boardStandPose({ feet, grip, boardOut: P.scale(frame.up, -1), lean: 0.1, stand, hullAxis: frame.fwd, t: this.simTime, dims: agent.dims });
+        return P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
+    }
+    /** Moves a design-frame point outside the hull surface by at least `margin`. */
+    pushOutOfHull(d, margin) {
+        let x = d.x, y = d.y, z = d.z;
+        for (let i = 0; i < 3; i++) {
+            const sd = hullSignedDistance(x, y, z);
+            if (sd >= margin)
+                break;
+            const e = 0.01;
+            let gx = hullSignedDistance(x + e, y, z) - hullSignedDistance(x - e, y, z);
+            let gy = hullSignedDistance(x, y + e, z) - hullSignedDistance(x, y - e, z);
+            let gz = hullSignedDistance(x, y, z + e) - hullSignedDistance(x, y, z - e);
+            const g = Math.hypot(gx, gy, gz);
+            if (g < 1e-9)
+                break;
+            gx /= g;
+            gy /= g;
+            gz /= g;
+            const push = margin - sd;
+            x += gx * push;
+            y += gy * push;
+            z += gz * push;
+        }
+        return { x, y, z };
+    }
+    swimToHull(agent, frame, dt) {
+        if (frame.heelDeg < 125) {
+            agent.setTask('swimToBoard', 'no longer turtled');
+            return;
+        }
+        // Upturned hull: approach the gunwale on the side the swimmer is on.
+        const side = this.nearestGunwaleSide(agent);
+        const g = this.designToWorld(this.gunwaleDesign(side, HULL_POINTS.boardZ - 0.2), P.v3());
+        const out = P.normalize({ x: g.x - frame.center.x, y: 0, z: g.z - frame.center.z });
+        const target = this.waterPoint(P.madd(g, out, 0.35));
+        if (this.steer(agent, target, dt, 0.5) < 0.5) {
+            agent.holdSide = side;
+            this.engageGrip(agent, this.gunwaleDesign(side, HULL_POINTS.boardZ - 0.2), 0.7);
+            this.attach(agent, 'climbHull');
+        }
+    }
+    nearestGunwaleSide(agent) {
+        const p = this.swimmerPos(agent);
+        const a = this.designToWorld(this.gunwaleDesign(1), P.v3());
+        const b = this.designToWorld(this.gunwaleDesign(-1), P.v3());
+        return P.length(P.sub(p, a)) <= P.length(P.sub(p, b)) ? 1 : -1;
+    }
+    /** Turtle recovery: climb onto the upturned hull, stand on the gunwale lip, pull the board. */
+    onUpturnedHull(agent, frame, dt) {
+        if (frame.heelDeg < 118) {
+            // Rolled onto its side: step across onto the board and keep righting.
+            agent.progress = 0.4;
+            this.worldToDesign(this.designToWorld(agent.comDesign, P.v3()), agent.attachStartDesign);
+            agent.setTask('climbBoard', 'hull on its side');
+            return;
+        }
+        const side = agent.holdSide;
+        const lip = this.designToWorld(this.gunwaleDesign(side, HULL_POINTS.boardZ - 0.15), P.v3());
+        const tip = this.designToWorld(this.boardTipDesign(), P.v3());
+        const out = P.normalize({ x: lip.x - frame.center.x, y: 0, z: lip.z - frame.center.z });
+        if (agent.task === 'climbHull')
+            agent.progress = Math.min(1, agent.progress + dt / 2.6);
+        else
+            agent.lean += Math.max(-dt * 0.5, Math.min(dt * 0.4, Math.min(1.2, this.maxLeanRad + 0.2 * this.heaveBoost) - agent.lean));
+        const stand = agent.task === 'climbHull' ? P.smooth(agent.progress) : 1;
+        const pose = P.boardStandPose({ feet: P.madd(lip, out, -0.05), grip: P.lerp3(tip, lip, 0.35), boardOut: out, lean: agent.task === 'standHull' ? agent.lean : 0.1, stand, hullAxis: frame.fwd, t: this.simTime, dims: agent.dims });
+        const com = P.skeletonCom(P.buildSkeleton(pose.frame, pose.limbs, agent.dims));
+        const target = this.worldToDesign(com, P.v3());
+        if (agent.task === 'climbHull') {
+            const p = P.smooth(agent.progress);
+            agent.comDesign.x = agent.attachStartDesign.x + (target.x - agent.attachStartDesign.x) * p;
+            agent.comDesign.y = agent.attachStartDesign.y + (target.y - agent.attachStartDesign.y) * p;
+            agent.comDesign.z = agent.attachStartDesign.z + (target.z - agent.attachStartDesign.z) * p;
+            if (agent.progress >= 1) {
+                agent.lean = 0.1;
+                agent.setTask('standHull');
+            }
+        }
+        else {
+            agent.comDesign.x = target.x;
+            agent.comDesign.y = target.y;
+            agent.comDesign.z = target.z;
+        }
+    }
+    /** Design-x sign of the side the wind comes from. */
+    windwardSide() {
+        const master = this.context.legacy.master;
+        const w = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+        if (!w)
+            return -this.lowerStrapSide();
+        const c = this.frame.center;
+        const a = this.worldToDesign({ x: c.x, y: c.y, z: c.z }, P.v3());
+        const b = this.worldToDesign({ x: c.x + w.x, y: c.y + w.y, z: c.z + w.z }, P.v3());
+        // The wind blows towards +x: it comes from the −x side.
+        return b.x - a.x > 0 ? -1 : 1;
+    }
+    lowerStrapSide() {
+        const a = this.designToWorld(this.strapDesign(1), P.v3());
+        const b = this.designToWorld(this.strapDesign(-1), P.v3());
+        return a.y <= b.y ? 1 : -1;
+    }
+    swimToCockpit(agent, frame, dt) {
+        if (frame.heelDeg < 45) {
+            agent.setTask('swimToGunwale', 'boat upright');
+            return;
+        }
+        if (frame.heelDeg > 140) {
+            agent.setTask('treading', 'turtled: wait');
+            return;
+        }
+        const side = this.lowerStrapSide();
+        const strap = this.designToWorld(this.strapDesign(side), P.v3());
+        const { L, B } = this.hullPlane(frame);
+        // Float in the cockpit area on the deck side (away from the board).
+        const target = this.waterPoint(P.madd(P.madd(strap, B, -0.35), L, 0.1));
+        const rel = P.sub(this.swimmerPos(agent), frame.center);
+        const path = [];
+        if (P.dot(rel, B) > 0.35) {
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, -2.4), B, 0.75)));
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, -2.62), B, -0.1)));
+            path.push(this.waterPoint(P.madd(P.madd(frame.center, L, -2.4), B, -0.7)));
+        }
+        path.push(target);
+        if (this.followPath(agent, path, dt, 0.55)) {
+            agent.holdSide = side;
+            this.engageGrip(agent, this.strapDesign(side), 0.8);
+            agent.setTask('holdStrap', 'scoop position');
+        }
+    }
+    holdStrap(agent, frame, dt) {
+        const s = agent.swimmer;
+        s.swimThrottle = 0;
+        s.treading = 0.5;
+        s.verticality += (0.55 - s.verticality) * Math.min(1, dt * 1.5);
+        if (frame.heelDeg > 145) {
+            this.releaseGrip(agent);
+            agent.setTask('treading', 'turtled');
+            return;
+        }
+        // The boat is coming up: the low gunwale sinks beneath the floating crew
+        // and the hull scoops them in (they stay passive, holding the strap).
+        const rising = frame.heelDeg < agent.scoopHeelMark - 0.5;
+        agent.scoopHeelMark = Math.min(agent.scoopHeelMark + dt * 20, frame.heelDeg);
+        if (frame.heelDeg < 72 && rising && agent.taskTime > 1) {
+            const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
+            const low = this.lowerStrapSide();
+            const cockpit = { x: low * 0.45, y: 0.35, z: -0.7 };
+            if (P.length(P.sub(d, cockpit)) < 1.45) {
+                this.attach(agent, 'scooped');
+                agent.holdSide = low;
+                agent.progress = 0;
+                return;
+            }
+        }
+        if (frame.heelDeg < 40) {
+            const d = this.worldToDesign(this.swimmerPos(agent), P.v3());
+            // Anywhere between the gunwales above the sole counts: the rising hull
+            // scoops the floating crew up with the flooded cockpit.
+            const inCockpit = Math.abs(d.x) < 0.78 && d.y > -0.28 && d.y < 1.3 && d.z > -2.1 && d.z < 0.55;
+            if (inCockpit) {
+                this.attach(agent, 'climbIn');
+                agent.progress = 0.62;
+                agent.holdSide = Math.sign(d.x) || agent.holdSide;
+                this.scoopedFrom(agent);
+                return;
+            }
+            if (agent.taskTime > 3 || frame.heelDeg < 25) {
+                this.releaseGrip(agent);
+                agent.holdSide = this.nearestGunwaleSide(agent);
+                this.engageGrip(agent, this.gunwaleDesign(agent.holdSide), 0.75);
+                agent.setTask('holdGunwale', 'missed the scoop');
+            }
+        }
+    }
+    scoopedFrom(agent) {
+        agent.setTask('scooped', 'scooped aboard');
+        agent.mode = 'attached';
+        agent.progress = 0;
+    }
+    scooped(agent, frame, dt, other) {
+        // Carried in by the rising hull: over the low gunwale, then onto the sole
+        // on the side opposite the swimmer climbing in (counter-balancing).
+        agent.progress = Math.min(1, agent.progress + dt / (frame.heelDeg > 45 ? 2.6 : 1.3));
+        const counterSide = other && other.mode !== 'aboard' ? -other.holdSide : agent.holdSide;
+        // She works her weight against the heel: to the high side while the boat
+        // is still well over (it helps the righting) or when the climber's pull
+        // is not yet balanced, and opposite the swimmer climbing in once the boat
+        // is nearly upright.
+        // Once the other sailor is aboard she moves to the windward side before
+        // the sheets come in (the sheets stay free while she is scooped).
+        const high = -this.lowerStrapSide();
+        const otherAboard = !other || (other.mode === 'aboard' && other.task !== 'climbIn');
+        if (otherAboard && frame.heelDeg < 20)
+            agent.seatWant = this.windwardSide();
+        else if (frame.heelDeg > 12)
+            agent.seatWant = high;
+        else if (frame.heelDeg < 5)
+            agent.seatWant = counterSide;
+        if (agent.progress < 0.5) {
+            agent.seatBlend = agent.holdSide;
+            agent.seatWant = frame.heelDeg > 12 ? high : counterSide;
+        }
+        agent.seatBlend += Math.max(-dt * 1.1, Math.min(dt * 1.1, agent.seatWant - agent.seatBlend));
+        const seat = { x: agent.seatBlend * 0.34, y: COCKPIT_SOLE_Y + 0.28 + 0.12 * Math.max(0, agent.seatBlend * high), z: -0.55 };
+        const gunwale = this.gunwaleDesign(agent.holdSide, Math.max(-1.6, Math.min(-0.3, agent.attachStartDesign.z)));
+        const over = { x: gunwale.x * 0.8, y: gunwale.y + 0.2, z: gunwale.z };
+        const p = agent.progress;
+        const target = p < 0.5 ? P.lerp3(agent.attachStartDesign, over, P.smooth(p / 0.5)) : P.lerp3(over, seat, P.smooth((p - 0.5) / 0.5));
+        const safe = this.pushOutOfHull(target, 0.2);
+        agent.comDesign.x = safe.x;
+        agent.comDesign.y = safe.y;
+        agent.comDesign.z = safe.z;
+        // Seated sailing resumes once the other sailor is aboard too (handing her
+        // back while the helm still hangs on the gunwale put her weight on the low
+        // side with nobody balancing it, and the boat went back over).
+        const side = Math.sign(agent.seatBlend) || counterSide;
+        if (agent.progress >= 1 && frame.heelDeg < 20 && otherAboard && Math.abs(agent.seatBlend - agent.seatWant) < 0.15)
+            this.handBackToLegacy(agent, side, 'scooped and seated');
+    }
+    swimToGunwale(agent, frame, dt) {
+        if (frame.heelDeg > 80 && this.autoRecovery) {
+            agent.setTask('treading', 'capsized again');
+            return;
+        }
+        const side = this.nearestGunwaleSide(agent);
+        const g = this.designToWorld(this.gunwaleDesign(side, -0.75), P.v3());
+        const out = P.normalize({ x: g.x - frame.center.x, y: 0, z: g.z - frame.center.z });
+        const target = this.waterPoint(P.madd(g, out, 0.4));
+        if (this.steer(agent, target, dt, 0.5) < 0.5) {
+            agent.holdSide = side;
+            this.engageGrip(agent, this.gunwaleDesign(side, -0.75), 0.75);
+            agent.setTask('holdGunwale');
+        }
+    }
+    holdGunwale(agent, frame, dt, other) {
+        const s = agent.swimmer;
+        s.swimThrottle = 0;
+        s.treading = 0.6;
+        s.verticality += (1 - s.verticality) * Math.min(1, dt * 2);
+        if (frame.heelDeg > 80 && this.autoRecovery) {
+            this.releaseGrip(agent);
+            agent.setTask('treading', 'capsized again');
+            return;
+        }
+        const otherBusy = other && (other.task === 'climbIn');
+        // The boat has stopped coming up (rig in the water, weight on the low
+        // side). Nearly up, the board is already under water: she hauls herself
+        // aboard over the high gunwale and her weight finishes the righting.
+        // Further over, she goes back to the centreboard for leverage.
+        // Stalled: not 3° further up after 5 s (a trend, not the heel rate — in a
+        // breeze the waves rock her faster than she comes up).
+        if (frame.heelDeg > 28) {
+            if (agent.stallS === 0)
+                agent.stallRef = frame.heelDeg;
+            agent.stallS += dt;
+            if (frame.heelDeg < agent.stallRef - 3) {
+                agent.stallS = dt;
+                agent.stallRef = frame.heelDeg;
+            }
+        }
+        else
+            agent.stallS = 0;
+        const canRight = agent.role === 'righter' || !other || other.mode !== 'overboard';
+        if (this.autoRecovery && canRight && agent.stallS > 5 && agent.taskTime > 3) {
+            if (frame.heelDeg < 50 && agent.holdSide === -this.lowerStrapSide() && !otherBusy) {
+                this.attach(agent, 'climbIn');
+                agent.progress = 0;
+            }
+            else {
+                this.releaseGrip(agent);
+                agent.setTask('swimToBoard', 'righting stalled');
+            }
+            return;
+        }
+        // Only climb when the boat is upright and someone aboard (or nobody else
+        // to wait for) can counter-balance.
+        const balanced = !other || other.mode !== 'overboard' || other.task === 'holdGunwale';
+        if (frame.heelDeg < 28 && !otherBusy && balanced && agent.taskTime > 0.8) {
+            this.attach(agent, 'climbIn');
+            agent.progress = 0;
+        }
+    }
+    climbIn(agent, frame, dt, other) {
+        if (frame.heelDeg > 70) {
+            this.detach(agent, 'treading', frame);
+            return;
+        }
+        agent.progress = Math.min(1, agent.progress + dt / 2.8);
+        const side = agent.holdSide;
+        const gunwale = this.designToWorld(this.gunwaleDesign(side, -0.75), P.v3());
+        const seatDesign = { x: side * 0.5, y: sheerY(uOfZ(-0.8)) + 0.12, z: -0.8 };
+        const seat = this.designToWorld(seatDesign, P.v3());
+        const inward = P.normalize({ x: frame.center.x - gunwale.x, y: 0, z: frame.center.z - gunwale.z });
+        const pose = P.climbInPose({ gunwale, seat, inward, progress: agent.progress, surfaceY: this.surfaceAt(gunwale), t: this.simTime, dims: agent.dims });
+        const target = this.worldToDesign(pose.com, P.v3());
+        const blend = Math.min(1, agent.taskTime / 0.4);
+        agent.comDesign.x += (target.x - agent.comDesign.x) * blend;
+        agent.comDesign.y += (target.y - agent.comDesign.y) * blend;
+        agent.comDesign.z += (target.z - agent.comDesign.z) * blend;
+        if (agent.progress >= 1)
+            this.handBackToLegacy(agent, side, 'back aboard');
+        void other;
+    }
+    /** Returns control to the legacy seated biomechanics on design-x side `side`. */
+    handBackToLegacy(agent, side, note) {
+        const actor = agent.actor;
+        const legacySide = -Math.sign(side || 1);
+        const skeleton = agent.lastSkeleton;
+        if (skeleton) {
+            const pelvis = this.worldToDesign(skeleton.pelvis, P.v3());
+            actor.pelvis?.set?.(pelvis.x, pelvis.y, pelvis.z);
+            actor.pelvisT?.set?.(pelvis.x, pelvis.y, pelvis.z);
+        }
+        actor.side = legacySide;
+        actor.crossing = null;
+        actor.trapB = 0;
+        agent.hikeCommand = 0.2;
+        agent.blendFrom = skeleton;
+        agent.blendT = 0;
+        agent.setTask('sailing', note);
+    }
+    // --------------------------------------------------------------------------
+    // Poses (after each physics step)
+    // --------------------------------------------------------------------------
+    afterStep(dt) {
+        if (!this.context || !this.enabled)
+            return;
+        this.updateFrame();
+        for (const agent of this.agents) {
+            agent.poseTime += dt;
+            if (agent.mode === 'aboard' && (agent.task === 'sailing' || agent.task === 'bracing')) {
+                if (agent.blendFrom && agent.blendT < 1) {
+                    // Blend from the last synthesized skeleton into the legacy pose.
+                    agent.blendT = Math.min(1, agent.blendT + dt / 0.45);
+                    const legacy = this.currentSkeletonWorld(agent);
+                    this.writeSkeleton(agent, this.blendSkeleton(agent.blendFrom, legacy, P.smooth(agent.blendT)), legacy);
+                    if (agent.blendT >= 1)
+                        agent.blendFrom = null;
+                }
+                this.stowExtension(agent);
+                continue;
+            }
+            const skeleton = this.synthesize(agent);
+            if (!skeleton)
+                continue;
+            let final = skeleton;
+            if (agent.blendFrom && agent.blendT < 1) {
+                agent.blendT = Math.min(1, agent.blendT + dt / 0.35);
+                final = this.blendSkeleton(agent.blendFrom, skeleton, P.smooth(agent.blendT));
+            }
+            agent.lastSkeleton = final;
+            this.writeSkeleton(agent, final, skeleton);
+            this.stowExtension(agent);
+        }
+    }
+    synthesize(agent) {
+        const frame = this.frame;
+        const s = agent.swimmer;
+        const t = this.simTime;
+        const com = agent.mode === 'overboard' ? this.swimmerPos(agent) : this.designToWorld(agent.comDesign, P.v3());
+        let pose = null;
+        switch (agent.task) {
+            case 'falling': {
+                const away = P.normalize({ x: -agent.heading.x, y: 0, z: -agent.heading.z }, { x: 1, y: 0, z: 0 });
+                pose = P.fallPose({ com, velocity: s.v, away, t: agent.taskTime, dims: agent.dims });
+                break;
+            }
+            case 'treading':
+            case 'swimToBoard':
+            case 'swimToHull':
+            case 'swimToCockpit':
+            case 'swimToGunwale':
+                pose = P.swimPose({ com, heading: agent.heading, surfaceY: s.surfaceY, t, verticality: s.verticality, phase: s.strokePhase, dims: agent.dims });
+                break;
+            case 'hangBoard':
+            case 'holdGunwale': {
+                const grip = this.designToWorld(agent.task === 'hangBoard' ? this.boardTipDesign() : this.gunwaleDesign(agent.holdSide, agent.task === 'holdGunwale' ? -0.75 : -0.55), P.v3());
+                const toward = P.normalize({ x: frame.center.x - com.x, y: 0, z: frame.center.z - com.z });
+                pose = P.hangPose({ grip, com, towardHull: toward, t, pull: agent.task === 'hangBoard' ? Math.min(1, agent.taskTime / 1.1) : 0.2, dims: agent.dims });
+                break;
+            }
+            case 'holdStrap': {
+                const strap = this.designToWorld(this.strapDesign(agent.holdSide), P.v3());
+                pose = P.scoopFloatPose({ strap, com, bow: frame.fwd, t, dims: agent.dims });
+                break;
+            }
+            case 'dryCapsize':
+                return this.dryCapsizeSkeleton(agent, frame);
+            case 'climbBoard':
+            case 'standBoard': {
+                const side = this.boardStandSide(frame);
+                const b = this.boardPose(agent, frame, side);
+                // Translate so the skeleton COM matches the carried COM (continuity while climbing).
+                return this.translateSkeleton(b.skeleton, P.sub(com, b.com));
+            }
+            case 'climbHull':
+            case 'standHull': {
+                const side = agent.holdSide;
+                const lip = this.designToWorld(this.gunwaleDesign(side, HULL_POINTS.boardZ - 0.15), P.v3());
+                const tip = this.designToWorld(this.boardTipDesign(), P.v3());
+                const out = P.normalize({ x: lip.x - frame.center.x, y: 0, z: lip.z - frame.center.z });
+                const stand = agent.task === 'climbHull' ? P.smooth(agent.progress) : 1;
+                pose = P.boardStandPose({ feet: P.madd(lip, out, -0.05), grip: P.lerp3(tip, lip, 0.35), boardOut: out, lean: agent.task === 'standHull' ? agent.lean : 0.1, stand, hullAxis: frame.fwd, t, dims: agent.dims });
+                const skeleton = P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
+                return this.translateSkeleton(skeleton, P.sub(com, P.skeletonCom(skeleton)));
+            }
+            case 'climbIn': {
+                const side = agent.holdSide;
+                const gunwale = this.designToWorld(this.gunwaleDesign(side, -0.75), P.v3());
+                const seat = this.designToWorld({ x: side * 0.5, y: sheerY(uOfZ(-0.8)) + 0.12, z: -0.8 }, P.v3());
+                const inward = P.normalize({ x: frame.center.x - gunwale.x, y: 0, z: frame.center.z - gunwale.z });
+                const climb = P.climbInPose({ gunwale, seat, inward, progress: agent.progress, surfaceY: this.surfaceAt(gunwale), t, dims: agent.dims });
+                const skeleton = P.buildSkeleton(climb.frame, climb.limbs, agent.dims);
+                return this.translateSkeleton(skeleton, P.sub(com, P.skeletonCom(skeleton)));
+            }
+            case 'scooped': {
+                const bow = frame.fwd;
+                const up = P.v3(0, 1, 0);
+                const side = P.normalize(P.cross(up, bow));
+                const pelvis = P.madd(com, up, -0.25);
+                pose = {
+                    frame: { pelvis, up: P.normalize(P.add(up, P.scale(bow, 0.35))), forward: bow, look: bow },
+                    limbs: {
+                        handL: P.madd(P.madd(pelvis, side, 0.3), bow, 0.35), handR: P.madd(P.madd(pelvis, side, -0.3), bow, 0.35),
+                        footL: P.madd(P.madd(pelvis, bow, -0.35), up, -0.28), footR: P.madd(P.madd(pelvis, bow, -0.3), side, -0.2),
+                        elbowPoleL: P.scale(up, -1), elbowPoleR: P.scale(up, -1), kneePoleL: bow, kneePoleR: bow, toeDirL: P.scale(bow, -1), toeDirR: P.scale(bow, -1),
+                    },
+                };
+                break;
+            }
+            default:
+                return null;
+        }
+        if (!pose)
+            return null;
+        return P.buildSkeleton(pose.frame, pose.limbs, agent.dims);
+    }
+    translateSkeleton(s, d) {
+        const out = {};
+        for (const j of P.JOINTS)
+            out[j] = P.add(s[j], d);
+        return out;
+    }
+    blendSkeleton(a, b, t) {
+        const out = {};
+        for (const j of P.JOINTS)
+            out[j] = P.lerp3(a[j], b[j], t);
+        return out;
+    }
+    /** Current legacy skeleton (human.cur, design frame) in world space. */
+    currentSkeletonWorld(agent) {
+        const cur = agent.actor.human.cur;
+        const out = {};
+        for (const j of P.JOINTS) {
+            const p = cur[j];
+            out[j] = p ? this.designToWorld({ x: p.x, y: p.y, z: p.z }, P.v3()) : this.designToWorld(agent.comDesign, P.v3());
+        }
+        return out;
+    }
+    writeSkeleton(agent, world, orientationSource) {
+        const actor = agent.actor;
+        const human = actor.human;
+        const T = three();
+        const joints = {};
+        const d = P.v3();
+        for (const j of P.JOINTS) {
+            this.worldToDesign(world[j], d);
+            joints[j] = new T.Vector3(d.x, d.y, d.z);
+        }
+        // Facing hints (design frame): chest forward from shoulder axis × torso axis.
+        const up = P.normalize(P.sub(orientationSource.chest, orientationSource.pelvis));
+        const leftAxis = P.normalize(P.sub(orientationSource.shoulderL, orientationSource.shoulderR));
+        const fwdWorld = P.normalize(P.cross(leftAxis, up));
+        const lookWorld = P.normalize(P.sub(orientationSource.head, orientationSource.neck));
+        const fwd = this.rotateToDesign(fwdWorld, P.v3());
+        const look = this.rotateToDesign(P.normalize(P.add(fwdWorld, P.scale(lookWorld, 0.2))), P.v3());
+        const upD = this.rotateToDesign(up, P.v3());
+        const F = new T.Vector3(fwd.x, fwd.y, fwd.z);
+        const U = new T.Vector3(upD.x, upD.y, upD.z);
+        const hints = {
+            pelvis: F, spine: F, chest: F, neck: F, head: new T.Vector3(look.x, look.y, look.z),
+            thighL: F, thighR: F, shinL: F, shinR: F, footL: U, footR: U,
+            uparmL: F, uparmR: F, forearmL: F, forearmR: F, handL: U, handR: U,
+        };
+        human.applyPose(joints, hints);
+        // Keep legacy fields coherent for the VRM retarget and later hand-back.
+        actor.facing?.set?.(fwd.x, 0, fwd.z);
+        if (actor.facing?.lengthSq?.() < 1e-6)
+            actor.facing.set(0, 0, 1);
+        actor.facing?.normalize?.();
+        actor.pelvis?.set?.(joints.pelvis.x, joints.pelvis.y, joints.pelvis.z);
+        this.applyWetness(agent);
+    }
+    stowExtension(agent) {
+        if (agent.id !== 'helm')
+            return;
+        const actor = agent.actor;
+        const holds = this.context.legacy.master.holds;
+        if (agent.mode === 'aboard' && agent.task === 'sailing')
+            return;
+        // Helm has let go: the tiller extension lies forward along the tiller.
+        if (holds?.tillerTip && actor.extensionEnd) {
+            actor.extensionEnd.copy(holds.tillerTip);
+            actor.extensionEnd.z += 0.92;
+            actor.extensionEnd.y += 0.03;
+        }
+    }
+    applyWetness(agent) {
+        const material = agent.actor.human?.mesh?.material;
+        if (!material)
+            return;
+        if (material.userData.dryRoughness === undefined)
+            material.userData.dryRoughness = material.roughness ?? 0.72;
+        const dry = material.userData.dryRoughness;
+        const wet = agent.wetness;
+        material.roughness = dry + (0.28 - dry) * wet;
+        material.color?.setScalar?.(1 - 0.22 * wet);
+    }
+    // --------------------------------------------------------------------------
+    update() {
+        // All crew logic runs per physics step through the step bus.
+    }
+    /** Overboard crew as seen by the water-interaction solver. */
+    swimmerStates() {
+        return this.agents.map((a) => ({
+            id: a.id,
+            active: this.installed && a.swimmer.active,
+            inWater: a.swimmer.inWater,
+            x: a.swimmer.x.x, y: a.swimmer.x.y, z: a.swimmer.x.z,
+            heading: a.heading,
+            verticality: a.swimmer.verticality,
+            throttle: a.swimmer.swimThrottle,
+            strokePhase: a.swimmer.strokePhase,
+            treading: a.swimmer.treading,
+        }));
+    }
+    /** World position of the crew member most worth watching (camera 'crew' mode). */
+    cameraFocus() {
+        if (!this.installed)
+            return null;
+        const pick = this.agents.find((a) => a.role === 'righter' && a.mode !== 'aboard')
+            ?? this.agents.find((a) => a.mode !== 'aboard')
+            ?? this.agents.find((a) => a.id === 'helm');
+        if (!pick)
+            return null;
+        return pick.mode === 'overboard' ? this.swimmerPos(pick) : this.designToWorld(pick.comDesign, P.v3());
+    }
+    /**
+     * Knockdown gust (demo/test/O key): the wind builds to `gustPeak` × for a few
+     * seconds while the crew is caught out. Returns the gust duration (s).
+     */
+    forceCapsize() {
+        if (!this.context)
+            return 0;
+        this.updateFrame();
+        const g = this.gust;
+        g.active = true;
+        g.t = 0;
+        this.knockdownS = g.rampS + g.holdS;
+        this.knockdownElapsed = 0;
+        this.luffSign = 0;
+        return g.rampS + g.holdS + g.decayS;
+    }
+    advanceGust(master, frame, dt) {
+        const g = this.gust;
+        if (g.active) {
+            g.t += dt;
+            // A knockdown squall holds at its peak until she is over (or 12 s).
+            if (this.knockdownS > 0 && frame.heelDeg < 75 && g.t > g.rampS + g.holdS - 0.05 && this.knockdownElapsed < 12) {
+                g.t = g.rampS + g.holdS - 0.05;
+            }
+            let k = 0;
+            if (g.t < g.rampS)
+                k = P.smooth(g.t / g.rampS);
+            else if (g.t < g.rampS + g.holdS)
+                k = 1;
+            else if (g.t < g.rampS + g.holdS + g.decayS)
+                k = 1 - P.smooth((g.t - g.rampS - g.holdS) / g.decayS);
+            else
+                g.active = false;
+            this.gustFactor = 1 + (this.gustPeak - 1) * k;
+        }
+        else {
+            this.gustFactor = 1;
+        }
+        if (this.knockdownS <= 0)
+            return;
+        this.knockdownElapsed += dt;
+        // Held until capsized (heel > 75°) or the squall gives up after 12 s.
+        this.knockdownS = frame.heelDeg > 75 || this.knockdownElapsed > 12 ? 0 : Math.max(this.knockdownS, 0.1);
+        // Caught out: on a broad course the helm luffs into the gust (the boat
+        // rounds up, the sails load up and she goes over to leeward); on the
+        // wind the helm bears away to a beam reach with the sheets held, which is
+        // how most dinghy knockdowns start. The crew is caught sitting in (the
+        // sailing balance is suspended while the knockdown lasts).
+        const input = master.input?.state;
+        const wind = master.wind?.velocityAtHeight?.(3, this.tmp.a);
+        if (!input || !wind || frame.heelDeg > 60)
+            return;
+        const fromX = -wind.x, fromZ = -wind.z;
+        const fl = Math.hypot(fromX, fromZ), hl = Math.hypot(frame.fwd.x, frame.fwd.z);
+        if (fl < 0.3 || hl < 0.2)
+            return;
+        const twa = (Math.acos(Math.max(-1, Math.min(1, (fromX * frame.fwd.x + fromZ * frame.fwd.z) / (fl * hl)))) * 180) / Math.PI;
+        // Which way is the wind: + yaw turns the bow towards it when this is positive.
+        const cross = frame.fwd.z * fromX - frame.fwd.x * fromZ;
+        const towardsWind = cross > 0 ? 1 : -1;
+        if (this.luffSign === 0)
+            this.luffSign = twa < 80 ? -towardsWind * 2 : towardsWind; // ±2: bear away, ±1: luff
+        if (Math.abs(this.luffSign) === 2) {
+            // Tiller convention: +tiller turns the bow towards −yaw.
+            input.tiller = twa < 100 ? Math.max(-1, Math.min(1, -(this.luffSign / 2) * 0.8)) : 0;
+        }
+        else if (twa > 60) {
+            input.tiller = Math.max(-1, Math.min(1, -this.luffSign * 0.85));
+        }
+    }
+    telemetry() {
+        const frame = this.frame;
+        return {
+            installed: this.installed,
+            autoRecovery: this.autoRecovery,
+            balanceAssist: this.balanceAssist,
+            trimAssist: this.trimAssist,
+            apparentWindAngleDeg: this.lastAwaDeg,
+            sailAngleOfAttackDeg: { main: this.lastAlpha.main, jib: this.lastAlpha.jib },
+            trapezeAssist: this.trapezeAssist,
+            capsizeActive: this.capsizeActive,
+            capsizes: this.capsizeCount,
+            recoveries: this.recoveryCount,
+            lastRecoveryDurationS: this.lastRecoveryDurationS,
+            settleS: +this.settleS.toFixed(1),
+            heelDeg: frame.heelDeg,
+            agents: this.agents.map((a) => ({
+                id: a.id, role: a.role, mode: a.mode, task: a.task, taskTime: +a.taskTime.toFixed(2),
+                hike: +a.hikeCommand.toFixed(2), lean: +a.lean.toFixed(2), wetness: +a.wetness.toFixed(2),
+                swimmer: a.swimmer.active ? {
+                    pos: [a.swimmer.x.x, a.swimmer.x.y, a.swimmer.x.z].map((v) => +v.toFixed(2)),
+                    speed: +Math.hypot(a.swimmer.v.x, a.swimmer.v.z).toFixed(2),
+                    submerged: +a.swimmer.submerged01.toFixed(2), depth: +a.swimmer.depthM.toFixed(2),
+                    grip: a.grip.enabled ? +a.grip.tension.toFixed(0) : null,
+                } : null,
+                comDesign: [a.comDesign.x, a.comDesign.y, a.comDesign.z].map((v) => +v.toFixed(2)),
+                carriedBuoyancyN: +a.carriedBuoyancyN.toFixed(0),
+                events: a.events.slice(-8),
+            })),
+        };
+    }
+}
+//# sourceMappingURL=CrewRecoverySystem.js.map

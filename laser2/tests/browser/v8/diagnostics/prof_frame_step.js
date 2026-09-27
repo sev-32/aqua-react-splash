@@ -1,0 +1,1 @@
+(() => { const f = window.LASER2_FOUNDRY; const t0 = performance.now(); for (let i = 0; i < 30; i++) f.kernel.frame(1 / 60); const ms = (performance.now() - t0) / 30; return { msPerFrame: ms, lucid: f.systems.lucidCrew.telemetry().solveMs, rig: window.LASER2_RIG_STRUCTURE.telemetry().stats }; })()

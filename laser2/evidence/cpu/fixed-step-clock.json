@@ -1,7 +1,7 @@
 {
   "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
   "lane": "Node CPU-only deterministic fixed-step scheduling validation",
-  "elapsedMs": 7.107576999999999,
+  "elapsedMs": 8.130867000000002,
   "fixedHz": 60,
   "maxCatchUpSteps": 4,
   "seconds": 10,

@@ -1,0 +1,8 @@
+{
+  "name": "laser2-headless",
+  "private": true,
+  "description": "Headless browser harness for the Laser 2 V8 scenario scripts (tests/browser/v8).",
+  "dependencies": {
+    "playwright-core": "1.56"
+  }
+}

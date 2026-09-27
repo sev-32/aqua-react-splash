@@ -1,0 +1,15 @@
+[error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[harness] ready after 11472 ms: {"ready":"true","error":null}
+RESULT [
+ "TWA 45: 3.30 kn heel 8.0 leeway 5.8 AWA 36 main 0.88 jib 0.98 sailF 257N tiller -0.09 αM -2 αJ 5 vang 0.88 crew sailing/0.25,sailing/0.3",
+ "TWA 60: 4.32 kn heel 7.7 leeway 3.6 AWA 45 main 0.75 jib 0.98 sailF 278N tiller -0.05 αM 1 αJ 12 vang 0.88 crew sailing/-0.1,sailing/-0.12",
+ "TWA 75: 4.80 kn heel 9.8 leeway 3.0 AWA 54 main 0.61 jib 0.98 sailF 280N tiller -0.04 αM 17 αJ 6 vang 0.88 crew sailing/0.1,sailing/0.12",
+ "TWA 90: 5.11 kn heel 7.5 leeway 2.3 AWA 65 main 0.39 jib 0.98 sailF 238N tiller -0.03 αM 15 αJ -12 vang 0.88 crew sailing/0.69,sailing/0.84",
+ "TWA 110: 4.91 kn heel 8.6 leeway 1.5 AWA 81 main 0.11 jib 0.94 sailF 187N tiller 0.01 αM 15 αJ 10 vang 0.88 crew sailing/0.64,sailing/0.77",
+ "TWA 135: 4.59 kn heel 5.3 leeway 1.2 AWA 113 main 0.02 jib 0.67 sailF 103N tiller -0.02 αM 42 αJ 19 vang 0.88 crew sailing/-0.12,sailing/-0.15",
+ "TWA 160: 4.57 kn heel 3.5 leeway 0.5 AWA 145 main 0.02 jib 0.69 sailF 110N tiller -0.01 αM 62 αJ 60 vang 0.62 crew sailing/-0.71,sailing/-0.86"
+]
+
+real	8m26.315s
+user	0m3.288s
+sys	0m0.782s

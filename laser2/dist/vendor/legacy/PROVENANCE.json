@@ -1,0 +1,86 @@
+{
+  "source": "/mnt/data/LASER2_RIGGING_LAB_V16_STANDALONE(1).html",
+  "source_sha256": "d0f400350797661775d478bf74f35b7ec9c94fe12d64ccdf8f60b38a3444f4e9",
+  "files": [
+    {
+      "file": "laser2-core-legacy.js",
+      "bytes": 711483,
+      "sha256": "8d402d329d2b809bf3793fe61b81a4f34a3e3553ca976d77d97e08a2eb24a4f0"
+    },
+    {
+      "file": "laser2-evolution-v3.js",
+      "bytes": 11560,
+      "sha256": "ce230bfb10722c4b305623d05a161f8d75ecd729080c34dcc4de87381a02cf89"
+    },
+    {
+      "file": "laser2-flat-water-v12.js",
+      "bytes": 5802,
+      "sha256": "b16bfc2850194d9505ae72f009be3310d7d62d36d4cce28198b6a526abe14d60"
+    },
+    {
+      "file": "laser2-heightfield-v5.js",
+      "bytes": 36740,
+      "sha256": "3104bb19420c3d82e25b23b1217ab99c6c4b592f33a880444077f2267d5a9218"
+    },
+    {
+      "file": "laser2-hydrodynamics-v14.js",
+      "bytes": 26287,
+      "sha256": "b5ce23701825ccbc2657d9a2d4f960a37b24982271f98e2ab24a0052c4aa2c70"
+    },
+    {
+      "file": "laser2-ocean-v4.js",
+      "bytes": 29617,
+      "sha256": "45cf34478ce774f7134b8da58a1ec247fffd954550e3920b25fa44460ac32381"
+    },
+    {
+      "file": "laser2-raf-gate.js",
+      "bytes": 2264,
+      "sha256": "56d6500a07f97de7adf49baebbb8ff7fac8fa1ad4949d77173ca5754ae8c7542"
+    },
+    {
+      "file": "laser2-rigging-v16.js",
+      "bytes": 86456,
+      "sha256": "b07790c646aea10d0c93b7aced2ce58aa9a816ac84529a2ca2d52f5f37c891e0"
+    },
+    {
+      "file": "laser2-rope-hardware-v16.js",
+      "bytes": 80052,
+      "sha256": "8079318a0d5f3017a8565b75694507120078024368e8e35c70afd56a3cda5f6a"
+    },
+    {
+      "file": "laser2-sail-material-v16.js",
+      "bytes": 24026,
+      "sha256": "41bef62be1a00497177a167109bac37fbdb10a74be499291dc6e23852ebfcbbf"
+    },
+    {
+      "file": "laser2-sail-material-v17.js",
+      "bytes": 33021,
+      "sha256": "f68659d773ed02fb81b50bae5ac42d1160044a4f752e31fea13eba708669fcf7"
+    },
+    {
+      "file": "laser2-spreader-standing-rig-v17_2.js",
+      "bytes": 24542,
+      "sha256": "6032c9b2141a677a4dd14b83c8e19d4c63df01a92d02edc22316e51d4b658d9c"
+    },
+    {
+      "file": "laser2-standing-rig-collision-v17_3.js",
+      "bytes": 17274,
+      "sha256": "f8df0c4b8a0704b408e783ca60a5d098945ef9fa7fad73d4e344180e0d51e7db"
+    },
+    {
+      "file": "laser2-steering-v15.js",
+      "bytes": 12119,
+      "sha256": "fa9a9144958e96cfeafce4c00f87086bbf69c2535bec1934d6b653a57a6cf775"
+    },
+    {
+      "file": "laser2-water-memory-v13.js",
+      "bytes": 45170,
+      "sha256": "7cb3b3ce747abb69340171a10722b6595d94ed40f0f0be132c78606a16af3cab"
+    },
+    {
+      "file": "three-legacy.bundle.js",
+      "bytes": 629836,
+      "sha256": "a750fb39742d0a2d8204fe09089b8fee94ca97ba24f529cbeaf1dde05d6541a1"
+    }
+  ]
+}

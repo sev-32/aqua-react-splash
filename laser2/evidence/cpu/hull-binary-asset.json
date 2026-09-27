@@ -1,9 +1,9 @@
 {
   "project": "LASER2_LIGHTING_FOUNDRY_V7_WORKER_LOCAL_PROBES_BATCHED_HULL",
   "lane": "Node CPU-only binary hull asset range/hash/topology validation",
-  "manifestPath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v3.manifest.json",
-  "binaryPath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v3.bin",
-  "sourcePath": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v2.json",
+  "manifestPath": "/home/user/aqua-react-splash/laser2/public/assets/boat/hull-static-v3.manifest.json",
+  "binaryPath": "/home/user/aqua-react-splash/laser2/public/assets/boat/hull-static-v3.bin",
+  "sourcePath": "/home/user/aqua-react-splash/laser2/public/assets/boat/hull-static-v2.json",
   "bytes": {
     "sourceJson": 873828,
     "manifest": 40377,

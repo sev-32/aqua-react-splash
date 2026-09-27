@@ -1,0 +1,10 @@
+[harness] ready after 6891 ms
+[stage 0 setup] 17436 ms "ok"
+[stage 1 t14dry] 139311 ms "{\"tws\":14,\"dry\":true,\"over\":true,\"maxHeel\":80,\"recoveredS\":11.6,\"done\":true,\"maxStallS\":0.2,\"trace\":\"3,61,2\",\"events\":[\"helm: sailing→bracing (heel 59°) > bracing→dryCapsize (heel 63°) > dryCapsize→standBoard (on the board (dry)) > standBoard→holdGunwale > holdGunwale→climbIn > climbIn→sailing (back aboard)\",\"crew: sailing→bracing (heel 59°) > bracing→falling (leeward capsize) > falling→holdStrap (caught the toe strap) > holdStrap→scooped > scooped→sailing (scooped and seated)\"]}"
+[stage 2 t14wet] 1176491 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 3 t18dry] 1 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 4 t10wet] 0 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[stage 5 t18wet] 1 ms "EVAL ERROR page.evaluate: Target page, context or browser has been closed"
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[error] Failed to load resource: the server responded with a status of 404 (Not Found)

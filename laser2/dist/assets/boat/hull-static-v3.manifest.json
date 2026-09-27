@@ -1,0 +1,1757 @@
+{
+  "schema": "laser2-native-static-hull-binary-v3",
+  "version": "2026-07-15",
+  "sourceProject": "LASER2_LIGHTING_FOUNDRY_V1 validated compatibility runtime",
+  "sourceEntrypointSha256": "67499664e6e11792b40ecf881aa1f97663229bd17256b07689a33ab1f368ea4f",
+  "coordinateSystem": "legacy boat-local coordinates; native hull root follows master.boat transform",
+  "sourceJson": "hull-static-v2.json",
+  "sourceJsonBytes": 873828,
+  "sourceJsonSha256": "44bfa93de0d4ef94bec0af4d947a2a58f80e850d61b399b028c76057cd3553e3",
+  "binary": {
+    "file": "hull-static-v3.bin",
+    "bytes": 233008,
+    "sha256": "100d999f931084a41702b3f2d1f49d01df4464d544c7902a48c9ae02286847cc",
+    "endianness": "little"
+  },
+  "meshes": [
+    {
+      "sourceChildIndex": 0,
+      "id": "hull.shell",
+      "name": "Hull shell",
+      "sourceGeometryType": "BufferGeometry",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 9,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 0,
+          "elementCount": 2550,
+          "byteLength": 10200
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 10200,
+          "elementCount": 1700,
+          "byteLength": 6800
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 17000,
+          "elementCount": 2550,
+          "byteLength": 10200
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 27200,
+        "elementCount": 4752,
+        "byteLength": 9504
+      }
+    },
+    {
+      "sourceChildIndex": 1,
+      "id": "hull.deck",
+      "name": "Deck and cockpit moulding",
+      "sourceGeometryType": "BufferGeometry",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 10,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 36704,
+          "elementCount": 5940,
+          "byteLength": 23760
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 60464,
+          "elementCount": 3960,
+          "byteLength": 15840
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 76304,
+          "elementCount": 5940,
+          "byteLength": 23760
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 100064,
+        "elementCount": 11328,
+        "byteLength": 22656
+      }
+    },
+    {
+      "sourceChildIndex": 2,
+      "id": "hull.transom",
+      "name": "Transom panel",
+      "sourceGeometryType": "BufferGeometry",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 9,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 122720,
+          "elementCount": 150,
+          "byteLength": 600
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 123320,
+          "elementCount": 150,
+          "byteLength": 600
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 123920,
+        "elementCount": 144,
+        "byteLength": 288
+      }
+    },
+    {
+      "sourceChildIndex": 3,
+      "id": "hull.stem",
+      "name": "Bow stem cap",
+      "sourceGeometryType": "BufferGeometry",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 9,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 124208,
+          "elementCount": 150,
+          "byteLength": 600
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 124808,
+          "elementCount": 150,
+          "byteLength": 600
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 125408,
+        "elementCount": 144,
+        "byteLength": 288
+      }
+    },
+    {
+      "sourceChildIndex": 4,
+      "id": "hull.cockpit.sole",
+      "name": "Cockpit sole",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.145,
+          -0.73
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 14,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 125696,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 125984,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 126272,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 126464,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 5,
+      "id": "hull.cockpit.side.port",
+      "name": "Port cockpit sidewall",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          -0.43,
+          0.275,
+          -0.73
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 14,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 126536,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 126824,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 127112,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 127304,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 6,
+      "id": "hull.gunwale.port",
+      "name": "Port inner gunwale",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          -0.465,
+          0.425,
+          -0.73
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 127376,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 127664,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 127952,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 128144,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 7,
+      "id": "hull.bench.port",
+      "name": "Port side deck",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          -0.565,
+          0.4140167528474736,
+          -0.65
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 15,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 128216,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 128504,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 128792,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 128984,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 8,
+      "id": "hull.cockpit.side.starboard",
+      "name": "Starboard cockpit sidewall",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0.43,
+          0.275,
+          -0.73
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 14,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 129056,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 129344,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 129632,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 129824,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 9,
+      "id": "hull.gunwale.starboard",
+      "name": "Starboard inner gunwale",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0.465,
+          0.425,
+          -0.73
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 129896,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 130184,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 130472,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 130664,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 10,
+      "id": "hull.bench.starboard",
+      "name": "Starboard side deck",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0.565,
+          0.4140167528474736,
+          -0.65
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 15,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 130736,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 131024,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 131312,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 131504,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 11,
+      "id": "hull.forward-bulkhead",
+      "name": "Forward cockpit bulkhead",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.27,
+          0.32
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 14,
+        "sourceType": "MeshPhysicalMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 131576,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 131864,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 132152,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 132344,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 12,
+      "id": "hull.rubrail",
+      "name": "Gunwale rub rail",
+      "sourceGeometryType": "TubeGeometry",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 132416,
+          "elementCount": 4347,
+          "byteLength": 17388
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 149804,
+          "elementCount": 4347,
+          "byteLength": 17388
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 167192,
+          "elementCount": 2898,
+          "byteLength": 11592
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 178784,
+        "elementCount": 7680,
+        "byteLength": 15360
+      }
+    },
+    {
+      "sourceChildIndex": 13,
+      "id": "hull.mast-collar",
+      "name": "Mast step collar",
+      "sourceGeometryType": "CylinderGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.4923046875,
+          0.55
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 194144,
+          "elementCount": 300,
+          "byteLength": 1200
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 195344,
+          "elementCount": 300,
+          "byteLength": 1200
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 196544,
+          "elementCount": 200,
+          "byteLength": 800
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 197344,
+        "elementCount": 192,
+        "byteLength": 384
+      }
+    },
+    {
+      "sourceChildIndex": 14,
+      "id": "hull.bow-fitting",
+      "name": "Bow fitting",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.5916705803906838,
+          2.02
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 197728,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 198016,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 198304,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 198496,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 15,
+      "id": "hull.chainplate.port",
+      "name": "Port shroud chainplate",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          -0.64,
+          0.4468698816348422,
+          0.18
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 198568,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 198856,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 199144,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 199336,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 16,
+      "id": "hull.chainplate.starboard",
+      "name": "Starboard shroud chainplate",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0.64,
+          0.4468698816348422,
+          0.18
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 199408,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 199696,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 199984,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 200176,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 17,
+      "id": "hull.transom-eye.port",
+      "name": "Port transom eye",
+      "sourceGeometryType": "TorusGeometry",
+      "transform": {
+        "position": [
+          -0.58,
+          0.3968504939894816,
+          -2.05
+        ],
+        "quaternion": [
+          0.7071067811865475,
+          0,
+          0,
+          0.7071067811865476
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 200248,
+          "elementCount": 405,
+          "byteLength": 1620
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 201868,
+          "elementCount": 405,
+          "byteLength": 1620
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 203488,
+          "elementCount": 270,
+          "byteLength": 1080
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 204568,
+        "elementCount": 672,
+        "byteLength": 1344
+      }
+    },
+    {
+      "sourceChildIndex": 18,
+      "id": "hull.transom-eye.starboard",
+      "name": "Starboard transom eye",
+      "sourceGeometryType": "TorusGeometry",
+      "transform": {
+        "position": [
+          0.58,
+          0.3968504939894816,
+          -2.05
+        ],
+        "quaternion": [
+          0.7071067811865475,
+          0,
+          0,
+          0.7071067811865476
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 12,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 205912,
+          "elementCount": 405,
+          "byteLength": 1620
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 207532,
+          "elementCount": 405,
+          "byteLength": 1620
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 209152,
+          "elementCount": 270,
+          "byteLength": 1080
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 210232,
+        "elementCount": 672,
+        "byteLength": 1344
+      }
+    },
+    {
+      "sourceChildIndex": 19,
+      "id": "hull.mainsheet-swivel",
+      "name": "Mainsheet swivel base",
+      "sourceGeometryType": "CylinderGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.19,
+          -0.75
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 211576,
+          "elementCount": 264,
+          "byteLength": 1056
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 212632,
+          "elementCount": 264,
+          "byteLength": 1056
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 213688,
+          "elementCount": 176,
+          "byteLength": 704
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 214392,
+        "elementCount": 168,
+        "byteLength": 336
+      }
+    },
+    {
+      "sourceChildIndex": 20,
+      "id": "hull.hiking-strap.port",
+      "name": "Port hiking strap",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          -0.22,
+          0.2,
+          -0.7
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 214728,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 215016,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 215304,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 215496,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 21,
+      "id": "hull.hiking-strap.starboard",
+      "name": "Starboard hiking strap",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0.22,
+          0.2,
+          -0.7
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 215568,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 215856,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 216144,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 216336,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 22,
+      "id": "hull.jib-control.port",
+      "name": "Port jib control fitting",
+      "sourceGeometryType": "CylinderGeometry",
+      "transform": {
+        "position": [
+          -0.52,
+          0.35517942211204356,
+          -0.4
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 216408,
+          "elementCount": 192,
+          "byteLength": 768
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 217176,
+          "elementCount": 192,
+          "byteLength": 768
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 217944,
+          "elementCount": 128,
+          "byteLength": 512
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 218456,
+        "elementCount": 120,
+        "byteLength": 240
+      }
+    },
+    {
+      "sourceChildIndex": 23,
+      "id": "hull.jib-control.starboard",
+      "name": "Starboard jib control fitting",
+      "sourceGeometryType": "CylinderGeometry",
+      "transform": {
+        "position": [
+          0.52,
+          0.35517942211204356,
+          -0.4
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 218696,
+          "elementCount": 192,
+          "byteLength": 768
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 219464,
+          "elementCount": 192,
+          "byteLength": 768
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 220232,
+          "elementCount": 128,
+          "byteLength": 512
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 220744,
+        "elementCount": 120,
+        "byteLength": 240
+      }
+    },
+    {
+      "sourceChildIndex": 25,
+      "id": "hull.centerboard-case",
+      "name": "Centerboard case",
+      "sourceGeometryType": "BoxGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.165,
+          0.25
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 220984,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 221272,
+          "elementCount": 72,
+          "byteLength": 288
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 221560,
+          "elementCount": 48,
+          "byteLength": 192
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 221752,
+        "elementCount": 36,
+        "byteLength": 72
+      }
+    },
+    {
+      "sourceChildIndex": 28,
+      "id": "hull.equipment-marker",
+      "name": "Forward equipment marker",
+      "sourceGeometryType": "SphereGeometry",
+      "transform": {
+        "position": [
+          0.35,
+          0.5322482801934636,
+          1.45
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.15,
+          0.55,
+          1.3
+        ]
+      },
+      "material": {
+        "sourceId": 16,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 221824,
+          "elementCount": 351,
+          "byteLength": 1404
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 223228,
+          "elementCount": 351,
+          "byteLength": 1404
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 224632,
+          "elementCount": 234,
+          "byteLength": 936
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 225568,
+        "elementCount": 504,
+        "byteLength": 1008
+      }
+    },
+    {
+      "sourceChildIndex": 29,
+      "id": "hull.bow-eye",
+      "name": "Bow eye and handle",
+      "sourceGeometryType": "TorusGeometry",
+      "transform": {
+        "position": [
+          0,
+          0.5946471168294517,
+          2.12
+        ],
+        "quaternion": [
+          -0.5,
+          0.4999999999999999,
+          0.5,
+          0.5000000000000001
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "sourceId": 11,
+        "sourceType": "MeshStandardMaterial"
+      },
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "attributes": {
+        "position": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 226576,
+          "elementCount": 459,
+          "byteLength": 1836
+        },
+        "normal": {
+          "arrayType": "Float32Array",
+          "itemSize": 3,
+          "normalized": false,
+          "byteOffset": 228412,
+          "elementCount": 459,
+          "byteLength": 1836
+        },
+        "uv": {
+          "arrayType": "Float32Array",
+          "itemSize": 2,
+          "normalized": false,
+          "byteOffset": 230248,
+          "elementCount": 306,
+          "byteLength": 1224
+        }
+      },
+      "index": {
+        "arrayType": "Uint16Array",
+        "itemSize": 1,
+        "normalized": false,
+        "byteOffset": 231472,
+        "elementCount": 768,
+        "byteLength": 1536
+      }
+    }
+  ]
+}

@@ -1,0 +1,933 @@
+
+> laser2-lighting-foundry-v7@7.0.0 verify
+> npm run build && npm run test:cpu && npm run test:browser
+
+
+> laser2-lighting-foundry-v7@7.0.0 build
+> npm run build:assets && tsc -p tsconfig.json && node tools/build_atmosphere_worker_bundle.mjs && node tools/copy-static.mjs
+
+
+> laser2-lighting-foundry-v7@7.0.0 build:assets
+> python tools/build_hull_binary.py
+
+{
+  "manifest": "hull-static-v3.manifest.json",
+  "binary": "hull-static-v3.bin",
+  "sourceJsonBytes": 873828,
+  "manifestBytes": 40377,
+  "binaryBytes": 233008,
+  "combinedBytes": 273385,
+  "reductionRatio": 0.31285905235355244,
+  "meshes": 27
+}
+{
+  "output": "dist/workers/atmosphere-lut-worker-v7.bundle.js",
+  "bytes": 17651
+}
+
+> laser2-lighting-foundry-v7@7.0.0 test:cpu
+> node tests/cpu/lighting-reference.test.mjs && node tests/cpu/atmosphere-reference.test.mjs && node tests/cpu/atmosphere-transport-v7.test.mjs && node tests/cpu/atmosphere-worker-v7.test.mjs && node tests/cpu/radiometric-coupling.test.mjs && node tests/cpu/semantic-assets.test.mjs && node tests/cpu/fixed-step-clock.test.mjs && node tests/cpu/hull-binary-asset.test.mjs
+
+{
+  "test": "lighting-reference-cpu",
+  "runtime": "v22.16.0",
+  "iterations": 1000000,
+  "elapsedMs": 120.427048,
+  "evaluationsPerSecond": 8303782.38616295,
+  "sink": 144832.99762466634,
+  "evaluations": [
+    {
+      "elevation": 65,
+      "azimuth": 140,
+      "shadow": 1,
+      "direction": {
+        "x": 0.27165378227418446,
+        "y": 0.9063077870366499,
+        "z": -0.32374437096706454
+      },
+      "sun": {
+        "r": 0.9976258479227585,
+        "g": 0.9976258479227585,
+        "b": 0.9976258479227585
+      },
+      "transmitted": {
+        "r": 0.11547187705103254,
+        "g": 0.11170648975589018,
+        "b": 0.0979000696737015
+      },
+      "luminance": 0.11151018756490341
+    },
+    {
+      "elevation": 12,
+      "azimuth": 240,
+      "shadow": 0.55,
+      "direction": {
+        "x": -0.8471006708862738,
+        "y": 0.20791169081775931,
+        "z": -0.4890738003669033
+      },
+      "sun": {
+        "r": 0.9899008699090657,
+        "g": 0.9899008699090657,
+        "b": 0.9899008699090657
+      },
+      "transmitted": {
+        "r": 0.06301775508270008,
+        "g": 0.06096282828652507,
+        "b": 0.05342809670055006
+      },
+      "luminance": 0.06085569810288448
+    },
+    {
+      "elevation": -2,
+      "azimuth": 300,
+      "shadow": 0.2,
+      "direction": {
+        "x": -0.8654978445076764,
+        "y": -0.03489949670250097,
+        "z": 0.499695413509548
+      },
+      "sun": {
+        "r": 0.838852864848917,
+        "g": 0.7278515405777938,
+        "b": 0.5502494217439966
+      },
+      "transmitted": {
+        "r": 0.019418886364147268,
+        "g": 0.01629984644657229,
+        "b": 0.01079953107446392
+      },
+      "luminance": 0.016565831563182504
+    }
+  ],
+  "checks": {
+    "directionsNormalized": true,
+    "shadowReducesTransmission": true,
+    "finite": true,
+    "sinkFinite": true
+  },
+  "allChecksPassed": true
+}
+{
+  "test": "atmosphere-reference-cpu",
+  "runtime": "v22.16.0",
+  "iterations": 20000,
+  "elapsedMs": 55.897226999999994,
+  "evaluationsPerSecond": 357799.50229015836,
+  "highTrans": {
+    "r": 0.9371506240737995,
+    "g": 0.8584919264120126,
+    "b": 0.742668078871442
+  },
+  "lowTrans": {
+    "r": 0.4689312764463883,
+    "g": 0.18184870288646338,
+    "b": 0.032343830863143415
+  },
+  "zenith": {
+    "r": 0.11399550435713865,
+    "g": 0.20918872761951676,
+    "b": 0.4056453301505826
+  },
+  "horizon": {
+    "r": 0.5169042957223056,
+    "g": 0.2464070096832141,
+    "b": 0.1129278553938648
+  },
+  "below": {
+    "r": 0.06489736895909834,
+    "g": 0.0611472731275272,
+    "b": 0.054967697391656495
+  },
+  "sh": {
+    "coefficients": [
+      {
+        "r": 0.4282609836612213,
+        "g": 0.5893075691374651,
+        "b": 0.8066768717379011
+      },
+      {
+        "r": 0.081564030457183,
+        "g": 0.2321988331572299,
+        "b": 0.5061904470743483
+      },
+      {
+        "r": -0.068327215997229,
+        "g": -0.06135513250430382,
+        "b": -0.05248311543653623
+      },
+      {
+        "r": -0.010512403239112298,
+        "g": 0.002351089693111882,
+        "b": 0.03888256584887446
+      },
+      {
+        "r": 0.013158165921520783,
+        "g": 0.027820678362060376,
+        "b": 0.05650203990553104
+      },
+      {
+        "r": -0.01255626955504768,
+        "g": -0.025366097138876113,
+        "b": -0.05280229877974956
+      },
+      {
+        "r": 0.1456995258501662,
+        "g": 0.13031033352664434,
+        "b": 0.024600726941396853
+      },
+      {
+        "r": -0.03820796864455325,
+        "g": -0.06295269244192675,
+        "b": -0.055456100493375494
+      },
+      {
+        "r": 0.08466652631223624,
+        "g": 0.10375906630469013,
+        "b": 0.03868177874872922
+      }
+    ],
+    "samples": 32,
+    "elapsedMs": 3.5569379999999953
+  },
+  "sink": 11121.034929801226,
+  "checks": {
+    "highSunTransmittanceFinite": true,
+    "lowSunTransmittanceFinite": true,
+    "lowSunWarmerThanHigh": true,
+    "zenithFinite": true,
+    "horizonFinite": true,
+    "groundFinite": true,
+    "shFinite": true,
+    "sinkFinite": true
+  },
+  "allChecksPassed": true
+}
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "spectral": {
+    "noonSolar": {
+      "rgb": {
+        "r": 7.328262588742613e+29,
+        "g": 6.081610641820749e+29,
+        "b": 4.845551179703287e+29
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.8298843782103386,
+        "b": 0.6612141856306885
+      },
+      "photopicTransmission": 0.8259371976522365,
+      "colorTemperatureApproxK": 5345.383309795807,
+      "samples": 15
+    },
+    "sunsetSolar": {
+      "rgb": {
+        "r": 6.906162526008039e+28,
+        "g": 2.57892416127912e+28,
+        "b": 1.8311366073915804e+27
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.37342361283377046,
+        "b": 0.026514531051009455
+      },
+      "photopicTransmission": 0.04389981535627696,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "sunsetWithoutOzone": {
+      "rgb": {
+        "r": 2.339827831459724e+29,
+        "g": 7.440091425448469e+28,
+        "b": 0
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.3179760205180095,
+        "b": 0
+      },
+      "photopicTransmission": 0.13575616662799816,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "sunsetWithDenseOzone": {
+      "rgb": {
+        "r": 2.5897281378618016e+28,
+        "g": 1.1230087245060578e+28,
+        "b": 2.3424536955688587e+27
+      },
+      "normalizedRgb": {
+        "r": 1,
+        "g": 0.43363961957538344,
+        "b": 0.09045172199051349
+      },
+      "photopicTransmission": 0.018091838008903002,
+      "colorTemperatureApproxK": 1700,
+      "samples": 15
+    },
+    "ozoneDifference": 0.20611532104788743
+  },
+  "scattering": {
+    "singleScatter": {
+      "r": 0.4880999875378739,
+      "g": 0.2308745250230101,
+      "b": 0.028381393720108408
+    },
+    "higherOrder": {
+      "r": 0.6058968074024309,
+      "g": 0.36164473528339247,
+      "b": 0.1790572770832365
+    },
+    "singleLuminance": 0.27094065427360065,
+    "higherOrderLuminance": 0.40038991133384877
+  },
+  "whiteBalance": {
+    "wbWarm": {
+      "r": 0.8261546218283479,
+      "g": 1,
+      "b": 1.2036803035855772
+    },
+    "wbNeutral": {
+      "r": 0.9965101328455601,
+      "g": 1,
+      "b": 1.0162699747407977
+    },
+    "wbCool": {
+      "r": 1.0633455003970904,
+      "g": 1,
+      "b": 0.8739607064832815
+    },
+    "warmBudget": {
+      "r": 0.8261546218283479,
+      "g": 1,
+      "b": 1.2036803035855772
+    },
+    "coolBudget": {
+      "r": 1.0633455003970904,
+      "g": 1,
+      "b": 0.8739607064832815
+    }
+  }
+}
+{
+  "project": "LASER2_LIGHTING_FOUNDRY_V7",
+  "test": "pure CPU worker-job atmosphere LUT",
+  "firstOrder": {
+    "computeMs": 20.354081,
+    "finalEnergy": 327.4916057768278
+  },
+  "fourthOrder": {
+    "computeMs": 11.616177000000008,
+    "firstOrderEnergy": 327.4916057768278,
+    "finalEnergy": 336.68185677053407
+  },
+  "energyRatio": 1.0280625543726731,
+  "changedChannels": 3456,
+  "maxDifference": 0.015680313110351562,
+  "minValue": 0.0067696222104132175,
+  "maxValue": 0.9836508631706238,
+  "checks": {
+    "dimensions": true,
+    "finite": true,
+    "positive": true,
+    "higherOrdersIncreaseEnergy": true,
+    "higherOrdersChangeAngularField": true,
+    "bounded": true
+  },
+  "allChecksPassed": true,
+  "truthBoundary": "Orders 2–4 are a bounded angular redistribution approximation, not a full spectral multiple-scattering precomputation."
+}
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "sweep": {
+    "iterations": 250,
+    "elapsedMs": 41.932244999999995,
+    "perIterationMs": 0.16772897999999997,
+    "checksum": 19162732.02709865
+  },
+  "key": {
+    "noon": {
+      "revision": 1,
+      "sunDirection": {
+        "x": 0.12940952255126054,
+        "y": 0.8660254037844386,
+        "z": -0.4829629131445342
+      },
+      "sunTransmittance": {
+        "r": 0.9737447401660668,
+        "g": 0.8092832401147618,
+        "b": 0.6464010877699541
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.832487663626374,
+      "spectralColorTemperatureApproxK": 5360.601248628813,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 97034.65003805526,
+        "g": 80928.32401147617,
+        "b": 65691.80171403954
+      },
+      "directNormalLux": 83252.45201485195,
+      "directHorizontalRgbLux": {
+        "r": 84034.4719802885,
+        "g": 70085.98447963654,
+        "b": 56890.769104728366
+      },
+      "directHorizontalLux": 72098.73837220676,
+      "skyIrradianceRgbLux": {
+        "r": 8071.029736977047,
+        "g": 14620.990912414441,
+        "b": 27345.994398656036
+      },
+      "skyIrradianceLux": 14147.214418223093,
+      "groundBounceRgbLux": {
+        "r": 2652.638449457247,
+        "g": 2439.5608912910684,
+        "b": 2426.0187888974706
+      },
+      "groundBounceLux": 2483.88344036438,
+      "totalHorizontalLux": 86245.95279042986,
+      "rendererExposure": 0.8408964152537146,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.8340146945419757,
+        "b": 0.6769932358005762
+      },
+      "sunRendererIntensity": 3.105108801217768,
+      "hemisphereSkyColor": {
+        "r": 0.2951448617781371,
+        "g": 0.5346666388965915,
+        "b": 0.9999999999999999
+      },
+      "hemisphereGroundColor": {
+        "r": 0.09700281550513355,
+        "g": 0.08921090437329149,
+        "b": 0.08871569099043994
+      },
+      "hemisphereIntensity": 1.5192219110364464,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 4.706264000000004
+    },
+    "sunset": {
+      "revision": 1,
+      "sunDirection": {
+        "x": -0.9993908270190958,
+        "y": 0.03489949670250097,
+        "z": -1.8358511661092426e-16
+      },
+      "sunTransmittance": {
+        "r": 0.0821931643362028,
+        "g": 0.03002908657483001,
+        "b": 0.0019225877933647338
+      },
+      "spectralSolarEnabled": true,
+      "spectralSamples": 15,
+      "spectralPhotopicTransmission": 0.03908988029487606,
+      "spectralColorTemperatureApproxK": 1700,
+      "whiteBalanceRgb": {
+        "r": 0.9965101328455601,
+        "g": 1,
+        "b": 1.0162699747407977
+      },
+      "directNormalRgbLux": {
+        "r": 8190.632111166639,
+        "g": 3002.9086574830008,
+        "b": 195.38682481997438
+      },
+      "directNormalLux": 3903.1155874178717,
+      "directHorizontalRgbLux": {
+        "r": 285.8489383550587,
+        "g": 104.8000007897396,
+        "b": 6.8189018485168305
+      },
+      "directHorizontalLux": 136.21676957257014,
+      "skyIrradianceRgbLux": {
+        "r": 5497.526348243352,
+        "g": 6131.945529450249,
+        "b": 8850.846020331343
+      },
+      "skyIrradianceLux": 6193.372626967277,
+      "groundBounceRgbLux": {
+        "r": 166.56120825403423,
+        "g": 179.61827127091166,
+        "b": 255.10074975877995
+      },
+      "groundBounceLux": 182.2921746203476,
+      "totalHorizontalLux": 6329.589396539847,
+      "rendererExposure": 0.8408964152537146,
+      "autoExposureEv": 0,
+      "sunRendererColor": {
+        "r": 1,
+        "g": 0.3666272171337066,
+        "b": 0.02385491402471797
+      },
+      "sunRendererIntensity": 0.2621002275573324,
+      "hemisphereSkyColor": {
+        "r": 0.6211300406328326,
+        "g": 0.6928089716355377,
+        "b": 1
+      },
+      "hemisphereGroundColor": {
+        "r": 0.01881867652780596,
+        "g": 0.020293909854301975,
+        "b": 0.028822188203566777
+      },
+      "hemisphereIntensity": 0.4917136677961857,
+      "specularEnvironmentIntensity": 1,
+      "atmosphereSamples": 32,
+      "cpuMs": 1.0317450000000008
+    }
+  }
+}
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "hullAsset": {
+    "path": "/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/public/assets/boat/hull-static-v2.json",
+    "sha256": "44bfa93de0d4ef94bec0af4d947a2a58f80e850d61b399b028c76057cd3553e3",
+    "meshes": 27,
+    "vertices": 5571,
+    "triangles": 9256,
+    "bytes": 873828
+  }
+}
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "cadenceResults": [
+    {
+      "renderHz": 30,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.03333333333333333,
+        "clampedDeltaSeconds": 0.03333333333333333,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 2,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 60,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.016666666666666666,
+        "clampedDeltaSeconds": 0.016666666666666666,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 90,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.011111111111111112,
+        "clampedDeltaSeconds": 0.011111111111111112,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 3.469446951953614e-18,
+        "interpolationAlpha": 2.0816681711721685e-16,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 120,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.008333333333333333,
+        "clampedDeltaSeconds": 0.008333333333333333,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 144,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.006944444444444444,
+        "clampedDeltaSeconds": 0.006944444444444444,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    },
+    {
+      "renderHz": 240,
+      "executedSteps": 600,
+      "expectedSteps": 600,
+      "snapshot": {
+        "inputDeltaSeconds": 0.004166666666666667,
+        "clampedDeltaSeconds": 0.004166666666666667,
+        "fixedDtSeconds": 0.016666666666666666,
+        "steps": 1,
+        "droppedSteps": 0,
+        "droppedSeconds": 0,
+        "accumulatorSeconds": 0,
+        "interpolationAlpha": 0,
+        "totalSteps": 600,
+        "totalDroppedSteps": 0,
+        "totalDroppedSeconds": 0,
+        "config": {
+          "fixedHz": 60,
+          "maxCatchUpSteps": 4,
+          "maxFrameDeltaSeconds": 0.25
+        }
+      }
+    }
+  ],
+  "stall": {
+    "inputDeltaSeconds": 1,
+    "clampedDeltaSeconds": 0.25,
+    "fixedDtSeconds": 0.016666666666666666,
+    "steps": 4,
+    "droppedSteps": 11,
+    "droppedSeconds": 0.18333333333333332,
+    "accumulatorSeconds": 0,
+    "interpolationAlpha": 0,
+    "totalSteps": 4,
+    "totalDroppedSteps": 11,
+    "totalDroppedSeconds": 0.18333333333333332
+  }
+}
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "bytes": {
+    "sourceJson": 873828,
+    "manifest": 40377,
+    "binary": 233008,
+    "combined": 273385,
+    "reductionRatio": 0.31285905235355244
+  },
+  "topology": {
+    "meshes": 27,
+    "vertices": 5571,
+    "triangles": 9256
+  }
+}
+
+> laser2-lighting-foundry-v7@7.0.0 test:browser
+> xvfb-run -a python tests/browser/verify_foundry_v7.py
+
+/mnt/data/LASER2_LIGHTING_FOUNDRY_V7/tests/browser/verify_foundry_v7.py:32: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  pixels=list(diff.getdata())
+{
+  "allChecksPassed": true,
+  "failed": [],
+  "dedicatedWorkerBundle": {
+    "generation": 7,
+    "width": 48,
+    "height": 24,
+    "scatteringOrders": 4,
+    "computeMs": 26.199999999953434,
+    "firstOrderEnergy": 327.49158479087055,
+    "finalEnergy": 336.68183532264084,
+    "byteLength": 18432,
+    "error": null
+  },
+  "atmosphereFallback": {
+    "supported": true,
+    "active": true,
+    "jobs": 1,
+    "fallbacks": 0,
+    "restarts": 1,
+    "bootstrapFallbacks": 1,
+    "pendingGeneration": 1,
+    "appliedGeneration": 1,
+    "cancelledGenerations": 0,
+    "errors": []
+  },
+  "localProbes": {
+    "enabled": true,
+    "probeCount": 6,
+    "patchedMaterials": 13,
+    "shaderCompiles": 26,
+    "outputInjections": 26,
+    "worldPositionInjections": 26,
+    "updateStrideFrames": 4,
+    "updates": 8,
+    "cpuMs": {
+      "last": 0.10000000009313226,
+      "mean": 0.08750000002328308
+    },
+    "strengths": {
+      "diffuse": 0.85,
+      "specular": 0.55
+    },
+    "probes": [
+      {
+        "name": "deck",
+        "local": [
+          0,
+          0.62,
+          0.1
+        ],
+        "radius": 2.8,
+        "tint": [
+          1,
+          0.98,
+          0.91
+        ],
+        "energyScale": 0.95,
+        "worldPosition": [
+          0.04995267332230499,
+          0.9158200622386012,
+          -1.3877787807814457e-17
+        ]
+      },
+      {
+        "name": "main-sail",
+        "local": [
+          0.18,
+          2.85,
+          -0.35
+        ],
+        "radius": 3.2,
+        "tint": [
+          1,
+          0.91,
+          0.72
+        ],
+        "energyScale": 0.7,
+        "worldPosition": [
+          0.49978244759036994,
+          3.1458544059611238,
+          0.18
+        ]
+      },
+      {
+        "name": "jib",
+        "local": [
+          -0.1,
+          2.15,
+          1.35
+        ],
+        "radius": 2.4,
+        "tint": [
+          0.98,
+          0.92,
+          0.78
+        ],
+        "energyScale": 0.58,
+        "worldPosition": [
+          -1.2001641137820862,
+          2.4457246405047735,
+          -0.10000000000000012
+        ]
+      },
+      {
+        "name": "hull-port",
+        "local": [
+          -0.86,
+          0.05,
+          0.05
+        ],
+        "radius": 2.2,
+        "tint": [
+          0.72,
+          0.9,
+          1
+        ],
+        "energyScale": 0.52,
+        "worldPosition": [
+          0.09999618345461982,
+          0.34582388059030555,
+          -0.8599999999999999
+        ]
+      },
+      {
+        "name": "hull-starboard",
+        "local": [
+          0.86,
+          0.05,
+          0.05
+        ],
+        "radius": 2.2,
+        "tint": [
+          0.72,
+          0.9,
+          1
+        ],
+        "energyScale": 0.52,
+        "worldPosition": [
+          0.09999618345462001,
+          0.34582388059030555,
+          0.8600000000000001
+        ]
+      },
+      {
+        "name": "water-ground",
+        "local": [
+          0,
+          -0.48,
+          0.15
+        ],
+        "radius": 4.5,
+        "tint": [
+          0.36,
+          0.69,
+          0.88
+        ],
+        "energyScale": 0.82,
+        "worldPosition": [
+          3.6640671107535105e-05,
+          -0.18418375124768138,
+          0
+        ]
+      }
+    ],
+    "receiverPolicy": "static hull material batches plus mast/boom/spreader surfaces; sail and crew shaders remain untouched to contain compile cost",
+    "model": "six analytic near-field irradiance/specular lobes fed by the atmosphere radiometric budget; no hidden lights",
+    "truthBoundary": "Analytic local lobes approximate sail/deck/hull/water bounce. Parallax-corrected cubemap probes and real local GI remain future authorities."
+  },
+  "hullBatches": {
+    "built": true,
+    "sourceMeshes": 27,
+    "batchMeshes": 7,
+    "materialGroups": 7,
+    "drawCallReduction": 20,
+    "sourceVertices": 5571,
+    "batchVertices": 5571,
+    "sourceTriangles": 9256,
+    "batchTriangles": 9256,
+    "topologyParity": true,
+    "buildMs": 7.699999999953434,
+    "errors": [],
+    "model": "27 semantic static hull/deck/fitting meshes merged by pooled material into shared indexed BufferGeometry batches",
+    "truthBoundary": "Semantic source meshes remain hidden for inspection selection. A future ID-buffer picker can remove that duplicate CPU geometry path entirely."
+  },
+  "render": {
+    "authority": "RenderSystem is the only authorized renderer.render(scene,camera) boundary, including benchmarks and captures",
+    "renders": 7,
+    "benchmarkRenders": 0,
+    "captureRenders": 0,
+    "unauthorizedRenderCalls": 0,
+    "warmupRendersExcludedFromSteadyState": 2,
+    "renderCpuSubmissionMs": {
+      "last": 11.600000000093132,
+      "coldStart": 4523.199999999953,
+      "all": {
+        "samples": 7,
+        "mean": 657.4857142857343,
+        "min": 7.800000000046566,
+        "max": 4523.199999999953,
+        "p50": 11.600000000093132,
+        "p95": 28.5,
+        "p99": 28.5
+      },
+      "steadyState": {
+        "samples": 5,
+        "mean": 13.920000000065192,
+        "min": 7.800000000046566,
+        "max": 28.5,
+        "p50": 11.600000000093132,
+        "p95": 11.900000000139698,
+        "p99": 11.900000000139698
+      }
+    },
+    "completedBatchWallMs": {
+      "samples": 4,
+      "mean": 0,
+      "min": 0,
+      "max": 0,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "recentReasons": [
+      "frame-graph",
+      "frame-graph",
+      "frame-graph",
+      "frame-graph",
+      "frame-graph",
+      "frame-graph",
+      "frame-graph"
+    ],
+    "calls": 608,
+    "triangles": 64040,
+    "measurementBoundary": "submission timing is separate from explicit gl.finish batch completion timing"
+  },
+  "probeDiff": {
+    "pixels": 960000,
+    "changedPixelsAt2": 13713,
+    "strongPixelsAt10": 2079,
+    "maxChannelDifference": 65,
+    "meanAbsoluteChannelDifference": 0.07741145833333334
+  },
+  "webgl": {
+    "context": "WebGL2",
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "contextLost": false,
+    "glError": 0
+  }
+}

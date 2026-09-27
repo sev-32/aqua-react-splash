@@ -70,7 +70,7 @@
       "hemisphereIntensity": 1.5192219110364464,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 4.706264000000004
+      "cpuMs": 4.845565000000001
     },
     "golden": {
       "revision": 1,
@@ -139,7 +139,7 @@
       "hemisphereIntensity": 1.198316109815348,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 1.5470609999999994
+      "cpuMs": 1.4687140000000056
     },
     "sunset": {
       "revision": 1,
@@ -208,7 +208,7 @@
       "hemisphereIntensity": 0.4917136677961857,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 1.0317450000000008
+      "cpuMs": 1.1887889999999999
     }
   },
   "autoExposure": {
@@ -279,7 +279,7 @@
       "hemisphereIntensity": 1.5192219110364464,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 0.6999239999999958
+      "cpuMs": 0.9884190000000004
     },
     "sunset": {
       "revision": 1,
@@ -348,13 +348,13 @@
       "hemisphereIntensity": 0.4917136677961857,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 0.7302560000000042
+      "cpuMs": 1.2081149999999994
     }
   },
   "sweep": {
     "iterations": 250,
-    "elapsedMs": 41.932244999999995,
-    "perIterationMs": 0.16772897999999997,
+    "elapsedMs": 52.86238900000001,
+    "perIterationMs": 0.21144955600000004,
     "checksum": 19162732.02709865
   },
   "checks": {

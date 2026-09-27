@@ -1,3 +1,9 @@
+# The repository root ignores dist/ and *.log; the V8 build and the
+# verification logs are kept in git here.
+!dist/
+!evidence/**/*.log
 # LUCID female-skin-v4.2 crew asset: built locally from the owner-supplied LUCID
-# package with tools/build_lucid_crew_asset.py; not published in this public repo.
+# package with tools/build_lucid_crew_asset.py; not published in this public
+# repo (the build copies it into dist/assets/lucid).
 public/assets/lucid/
+dist/assets/lucid/

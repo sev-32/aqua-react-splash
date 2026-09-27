@@ -1,0 +1,1 @@
+{"version":3,"file":"AtmosphereShader.d.ts","sourceRoot":"","sources":["../../../../src/lighting/atmosphere/AtmosphereShader.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,uBAAuB;IACtC,WAAW,EAAE,MAAM,CAAC;IACpB,UAAU,EAAE,MAAM,CAAC;CACpB;AAED,eAAO,MAAM,wBAAwB,yOAQpC,CAAC;AAEF,wBAAgB,wBAAwB,CAAC,QAAQ,EAAE,uBAAuB,GAAG,MAAM,CAkDlF"}

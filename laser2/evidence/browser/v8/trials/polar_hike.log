@@ -1,0 +1,6 @@
+[harness] ready after 18395 ms
+[stage 0 setup] 201 ms "ok"
+[stage 1 polar] 184251 ms ["TWA 45: 3.94 kn heel 12.0 leeway 6.0 AWA 36 main 0.85 jib 0.99 sailF 341N tiller -0.12 αM 21 αJ 11 vang 1.00 crew sailing/0.5,sailing/0.65","TWA 60: 4.57 kn heel 8.9 leeway 3.9 AWA 44 main 0.69 jib 0.96 sailF 314N tiller -0.06 αM 20 αJ 13 vang 1.00 crew sailing/0.32,sailing/0.37","TWA 90: 5.06 kn heel 10.1 leeway 2.4 AWA 65 main 0.38 jib 0.86 sailF 251N tiller -0.04 αM 16 αJ 10 vang 0.88 crew sailing/0.31,sailing/0.39"]
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[warning] sigmaRadians, 0.05, is too large and will clip, as it requested 25 samples when the maximum is set to 20
+[error] Failed to load resource: the server responded with a status of 404 (Not Found)

@@ -9,8 +9,8 @@
    "detailComponents": 22,
    "maxInverseErrorM": 0.01011271261900322,
    "meanInverseErrorM": 0.0020340830086594116,
-   "gridBuildMs": 1.8029313000000002,
-   "sampleQueryUs": 0.5689076,
+   "gridBuildMs": 2.1687243499999993,
+   "sampleQueryUs": 0.8786019000000012,
    "finite": true
   },
   "wind_7.2": {
@@ -22,8 +22,8 @@
    "detailComponents": 22,
    "maxInverseErrorM": 0.008000482861694677,
    "meanInverseErrorM": 0.0018295754664183525,
-   "gridBuildMs": 1.492757850000001,
-   "sampleQueryUs": 0.28206820000000055,
+   "gridBuildMs": 1.7268894000000004,
+   "sampleQueryUs": 0.5048351999999995,
    "finite": true
   },
   "wind_11": {
@@ -35,8 +35,8 @@
    "detailComponents": 22,
    "maxInverseErrorM": 0.009756270416298132,
    "meanInverseErrorM": 0.0022166387246064776,
-   "gridBuildMs": 1.485945799999999,
-   "sampleQueryUs": 0.12090200000000095,
+   "gridBuildMs": 1.7497749999999996,
+   "sampleQueryUs": 0.1590316999999999,
    "finite": true
   }
  },

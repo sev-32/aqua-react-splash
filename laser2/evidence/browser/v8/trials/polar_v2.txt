@@ -1,0 +1,9 @@
+RESULT [
+ "TWA 45: 3.69 kn heel 9.4 leeway 5.9 AWA 36 main 0.89 jib 0.98 sailF 306N tiller -0.12 αM 13 αJ 8 vang 0.88 crew sailing/0.27,sailing/0.32",
+ "TWA 60: 4.45 kn heel 8.9 leeway 4.2 AWA 45 main 0.76 jib 0.96 sailF 310N tiller -0.07 αM 4 αJ 20 vang 0.88 crew sailing/0.48,sailing/0.6",
+ "TWA 75: 4.80 kn heel 9.1 leeway 3.1 AWA 54 main 0.60 jib 0.93 sailF 286N tiller -0.04 αM 17 αJ 14 vang 0.88 crew sailing/0.25,sailing/0.31",
+ "TWA 90: 4.96 kn heel 10.7 leeway 2.0 AWA 66 main 0.35 jib 0.87 sailF 229N tiller -0.02 αM -0 αJ -9 vang 0.88 crew sailing/0.66,sailing/0.79",
+ "TWA 110: 5.08 kn heel 9.9 leeway 1.4 AWA 80 main 0.13 jib 0.78 sailF 193N tiller 0.02 αM 10 αJ 8 vang 0.88 crew sailing/0.67,sailing/0.82",
+ "TWA 135: 4.38 kn heel 5.0 leeway 0.9 AWA 114 main 0.02 jib 0.63 sailF 104N tiller -0.01 αM 45 αJ -24 vang 0.88 crew sailing/0.05,sailing/0.06",
+ "TWA 160: 5.02 kn heel 3.8 leeway 0.4 AWA 143 main 0.02 jib 0.63 sailF 94N tiller -0.01 αM 66 αJ 70 vang 0.62 crew sailing/-0.68,sailing/-0.82"
+]

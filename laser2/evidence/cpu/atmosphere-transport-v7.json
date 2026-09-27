@@ -127,7 +127,7 @@
       }
     ],
     "samples": 48,
-    "elapsedMs": 4.486257999999999
+    "elapsedMs": 4.519839999999995
   },
   "whiteBalance": {
     "wbWarm": {
@@ -224,7 +224,7 @@
       "hemisphereIntensity": 1.5191423768152266,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 0.9357990000000029
+      "cpuMs": 1.141522000000002
     },
     "sunset": {
       "revision": 1,
@@ -293,7 +293,7 @@
       "hemisphereIntensity": 0.49123700362117373,
       "specularEnvironmentIntensity": 1,
       "atmosphereSamples": 32,
-      "cpuMs": 1.129521000000004
+      "cpuMs": 1.7754270000000005
     }
   },
   "checks": {

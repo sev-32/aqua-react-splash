@@ -1,0 +1,8 @@
+(() => { const T = window.LASER2_THREE_R160; const out = {};
+  const checks = { Vector2:'isVector2', Vector3:'isVector3', Vector4:'isVector4', Quaternion:'isQuaternion', Matrix3:'isMatrix3', Matrix4:'isMatrix4', Color:'isColor', Euler:'isEuler', Box3:'isBox3', Group:'isGroup', Mesh:'isMesh', Scene:'isScene', PerspectiveCamera:'isPerspectiveCamera', OrthographicCamera:'isOrthographicCamera', BufferGeometry:'isBufferGeometry', ShaderMaterial:'isShaderMaterial', MeshStandardMaterial:'isMeshStandardMaterial', MeshPhysicalMaterial:'isMeshPhysicalMaterial', MeshBasicMaterial:'isMeshBasicMaterial', Texture:'isTexture', DataTexture:'isDataTexture', DepthTexture:'isDepthTexture', WebGLRenderTarget:'isWebGLRenderTarget', DirectionalLight:'isDirectionalLight' };
+  for (const [k, flag] of Object.entries(checks)) { try { const o = k==='DepthTexture' ? new T[k](4,4) : k==='WebGLRenderTarget' ? new T[k](4,4) : new T[k](); out[k] = o[flag] === true; } catch (e) { out[k] = 'ERR ' + e.message; } }
+  const g = new T.PlaneGeometry(1,1,2,2); out.PlaneGeometry = g.type; out.Sphere = new T.SphereGeometry(1,8,6).type; out.Cyl = new T.CylinderGeometry(1,1,1,8).type; out.Box = new T.BoxGeometry(1,1,1).type;
+  out.F32 = new T.Float32BufferAttribute([1,2,3],3).array.constructor.name; out.U16 = new T.Uint16BufferAttribute([1,2,3],1).array.constructor.name; out.U32 = new T.Uint32BufferAttribute([1,2,3],1).array.constructor.name;
+  out.sameVector3AsLegacy = window.LASER2_CREW_RIGGING_MASTER_V2.body.pos.constructor === T.Vector3;
+  out.sameMeshAsLegacy = window.LASER2_CREW_RIGGING_MASTER_V2.water.meshNear.constructor === T.Mesh;
+  return out; })()

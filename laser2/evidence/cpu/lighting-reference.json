@@ -1,9 +1,9 @@
 {
   "test": "lighting-reference-cpu",
-  "runtime": "v22.16.0",
+  "runtime": "v22.22.2",
   "iterations": 1000000,
-  "elapsedMs": 120.427048,
-  "evaluationsPerSecond": 8303782.38616295,
+  "elapsedMs": 143.60618599999998,
+  "evaluationsPerSecond": 6963488.327724269,
   "sink": 144832.99762466634,
   "evaluations": [
     {
