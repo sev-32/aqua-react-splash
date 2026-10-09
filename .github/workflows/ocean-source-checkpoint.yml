@@ -1,0 +1,36 @@
+name: THALASSA source-only checkpoint
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths: ['.github/workflows/ocean-source-checkpoint.yml']
+  workflow_dispatch:
+jobs:
+  package-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: THALASSA-CAUSAL-R1-CODE-DOCS
+          path: |
+            src/
+            scripts/
+            docs/consolidation/*.md
+            README.md
+            package.json
+            package-lock.json
+            index.html
+            vite.config.ts
+            tsconfig.json
+            tsconfig.app.json
+            tsconfig.node.json
+            eslint.config.js
+            postcss.config.js
+            tailwind.config.ts
+            components.json
+            !**/*.png
+            !**/*.jpg
+            !**/*.webp
+          if-no-files-found: error
+          retention-days: 7
