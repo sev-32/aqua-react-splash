@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - feature/causal-water-ledger-r1
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/causal-water-r1.yml'
   workflow_dispatch:
 
 jobs:
