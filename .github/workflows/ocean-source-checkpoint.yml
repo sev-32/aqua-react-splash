@@ -6,6 +6,8 @@ on:
       - '.github/workflows/ocean-source-checkpoint.yml'
       - 'src/ocean/sim/splashShaders.ts'
       - 'scripts/causal-ledger-capture.mjs'
+      - 'scripts/ci-ocean-closeups.mjs'
+      - 'scripts/ci-shore-ready.mjs'
   workflow_dispatch:
 jobs:
   package-source:
