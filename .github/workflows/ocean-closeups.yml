@@ -6,6 +6,7 @@ on:
     paths:
       - 'scripts/ci-ocean-closeups.mjs'
       - 'src/ocean/sim/SplashSystem.ts'
+      - 'src/ocean/sim/splashShaders.ts'
       - '.github/workflows/ocean-closeups.yml'
   workflow_dispatch:
 
