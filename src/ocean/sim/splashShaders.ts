@@ -247,6 +247,7 @@ out vec4 o;
 uniform sampler2D uDepth, uThick, uScene, uEnv;
 uniform sampler2D uSeaPos;      // sea G-buffer (camera-relative position, a = valid): soft contact
 uniform int uHasSea;
+uniform int uDebugMode; // diagnostic probe only; default 0 never changes production pixels
 uniform mat4 uInvViewProj;
 uniform vec2 uTexel;
 uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
@@ -302,6 +303,9 @@ void main(){
   vec3 th = texture(uThick, vUv).rgb;
   float z = fluidDepth(vUv);
   if (z > 5e4 || th.b < 0.02) discard;
+  if (uDebugMode == 1) { o = vec4(1.0, 0.0, 1.0, 1.0); return; }
+  if (uDebugMode == 2) { o = vec4(texture(uScene, vUv).rgb, 1.0); return; }
+  if (uDebugMode == 3) { o = vec4(vec3(clamp(z / 20.0, 0.0, 1.0)), 1.0); return; }
   vec3 P = viewPos(vUv, z);
   float zx1 = fluidDepth(vUv + vec2(uTexel.x, 0.0)), zx0 = fluidDepth(vUv - vec2(uTexel.x, 0.0));
   float zy1 = fluidDepth(vUv + vec2(0.0, uTexel.y)), zy0 = fluidDepth(vUv - vec2(0.0, uTexel.y));
