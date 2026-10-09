@@ -56,3 +56,15 @@ wake, explicit tile debug, MPM points vs fluid geometry and splash return
 at 1600×900 using the `capture` quality tier. Inspect receiver impulse
 and near-body surface geometry, then test a longer T2 run after the
 45-second shore spin-up. Preserve original PNGs and per-shot receipts.
+
+## Second captured evidence (1600×900)
+- Real WebGL2 workflow `37983826127`, artifact `11642043471`, 11 new PNGs; total 27 real renderer images.
+- Every second-pass screenshot reported WebGL error 0; the browser capture recorded zero console/page errors.
+- A/B comparison: `HERO_09_SPRAY_POINTS.png` contains zero pixels with RGB values all below 3, while `HERO_10_SPRAY_FLUID.png` contains 69,616 such pixels, with four contiguous solid black rectangular bands at y=824..899.
+- Additional rectangles: `HERO_02_IMPACT_CONTACT.png` has 24,928 black pixels in two bottom blocks; `HERO_03_EJECTED_SHEET.png` has 34,776 black pixels at the right boundary; `HERO_04_SPLASH_RETURN.png` has 155,996 near-black pixels in discrete rectangles.
+- These regions are scene-renderer artifacts despite clean WebGL error codes; this is **visual proof of failure**, not a successful fluid surface.
+- The near-identical point/fluid captures implicate screen-space fluid reconstruction/compositing rather than T4 mass transport.
+- A small candidate GL state-restoration patch `86a5527b2d16d70caf064341a5f2b6aa521bf433` has been committed. It restores blend/depth-write state after the fluid composite, but **has not yet been validated**. Re-render in workflow `37984874778` is the next gate.
+
+### Black pixel diagnostic
+Using raw PNG pixel RGB thresholds `R<3 && G<3 && B<3` and 4-neighbour connected components isolates the rectangular regions without modifying the screenshots. A future CI visual check should verify that these blocks disappear, including impact and high-overlap towing scenes; checking GL errors alone is insufficient.
