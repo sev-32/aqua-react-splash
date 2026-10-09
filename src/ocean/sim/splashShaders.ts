@@ -366,5 +366,11 @@ void main(){
     vec4 sp = texture(uSeaPos, vUv);
     if (sp.a > 0.5) alpha *= smoothstep(0.0, 0.35, length(sp.xyz) - z);
   }
+  // The fluid surface can graze/cross the camera near plane; undefined
+  // normal/refraction intermediates must never composite opaque black.
+  // Debug mode 4 maps non-finite material outputs to red, finite to green.
+  bool invalidMaterial = any(isnan(col)) || any(isinf(col)) || isnan(alpha) || isinf(alpha);
+  if (uDebugMode == 4) { o = invalidMaterial ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0); return; }
+  if (invalidMaterial) discard;
   o = vec4(col, alpha);
 }`;
