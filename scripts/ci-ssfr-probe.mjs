@@ -30,20 +30,20 @@ try {
   a.engine.camera.setPose({position:pos,yawDeg:Math.atan2(dz,dx)*180/Math.PI,
    pitchDeg:Math.atan2(dy,Math.hypot(dx,dz))*180/Math.PI,fovDeg:62});
  });
- for(const mode of [0,1,2,3,4]){
+ for(const mode of [0,1,2,3,4,5]){
   const result=await page.evaluate(mode=>{
    const a=window.__THALASSA__,m=window.__THALASSA_MODULES__;
-   window.__THALASSA_SSFR_DEBUG__=mode<4?mode:0;
-   a.set('spray.render',mode===4?'points':'fluid');
+   window.__THALASSA_SSFR_DEBUG__=mode<5?mode:0;
+   a.set('spray.render',mode===5?'points':'fluid');
    a.step(1,1e-7);
    return {time:a.engine.time,glError:a.glError(),mode,
     live:m.splash.mpm.stats.alive,water:m.splash.ledger.audit(m.splash.mpm.stats)};
   },mode);
-  const file=out+'/SSFR_'+mode+'_'+(['original','coverage','scene','depth','points'][mode])+'.png';
+  const file=out+'/SSFR_'+mode+'_'+(['original','coverage','scene','depth','nonfinite','points'][mode])+'.png';
   await page.screenshot({path:file,timeout:180000});
   manifest.images.push({file,...result});
   console.log('PROBE',file,fs.statSync(file).size,result);
  }
 }catch(e){errors.push('fatal: '+String(e));console.error('FATAL',e);}
 finally{fs.writeFileSync(out+'/manifest.json',JSON.stringify(manifest,null,2));await browser.close();}
-if(manifest.images.length!==5) process.exitCode=1;
+if(manifest.images.length!==6) process.exitCode=1;
