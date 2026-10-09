@@ -31,6 +31,9 @@ export class SplashModule implements EngineModule {
   readonly ledger = new CausalTransferLedger();
   /** Independent launch provenance (m³) for timestep-identifiability tests. */
   readonly launchVolumes = { entry: 0, interaction: 0, shore: 0 };
+  /** Experimental launch threshold multiplier (default 1, physically unchanged).
+   * Distinct from particle sampling density so threshold sensitivity is isolated. */
+  entryPacketScale = 1;
   get toOcean() { return this.ledger.audit(this.mpm.stats).oceanBoundary; }
   get toTiles() { return this.ledger.audit(this.mpm.stats).tiles; }
   get toShore() { return this.ledger.audit(this.mpm.stats).shore; }
@@ -145,7 +148,7 @@ export class SplashModule implements EngineModule {
       const jet = exit ? 0.5 * entryJetFlux(-Q, -U, geoA) : entryJetFlux(Q, U, geoA);
       if (!(jet > 0)) { st.pending = 0; continue; }
       st.pending += jet * dt;
-      if (st.pending < minV) continue;
+      if (st.pending < minV * Math.max(0.01, this.entryPacketScale)) continue;
       // Launch velocity (radial vr, vertical vy). Entry: the curtain leaves along the waterline
       // tangent, elevation atan(a/h) — flat at first touch, upright at the equator — at the
       // contact line's pace, 2ȧ = 2hU/a (Wagner): the thin early tip fast, the bulk (thrown
@@ -323,6 +326,7 @@ export class SplashModule implements EngineModule {
       splashSolverVolumeResidual: audit.solverVolumeResidual,
       splashUnroutedVolume: audit.unroutedVolume,
       splashOpenBoundaryVolume: audit.oceanBoundary,
+      splashEntryPacketScale: this.entryPacketScale,
       splashLaunchEntry: this.launchVolumes.entry,
       splashLaunchInteraction: this.launchVolumes.interaction,
       splashLaunchShore: this.launchVolumes.shore,
