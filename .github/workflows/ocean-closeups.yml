@@ -5,6 +5,7 @@ on:
       - feature/causal-water-ledger-r1
     paths:
       - 'scripts/ci-ocean-closeups.mjs'
+      - 'src/ocean/sim/SplashSystem.ts'
       - '.github/workflows/ocean-closeups.yml'
   workflow_dispatch:
 
