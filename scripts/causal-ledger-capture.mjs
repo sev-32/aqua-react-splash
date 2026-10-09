@@ -29,7 +29,7 @@ const SECONDS = Number(process.env.CAUSAL_SECONDS || 2);
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage({ viewport: { width: 480, height: 270 } });
+const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
 const pageErrors = [];
 page.on('pageerror', e => pageErrors.push(String(e)));
 page.on('console', m => { if (m.type() === 'error') pageErrors.push(m.text()); });
@@ -78,6 +78,25 @@ try {
       }, { n: Math.min(stride, frames - i), dt });
       samples.push(data);
     }
+    // Matched real renderer evidence at the same final simulated time.
+    // A 1e-7 s render step avoids mutating the measurement trajectory.
+    await page.evaluate(() => {
+      const api = window.__THALASSA__, m = window.__THALASSA_MODULES__;
+      const b = m.bodies.bodies[0];
+      if (b) {
+        const at = b.pos;
+        const eye = [at[0] - 5, 2.4, at[2] - 4.0];
+        const dx = at[0] - eye[0], dz = at[2] - eye[2], dy = at[1] - eye[1];
+        api.engine.camera.setPose({
+          position: eye, yawDeg: Math.atan2(dz, dx) * 180 / Math.PI,
+          pitchDeg: Math.atan2(dy, Math.hypot(dx,dz)) * 180 / Math.PI, fovDeg: 54,
+        });
+      }
+      api.step(1, 1e-7);
+    });
+    const shotFile = dirname(OUT) + '/ENTRY_' + rate + 'HZ.png';
+    await page.addStyleTag({ content: 'main > :not(canvas){display:none!important}' });
+    await page.screenshot({ path: shotFile, timeout: 180000 });
     const peak = (name) => Math.max(...samples.map(s => Math.abs(s[name])));
     const final = samples[samples.length - 1];
     runs.push({
@@ -85,7 +104,7 @@ try {
       maxAbsSolverResidual: peak('solverResidual'),
       maxAbsUnrouted: peak('unrouted'),
       maxInvalidTransfers: peak('invalidTransfers'),
-      final, samples,
+      final, samples, screenshot: shotFile,
     });
     console.log(JSON.stringify({
       rate, maxAbsSolverResidual: runs.at(-1).maxAbsSolverResidual,
