@@ -47,7 +47,12 @@ async function capture(name, config, advanceFrames = 1, frameDt = dt) {
   const begin = Date.now();
   try {
     await advance(advanceFrames, frameDt);
-    if (config.focus) await focus(config.focus);
+    if (config.focus) {
+      await focus(config.focus);
+      // Render AFTER the camera is positioned. Previously the screenshot
+      // captured the old camera even though the receipt named the new one.
+      await page.evaluate(() => window.__THALASSA__.step(1, 1e-7));
+    }
     const state = await page.evaluate(() => {
       const api = window.__THALASSA__;
       const m = window.__THALASSA_MODULES__;
@@ -65,8 +70,37 @@ async function capture(name, config, advanceFrames = 1, frameDt = dt) {
       };
     });
     const file = path.join(out, name + '.png');
-    await page.screenshot({ path: file, timeout: 180000 });
-    receipt.shots.push({ name, file, config, frames: advanceFrames, dt: frameDt, wallMs: Date.now() - begin, ...state });
+    const screenshot = await page.screenshot({ path: file, timeout: 180000 });
+    // Validate the ACTUAL saved PNG, not a synthetic framebuffer test.
+    // Very long runs of RGB~0 pixels exposed the SSFR black-tile regression.
+    const pixels = await page.evaluate(async (b64) => {
+      const im = new Image();
+      im.src = 'data:image/png;base64,' + b64;
+      await im.decode();
+      const c = document.createElement('canvas');
+      c.width = im.naturalWidth; c.height = im.naturalHeight;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) throw Error('2D image audit context unavailable');
+      ctx.drawImage(im, 0, 0);
+      const src = ctx.getImageData(0, 0, c.width, c.height).data;
+      let black = 0, widest = 0, longRows = 0;
+      for (let y = 0; y < c.height; y++) {
+        let run = 0, maxRow = 0;
+        for (let x = 0; x < c.width; x++) {
+          const k = (y * c.width + x) * 4;
+          if (src[k] < 3 && src[k+1] < 3 && src[k+2] < 3) {
+            black++; run++; maxRow = Math.max(maxRow, run);
+          } else run = 0;
+        }
+        widest = Math.max(widest, maxRow);
+        if (maxRow >= 160) longRows++;
+      }
+      return { blackPixels: black, widestBlackRun: widest, rowsWithLongBlackRuns: longRows };
+    }, screenshot.toString('base64'));
+    const blackRectangleSuspected = pixels.blackPixels > 4000 &&
+      pixels.widestBlackRun >= 160 && pixels.rowsWithLongBlackRuns >= 10;
+    if (blackRectangleSuspected) errors.push(name + ': likely black SSFR tile: ' + JSON.stringify(pixels));
+    receipt.shots.push({ name, file, config, frames: advanceFrames, dt: frameDt, wallMs: Date.now() - begin, pixels, blackRectangleSuspected, ...state });
     console.log('CAPTURED', name, fs.statSync(file).size, 'bytes', 'gl', state.glError,
       't', state.simTime.toFixed(3), 'unrouted', state.conservation.unroutedVolume.toExponential(2));
   } catch (e) {
@@ -139,4 +173,4 @@ try {
   fs.writeFileSync(path.join(out,'receipts.json'),JSON.stringify(receipt,null,2));
   await browser.close();
 }
-if (!receipt.shots.length) process.exitCode=1;
+if (!receipt.shots.length || errors.length) process.exitCode=1;
