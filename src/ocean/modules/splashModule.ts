@@ -29,6 +29,8 @@ export class SplashModule implements EngineModule {
   /** Audited water transfers. The 'ocean' destination is an open boundary,
    * not an injection into the spectral surface solver. */
   readonly ledger = new CausalTransferLedger();
+  /** Independent launch provenance (m³) for timestep-identifiability tests. */
+  readonly launchVolumes = { entry: 0, interaction: 0, shore: 0 };
   get toOcean() { return this.ledger.audit(this.mpm.stats).oceanBoundary; }
   get toTiles() { return this.ledger.audit(this.mpm.stats).tiles; }
   get toShore() { return this.ledger.audit(this.mpm.stats).shore; }
@@ -182,6 +184,7 @@ export class SplashModule implements EngineModule {
       const prev = st.last && time - st.last[2] < 1.5 * dt ? st.last : null;
       this.mpm.emitRelease({ x: ex, z: ez, y: sea.height, volume: V, vx: cavity ? 0 : b.vel[0], vz: cavity ? 0 : b.vel[2], vy, vr,
         vr0: prev?.[0], vy0: prev?.[1], span: dt, aerated: Math.abs(U) > 10 }, 'crown', ring, time, share);
+      this.launchVolumes.entry += V;
       st.last = [vr, vy, time];
       st.pending = 0;
     }
@@ -198,15 +201,17 @@ export class SplashModule implements EngineModule {
     // 1. Heightfield releases become fluid (the pool's spawners shape them).
     const budget = Math.max(64, Math.floor(this.mpm.cfg.capacity / 6));
     const rel = [
-      ...this.interaction.releases.map((r) => this.shapeByBody(r)),
-      ...(shoreField ? this.shore.releases.map((r) => ({ r, kind: 'sheet' as const, spread: 4 })) : []),
+      ...this.interaction.releases.map((r) => ({ ...this.shapeByBody(r), origin: 'interaction' as const })),
+      ...(shoreField ? this.shore.releases.map((r) => ({ r, kind: 'sheet' as const, spread: 4, origin: 'shore' as const })) : []),
     ];
     this.interaction.releases = [];
     this.shore.releases = [];
     const totalV = rel.reduce((a, x) => a + x.r.volume, 0);
-    for (const { r, kind, spread } of rel) {
+    for (const { r, kind, spread, origin } of rel) {
+      if (!(r.volume > 0)) continue;
       const share = Math.max(6, Math.round((budget * r.volume) / Math.max(totalV, 1e-9)));
       this.mpm.emitRelease(r, kind, spread, time, share);
+      this.launchVolumes[origin] += r.volume;
     }
 
     // 2. Advance the fluid against the composite sea surface, bodies colliding two-way.
@@ -285,6 +290,7 @@ export class SplashModule implements EngineModule {
   reset() {
     this.mpm.reset();
     this.ledger.reset(this.mpm.stats);
+    this.launchVolumes.entry = this.launchVolumes.interaction = this.launchVolumes.shore = 0;
     this.displaced.clear();
   }
 
@@ -317,6 +323,10 @@ export class SplashModule implements EngineModule {
       splashSolverVolumeResidual: audit.solverVolumeResidual,
       splashUnroutedVolume: audit.unroutedVolume,
       splashOpenBoundaryVolume: audit.oceanBoundary,
+      splashLaunchEntry: this.launchVolumes.entry,
+      splashLaunchInteraction: this.launchVolumes.interaction,
+      splashLaunchShore: this.launchVolumes.shore,
+      splashLaunchResidual: audit.emitted - this.launchVolumes.entry - this.launchVolumes.interaction - this.launchVolumes.shore,
       // Diagnostics ONLY until a receiver supports vector-momentum transfer.
       splashReturnedImpulse: audit.returnedImpulse,
       splashReturnedKineticEnergy: audit.returnedKineticEnergy,
