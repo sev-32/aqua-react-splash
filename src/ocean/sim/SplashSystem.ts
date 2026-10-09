@@ -268,6 +268,12 @@ export class SplashSystem {
     // Points mode: the whole splash as lit parcels. (The fluid mode is complete above: fine
     // spray is part of it.)
     if (f.mode === 'fluid' && f.hdr.depth) {
+      // Fluid mode composites with premultiplied scene colour disabled but
+      // previously returned while GL_BLEND was still on and depthMask(false).
+      // Those leaked states affected subsequent sky/post passes; restore the
+      // same state contract as the lit-points path.
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
       gl.bindVertexArray(null);
       return;
     }
