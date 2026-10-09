@@ -26,6 +26,7 @@ const OUT = process.argv[2] || 'captures/causal/ledger.json';
 const URL = process.env.THALASSA_URL || 'http://127.0.0.1:8080/ocean?capture=1&quality=capture&seed=20260925';
 const RATES = [30, 60, 120];
 const SECONDS = Number(process.env.CAUSAL_SECONDS || 2);
+const PACKET_SCALE = Number(process.env.ENTRY_PACKET_SCALE || 1);
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
 });
@@ -41,15 +42,16 @@ try {
     // ocean spectrum state. Same seed, sphere geometry and 2-second trajectory.
     await page.goto(URL, { waitUntil: 'load', timeout: 180000 });
     await page.waitForFunction(() => window.__THALASSA__?.ready === true, null, { timeout: 180000 });
-    const setup = await page.evaluate(() => {
+    const setup = await page.evaluate((packetScale) => {
       const api = window.__THALASSA__;
       if (api.error) throw Error(api.error);
       api.action('lab', { scene: 'drop', radius: 0.6, depth: 5, tileDepth: 5 });
+      window.__THALASSA_MODULES__.splash.entryPacketScale = packetScale;
       return {
         renderer: api.telemetry().gpuRenderer,
         bodyStart: [...window.__THALASSA_MODULES__.bodies.bodies[0].pos],
       };
-    });
+    }, PACKET_SCALE);
 
     const dt = 1 / rate, samples = [];
     const frames = Math.round(SECONDS * rate);
@@ -120,7 +122,7 @@ try {
 }
 
 const summary = {
-  url: URL, seconds: SECONDS, rates: RATES, pageErrors,
+  url: URL, seconds: SECONDS, rates: RATES, entryPacketScale: PACKET_SCALE, pageErrors,
   // These are empirical comparisons; no pass/fail tolerances are imposed
   // until a hardware baseline has been reviewed.
   runSummary: runs.map(({ rate, maxAbsSolverResidual, maxAbsUnrouted, maxInvalidTransfers, final }) => ({
