@@ -64,6 +64,10 @@ try {
         return {
           t: api.engine.time,
           emitted: a.emitted, settled: a.settled, lost: a.lost,
+          launchEntry: m.splash.launchVolumes.entry,
+          launchInteraction: m.splash.launchVolumes.interaction,
+          launchShore: m.splash.launchVolumes.shore,
+          launchProvenanceResidual: a.emitted - m.splash.launchVolumes.entry - m.splash.launchVolumes.interaction - m.splash.launchVolumes.shore,
           live: a.live, tiles: a.tiles, shore: a.shore,
           openBoundary: a.oceanBoundary,
           solverResidual: a.solverVolumeResidual,
