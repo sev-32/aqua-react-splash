@@ -61,6 +61,7 @@ export interface WaterSampler {
 export interface SettleEvent {
   x: number; z: number;
   vy: number;
+  vx: number; vz: number; // full velocity at return, required for transfer impulse/energy
   volume: number;  // m³ returned to the heightfield
 }
 
@@ -160,6 +161,8 @@ export class OceanMpm {
   readonly particles: MpmParticles;
   readonly volumes: SplashVolume[] = [];
   settleEvents: SettleEvent[] = [];
+  /** Returns caused by capacity overwrites during emission, BEFORE step(). */
+  private pendingSettleEvents: SettleEvent[] = [];
   /** Wind at spray height (m/s, x/z): atomization and spray drag act on the velocity relative to the air. */
   wind: [number, number] = [0, 0];
   /** Ledger (m³). */
@@ -212,7 +215,7 @@ export class OceanMpm {
       i = P.next;
       P.next = (P.next + 1) % P.capacity;
       // Overwriting a live particle: its water must still go home.
-      if (P.flags[i] & FLAG_ALIVE) this.settle(i, P.px[i], P.pz[i], P.vy[i]);
+      if (P.flags[i] & FLAG_ALIVE) this.settle(i, P.px[i], P.pz[i], P.vy[i], true);
     }
     P.px[i] = x; P.py[i] = y; P.pz[i] = z;
     P.vx[i] = vx; P.vy[i] = vy; P.vz[i] = vz;
@@ -229,10 +232,11 @@ export class OceanMpm {
   }
 
   /** Hand a particle's water back to the heightfield and retire it (exactly once). */
-  private settle(p: number, x: number, z: number, vy: number) {
+  private settle(p: number, x: number, z: number, vy: number, beforeStep = false) {
     const P = this.particles;
     if (!(P.flags[p] & FLAG_ALIVE)) return;
-    this.settleEvents.push({ x, z, vy, volume: P.vol[p] });
+    const event = { x, z, vy, vx: P.vx[p], vz: P.vz[p], volume: P.vol[p] };
+    (beforeStep ? this.pendingSettleEvents : this.settleEvents).push(event);
     this.stats.settled += P.vol[p];
     P.flags[p] = 0;
     P.vol[p] = 0;
@@ -316,7 +320,10 @@ export class OceanMpm {
   /** One frame: substeps of P2G → stress → grid → G2P per volume, ballistic elsewhere. */
   step(dt: number, water: WaterSampler, colliders: SphereCollider[], now: number) {
     const safeDt = Math.min(Math.max(dt, 0), 1 / 20);
-    this.settleEvents = [];
+    // Keep pre-step returns caused by ring-buffer capacity recycling.
+    // Previously these were silently erased although stats.settled increased.
+    this.settleEvents = this.pendingSettleEvents;
+    this.pendingSettleEvents = [];
     if (safeDt <= 0) return;
     for (const v of this.volumes) v.sampleSurface(water);
     // Assign particles to volumes (first containing volume wins).
@@ -592,6 +599,10 @@ export class OceanMpm {
     for (let i = 0; i < P.capacity; i++) if (P.flags[i]) { this.stats.lost += P.vol[i]; P.flags[i] = 0; P.vol[i] = 0; }
     P.count = 0;
     P.next = 0;
+    this.settleEvents = [];
+    this.pendingSettleEvents = [];
+    this.stats.alive = 0;
+    this.stats.airborne = 0;
     this.volumes.length = 0;
   }
 
