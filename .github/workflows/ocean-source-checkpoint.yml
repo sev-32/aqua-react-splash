@@ -2,7 +2,10 @@ name: THALASSA source-only checkpoint
 on:
   push:
     branches: [feature/causal-water-ledger-r1]
-    paths: ['.github/workflows/ocean-source-checkpoint.yml']
+    paths:
+      - '.github/workflows/ocean-source-checkpoint.yml'
+      - 'src/ocean/sim/splashShaders.ts'
+      - 'scripts/causal-ledger-capture.mjs'
   workflow_dispatch:
 jobs:
   package-source:
@@ -15,6 +18,7 @@ jobs:
           name: THALASSA-CAUSAL-R1-CODE-DOCS
           path: |
             src/
+            .github/workflows/
             scripts/
             docs/consolidation/*.md
             README.md
