@@ -266,7 +266,17 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                     {(() => {
                       const x = t as unknown as Record<string, number>;
                       return x.splashEmitted !== undefined ? (
-                        <Stat label="Splash water: air / home" value={`${(x.splashAirborne ?? 0).toFixed(2)} / ${(x.splashSettled ?? 0).toFixed(2)} of ${x.splashEmitted.toFixed(2)} m³`} />
+                        <>
+                          <Stat label="Splash water: air / home" value={`${(x.splashAirborne ?? 0).toFixed(2)} / ${(x.splashSettled ?? 0).toFixed(2)} of ${x.splashEmitted.toFixed(2)} m³`} />
+                          {x.splashSolverVolumeResidual !== undefined && (
+                            <>
+                              <Stat label="T4 volume closure error" value={`${x.splashSolverVolumeResidual.toExponential(2)} m³`} />
+                              <Stat label="Unrouted returned water" value={`${(x.splashUnroutedVolume ?? 0).toExponential(2)} m³`} />
+                              <Stat label="Open-boundary return (not T0)" value={`${(x.splashOpenBoundaryVolume ?? 0).toFixed(3)} m³`} />
+                              <Stat label="Invalid transfers" value={String(x.splashInvalidTransfers ?? 0)} />
+                            </>
+                          )}
+                        </>
                       ) : null;
                     })()}
                     <Stat label="Receipts" value={String(t.receipts)} />
