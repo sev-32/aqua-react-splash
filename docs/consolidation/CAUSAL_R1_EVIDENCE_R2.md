@@ -48,3 +48,24 @@ Real CI run `38002605965` captured five 1600×900 T2 scenes.
 
 The R1 `CausalTransferLedger` verifies T4 mass and return assignment only. Full T0/T2/T3 momentum/energy conservation, dynamic T0 return injection and multiscale end-to-end conservation are unproved.
 Next: (1) complete camera-accurate screenshot pixel QA; (2) disaggregate 30/60/120 launch sources; (3) perturb entry packet threshold and compare held-out timestep convergence; (4) diagnose T2 shoreline seams with calm/storm paired real renders; (5) implement measured impulse receivers across T2/T3.
+
+## R3 intervention result: threshold-only test rejects a simple packet gate explanation
+
+Original control run `38003693708` replicated the earlier deterministic source-split numbers exactly. Quarter-threshold run `38003737734` used the same source code (except an exposed parameter), same 30/60/120 Hz physics, particle capacity, sampling density, seed, scene and 1.2s duration. `entryPacketScale=0.25` controls the gate only; emitted particle-count allocation still uses the original `minV`.
+
+Across-rate range divided by mean:
+
+| Observable | Gate scale 1 | Gate scale 0.25 |
+|---|---:|---:|
+| Total T4 emitted volume | 5.101% | 4.693% |
+| Body-entry launched volume | 4.338% | 4.708% |
+| T3 interaction-tile launched volume | 10.847% | 4.582% |
+| Returned/settled volume | 11.602% | 3.874% |
+
+- Under the quarter threshold, `emitted` = [0.762119536, 0.743451543, 0.779192843] m³.
+- Entry contribution = [0.675128922, 0.657210159, 0.688927296] m³.
+- Tile contribution = [0.086990614, 0.086241384, 0.090265547] m³.
+- All T4 accounting residuals again remained around 10^-15 m³; no JS errors.
+- **Conclusion:** the hypothesis that coarse 9.7L packet gating is the *primary* cause of emitted-volume variation is not supported. Despite small improvements in total emission and substantial decreases in settlement variance, entry-source variation actually rose.
+- Therefore the default remains `entryPacketScale=1`. Do not promote the intervention as a fidelity improvement. The next tests must separate the geometry/displacement derivative and Froude/Wagner flux response, field feedback, and MLS-MPM sampling, holding the body trajectory fixed as an external prescribed path when measuring each source.
+- Close-up camera-follow screenshot CI `38002731940` succeeded for 11 scenes; all pixel audits returned zero pure-black pixels and all GL errors zero. Close-body SSFR fluid material still produces large clustered artificial-looking globules, so SSFR is not visually accepted.
