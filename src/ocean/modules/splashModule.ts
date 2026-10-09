@@ -11,6 +11,7 @@
  */
 import type { EngineModule, OceanEngine, EngineTelemetry } from '../engine/OceanEngine';
 import { SplashSystem } from '../sim/SplashSystem';
+import { CausalTransferLedger } from '../sim/causalLedger';
 import { OceanMpm, DEFAULT_MPM, type SphereCollider } from '../sim/oceanMpm';
 import { SplashConnectivity } from '../sim/splashConnectivity';
 import { splatHeightForVolume, type ReleasePatch } from '../sim/InteractionTiles';
@@ -25,10 +26,12 @@ export class SplashModule implements EngineModule {
   readonly mpm: OceanMpm;
   readonly ligaments: SplashConnectivity;
   readonly renderer: SplashSystem;
-  /** Volume that settled where no finite tier exists (the unbounded T0 sea absorbs it). */
-  toOcean = 0;
-  toTiles = 0;
-  toShore = 0;
+  /** Audited water transfers. The 'ocean' destination is an open boundary,
+   * not an injection into the spectral surface solver. */
+  readonly ledger = new CausalTransferLedger();
+  get toOcean() { return this.ledger.audit(this.mpm.stats).oceanBoundary; }
+  get toTiles() { return this.ledger.audit(this.mpm.stats).tiles; }
+  get toShore() { return this.ledger.audit(this.mpm.stats).shore; }
 
   constructor(private engine: OceanEngine, private interaction: InteractionModule, private shore: ShoreModule, private bodies: BodiesModule) {
     const cap = QUALITY[engine.quality].sprayCapacity;
@@ -213,29 +216,43 @@ export class SplashModule implements EngineModule {
     this.mpm.retireIdle(time);
 
     // 3. Settled water goes home: binned so each tier receives few, volume-exact splats.
-    const bins = new Map<number, { x: number; z: number; V: number; vy: number }>();
+    const bins = new Map<number, {
+      x: number; z: number; V: number; vyMin: number;
+      vxVolume: number; vyVolume: number; vzVolume: number; v2Volume: number;
+    }>();
     for (const e of this.mpm.settleEvents) {
+      // Preserve the actual sum of momentum and kinetic energy, not the
+      // energy of an averaged velocity (which discards the fluctuations).
       const key = Math.floor(e.x) * 65536 + Math.floor(e.z);
+      const mx = e.volume * e.vx, my = e.volume * e.vy, mz = e.volume * e.vz;
+      const e2 = e.volume * (e.vx * e.vx + e.vy * e.vy + e.vz * e.vz);
       const b = bins.get(key);
-      if (b) { b.x += e.x * e.volume; b.z += e.z * e.volume; b.V += e.volume; b.vy = Math.min(b.vy, e.vy); }
-      else bins.set(key, { x: e.x * e.volume, z: e.z * e.volume, V: e.volume, vy: e.vy });
+      if (b) {
+        b.x += e.x * e.volume; b.z += e.z * e.volume; b.V += e.volume;
+        b.vyMin = Math.min(b.vyMin, e.vy);
+        b.vxVolume += mx; b.vyVolume += my; b.vzVolume += mz; b.v2Volume += e2;
+      } else bins.set(key, {
+        x: e.x * e.volume, z: e.z * e.volume, V: e.volume,
+        vyMin: e.vy, vxVolume: mx, vyVolume: my, vzVolume: mz, v2Volume: e2,
+      });
     }
     for (const b of bins.values()) {
-      if (b.V <= 0) continue;
+      if (!(b.V > 0)) continue;
       const x = b.x / b.V, z = b.z / b.V;
       const r = 0.9;
       const t = tiles.tileAt(x, z);
-      if (t && !t.retiring) {
-        // Re-entry entrains air in proportion to the kinetic energy it brings (½·V·vy²),
-        // not to the volume: gentle rain-back leaves the sea clear, violent plunges whiten it.
-        const foam = Math.min(0.6, 0.012 * b.V * b.vy * b.vy / Math.max(r * r, 0.05));
-        tiles.addImpact(x, z, r, splatHeightForVolume(b.V, r), foam, 0, time);
-        this.toTiles += b.V;
-      } else if (shoreField && shoreField.deposit(x, z, r, b.V)) {
-        this.toShore += b.V;
-      } else {
-        this.toOcean += b.V;
-      }
+      // Re-entry foam follows the energetic vertical impact, as before.
+      const foam = Math.min(0.6, 0.012 * b.V * b.vyMin * b.vyMin / Math.max(r * r, 0.05));
+      const target = t && !t.retiring &&
+        tiles.addImpact(x, z, r, splatHeightForVolume(b.V, r), foam, 0, time)
+        ? 'tiles' as const
+        : shoreField && shoreField.deposit(x, z, r, b.V)
+          ? 'shore' as const : 'ocean' as const;
+      this.ledger.route(target, {
+        volume: b.V,
+        volumeVelocity: [b.vxVolume, b.vyVolume, b.vzVolume],
+        volumeSpeedSquared: b.v2Volume,
+      }, RHO_WATER);
     }
 
     // 4. Ligaments + upload for drawing.
@@ -267,6 +284,7 @@ export class SplashModule implements EngineModule {
   /** Scene reset: no splash carried over from the previous experiment. */
   reset() {
     this.mpm.reset();
+    this.ledger.reset(this.mpm.stats);
     this.displaced.clear();
   }
 
@@ -289,10 +307,20 @@ export class SplashModule implements EngineModule {
 
   telemetry(t: EngineTelemetry) {
     const st = this.mpm.stats;
+    const audit = this.ledger.audit(st);
     t.sprayLive = st.alive;
     Object.assign(t, {
-      splashEmitted: st.emitted, splashAirborne: st.airborne, splashSettled: st.settled, splashLost: st.lost,
-      splashToTiles: this.toTiles, splashToShore: this.toShore, splashToOcean: this.toOcean, splashVolumes: this.mpm.volumes.length,
+      splashEmitted: audit.emitted, splashAirborne: audit.live, splashSettled: audit.settled, splashLost: audit.lost,
+      splashToTiles: audit.tiles, splashToShore: audit.shore, splashToOcean: audit.oceanBoundary,
+      splashVolumes: this.mpm.volumes.length,
+      // Actual stock/flow residuals, in m³. These must be measured, never silently zeroed.
+      splashSolverVolumeResidual: audit.solverVolumeResidual,
+      splashUnroutedVolume: audit.unroutedVolume,
+      splashOpenBoundaryVolume: audit.oceanBoundary,
+      // Diagnostics ONLY until a receiver supports vector-momentum transfer.
+      splashReturnedImpulse: audit.returnedImpulse,
+      splashReturnedKineticEnergy: audit.returnedKineticEnergy,
+      splashInvalidTransfers: audit.invalidTransfers,
     });
   }
 
