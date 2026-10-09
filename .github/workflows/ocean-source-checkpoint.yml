@@ -8,6 +8,7 @@ on:
       - 'scripts/causal-ledger-capture.mjs'
       - 'scripts/ci-ocean-closeups.mjs'
       - 'scripts/ci-shore-ready.mjs'
+      - 'docs/consolidation/CAUSAL_R1_EVIDENCE_R2.md'
   workflow_dispatch:
 jobs:
   package-source:
