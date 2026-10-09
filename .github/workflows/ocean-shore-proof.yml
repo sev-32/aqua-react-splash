@@ -1,0 +1,39 @@
+name: THALASSA active shoreline physical proof
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths: ['scripts/ci-shore-ready.mjs', '.github/workflows/ocean-shore-proof.yml']
+  workflow_dispatch:
+jobs:
+  shoreline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install real WebGL2 headless browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ocean >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/preview.log
+          exit 1
+      - name: Capture T2 surf after true warm-up
+        run: node scripts/ci-shore-ready.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thalassa-verified-active-shore-renders
+          path: captures/shore-ready-r1/
+          if-no-files-found: warn
+          retention-days: 7
