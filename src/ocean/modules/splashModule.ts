@@ -186,7 +186,8 @@ export class SplashModule implements EngineModule {
       // Continuous emission across the frame from the previous frame's launch (if it emitted).
       const prev = st.last && time - st.last[2] < 1.5 * dt ? st.last : null;
       this.mpm.emitRelease({ x: ex, z: ez, y: sea.height, volume: V, vx: cavity ? 0 : b.vel[0], vz: cavity ? 0 : b.vel[2], vy, vr,
-        vr0: prev?.[0], vy0: prev?.[1], span: dt, aerated: Math.abs(U) > 10 }, 'crown', ring, time, share);
+        vr0: prev?.[0], vy0: prev?.[1], span: dt, aerated: Math.abs(U) > 10,
+        materialSource: b.id }, 'crown', ring, time, share);
       this.launchVolumes.entry += V;
       st.last = [vr, vy, time];
       st.pending = 0;
