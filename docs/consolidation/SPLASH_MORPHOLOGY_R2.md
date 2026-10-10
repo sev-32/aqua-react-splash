@@ -64,3 +64,28 @@ deformation gradient; preserve topology as sheets tear into strands and droplets
 Keep the real 3D water/air interface and its normal distinct from subgrid aerated
 spray optics, and trace refracted view rays through that interface. Benchmark
 a fixed physical field before coupling any morphological changes back into physics.
+
+## First independently executed A/B (source SHA 5ff2639faa29e66a3998559465cebb88557ff11f)
+- CI workflow: `38010030130`, artifact `11651944437`, 8 unmodified
+  1600x900 WebGL2 PNGs and `receipts.json`.
+- Four physical stages: sphere contact (~0.58333s), crown (~1.01667s),
+  breakup (~1.58333s), fast tow (~1.13333s). GL errors 0,
+  no JS/page errors.
+- Emitted volume and particle stock/flow accounting were effectively identical
+  between modes at each matched stage (the capture adds ~10^-7s between them,
+  so a handful of particles may settle in between). No conservation benefit is
+  claimed from what is exclusively a rendering intervention.
+- Visual assessment: R1 renders many conspicuous opaque spheres around the
+  crown. V2 removes the majority of those false macro-droplets and exposes
+  slender refractive filaments. **But V2 is too transparent and fragmented,
+  resembling scratches rather than continuous flowing sheets. NOT accepted
+  as final visual quality.** The nearby water background strongly reduces
+  contrast and does not give the sheet a convincing clear-water silhouette.
+- Follow-up optically corrected ray projection and sharper environment
+  reflection were committed under `4fe9207317` and `1b311b670c`;
+  newer WebGL2 A/B workflow `38010407951` evaluates those changes
+  independently. Do not retroactively attribute these changes to the first A/B.
+- The reference renderer is still the default; GUI toggle is explicitly
+  experimental. Next steps must improve continuous surface reconstruction,
+  physically correct geometric normals, and optical visibility without
+  returning to volume-cubed opaque sphere impostors.
