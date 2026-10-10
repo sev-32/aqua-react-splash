@@ -33,6 +33,7 @@ precision highp float;
 precision highp int;
 uniform sampler2D uP, uV, uM;
 uniform int uW;
+uniform int uMorphology;
 uniform vec3 uOsmC, uOsmU, uOsmV, uOsmD; uniform vec4 uOsmExt; uniform float uOsmSize;
 out float vTau; out float vS;
 void main(){
@@ -44,8 +45,16 @@ void main(){
   bool spray = V.w <= 0.0012;
   float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
   float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
-  // Scattering cross-section (m²): drops 1.5V/r_d; aerated water ≈ 300 m⁻¹·V; clear water ~0.
-  float sig = spray ? 1.5*M.x/V.w : 300.0*M.x*aer;
+  if (uMorphology == 1 && M.z >= 0.0) {
+    // A flag from high relative speed does not create a microbubble cloud
+    // while actual bonds still constrain the fluid into a coherent sheet.
+    aer = spray ? 0.08*(1.0 - coh) :
+      0.12*(1.0 - coh)*smoothstep(6.0, 12.0, length(V.xyz));
+  }
+  // Extinction of true unresolved detached mist; coherent water's scattering
+  // is much smaller. Always separate water volume from scattering cross-section.
+  bool mist = spray && (uMorphology == 0 || coh < 0.45);
+  float sig = mist ? 1.5*M.x/max(V.w, 1e-4) : 300.0*M.x*aer;
   float R = 1.6*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
   vec3 q = P.xyz - uOsmC;
   gl_Position = vec4(dot(q, uOsmU)/uOsmExt.x, dot(q, uOsmV)/uOsmExt.x, 0.0, 1.0);
