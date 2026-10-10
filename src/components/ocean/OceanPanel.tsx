@@ -188,7 +188,9 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 {splash && <Toggle label="Experimental clear-sheet / mist morphology V2" value={splash.renderer.morphologyV2}
                   onChange={(v) => { splash.renderer.morphologyV2 = v; if (v) splash.renderer.surfaceMeshV3 = false; rerender(); }} />}
                 {splash && <Toggle label="Experimental V3 geometric water sheets and tendrils" value={splash.renderer.surfaceMeshV3}
-                  onChange={(v) => { splash.renderer.surfaceMeshV3 = v; if (v) splash.renderer.morphologyV2 = false; rerender(); }} />}
+                  onChange={(v) => { splash.renderer.surfaceMeshV3 = v; if (v) { splash.renderer.morphologyV2 = false; splash.renderer.materialSheetV4 = false; } rerender(); }} />}
+                {splash && <Toggle label="Experimental V4 persistent material-water curtain" value={splash.renderer.materialSheetV4}
+                  onChange={(v) => { splash.renderer.materialSheetV4 = v; if (v) { splash.renderer.morphologyV2 = false; splash.renderer.surfaceMeshV3 = false; } rerender(); }} />}
               </Section>
 
               <Section title="Shore / shallow water">
