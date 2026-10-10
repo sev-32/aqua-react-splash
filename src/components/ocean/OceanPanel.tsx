@@ -186,7 +186,9 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 <Toggle label="Splash" value={s.spray.enabled} onChange={(v) => { s.spray.enabled = v; rerender(); }} />
                 <Slider label="Splash gain" value={s.spray.gain} min={0} max={3} onChange={(v) => { s.spray.gain = v; rerender(); }} />
                 {splash && <Toggle label="Experimental clear-sheet / mist morphology V2" value={splash.renderer.morphologyV2}
-                  onChange={(v) => { splash.renderer.morphologyV2 = v; rerender(); }} />}
+                  onChange={(v) => { splash.renderer.morphologyV2 = v; if (v) splash.renderer.surfaceMeshV3 = false; rerender(); }} />}
+                {splash && <Toggle label="Experimental V3 geometric water sheets and tendrils" value={splash.renderer.surfaceMeshV3}
+                  onChange={(v) => { splash.renderer.surfaceMeshV3 = v; if (v) splash.renderer.morphologyV2 = false; rerender(); }} />}
               </Section>
 
               <Section title="Shore / shallow water">
