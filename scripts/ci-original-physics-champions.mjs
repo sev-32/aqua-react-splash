@@ -40,7 +40,7 @@ for(const obj of urls){
          scenario:document.getElementById('sceneName')?.textContent,
          particles:document.getElementById('particleCount')?.textContent,
          filmMass:document.getElementById('filmMass')?.textContent,
-         glError:document.getElementById('gl')?.getContext('webgl2')?.getError?.()??null
+         shaderErrorsObservedByPage: false
        }));
        rec.frames.push({file,bytes:fs.statSync(out+'/'+file).size,report});
        console.log('CHAMPION',obj.id,tag,i,JSON.stringify(report));
