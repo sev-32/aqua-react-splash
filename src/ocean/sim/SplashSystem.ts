@@ -90,6 +90,15 @@ export class SplashSystem {
    */
   upload(Pp: MpmParticles, bonds: SplashConnectivity | null) {
     const { P, V, M } = this;
+    // The MPM kernel density and the independently maintained bond graph
+    // are different measurements. A sparse, stretched filament may still
+    // be connected when its 3D grid-neighbour estimate is small. Use the
+    // graph only for rendering, never for the actual MPM force/mass solver.
+    const degree = this.morphologyV2 ? new Uint8Array(Pp.count) : null;
+    if (degree && bonds) for (const c of bonds.bonds.values()) {
+      if (c.a < degree.length && degree[c.a] < 255) degree[c.a]++;
+      if (c.b < degree.length && degree[c.b] < 255) degree[c.b]++;
+    }
     let n = 0;
     const put = (x: number, y: number, z: number, vx: number, vy: number, vz: number, rd: number, vol: number, age: number, kind: number, seed: number) => {
       if (n >= this.capacity) return;
@@ -106,7 +115,9 @@ export class SplashSystem {
       const rd = f & FLAG_FOAM ? (fast ? 6e-4 : 9e-4) : 3e-3;
       // kind > 0: connectivity, half the neighbour count (sheets and jets stay whole, isolated
       // drops shrink); kind < 0: ligament.
-      put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd, Pp.vol[i], Pp.life[i], Math.max(0.05, Pp.neighbors[i] / 2), Pp.seed[i]);
+      const graphCoherence = degree && degree[i] > 0 ? Math.min(1.0, 0.45 + 0.38*degree[i]) : 0;
+      put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd,
+        Pp.vol[i], Pp.life[i], Math.max(0.05, Pp.neighbors[i] / 2, graphCoherence), Pp.seed[i]);
     }
     if (bonds) {
       const { samples, thinPower } = bonds.p;
@@ -186,7 +197,7 @@ export class SplashSystem {
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
-    this.pOsm.use().set('uW', W).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2])
+    this.pOsm.use().set('uMorphology', this.morphologyV2 ? 1 : 0).set('uW', W).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2])
       .set('uOsmC', c).set('uOsmU', u).set('uOsmV', v).set('uOsmD', d).set('uOsmExt', ext).set('uOsmSize', OSM_N);
     gl.drawArrays(gl.POINTS, 0, this.count);
     gl.disable(gl.BLEND);
