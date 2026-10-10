@@ -84,6 +84,25 @@ const semanticOptics = /fresnel/i.test(waterShader) && /refract/i.test(waterShad
 observations.push({id:'ocean_optical_terms',status:semanticOptics?'present in shader source; not proof of physically correct optics':'missing'});
 if (!semanticOptics) errors.push('ocean Fresnel/refraction/reflection shader terms missing');
 
+// Mechanism-level champion differentiation: the original pool fused surface
+// remains valuable, but its hand-tuned minimum Fresnel is NOT the correct
+// optical reference. Preserve the physical POSEIDON dielectric coefficients.
+const oldPoolOptics = source('src/shaders/waterShaders.ts');
+const oldPoolFresnel = /mix\(0\.25,\s*1\.0,\s*pow\(/.test(oldPoolOptics);
+const trueDielectric = /float\s+fresnelDielectric\s*\(/.test(waterShader) &&
+ /rs\s*\*\s*rs\s*\+\s*rp\s*\*\s*rp/.test(waterShader);
+const nWater=1.333;
+const reflectanceAtNormal=Math.pow((1-nWater)/(1+nWater),2);
+observations.push({
+ id:'optical_fresnel_champion',
+ status:trueDielectric?'POSEIDON true dielectric formula retained':'REGRESSION: dielectric formula missing',
+ expected_normal_incidence_reflectance:reflectanceAtNormal,
+ old_pool_approximation:oldPoolFresnel?'25% minimum Fresnel (nonphysical optical shortcut)':'older pool source changed',
+});
+if(!trueDielectric)errors.push('true dielectric POSEIDON Fresnel removed/replaced');
+if(Math.abs(reflectanceAtNormal-0.020373)<0.0001===false)
+  errors.push('dielectric scalar-reference calculation mismatch');
+
 const result = {
  schema:'thalassa-champion-audit-receipt-v1',timestamp:new Date().toISOString(),
  pass:errors.length===0,protected_sources:provenance,phenomena:nodes.length,
