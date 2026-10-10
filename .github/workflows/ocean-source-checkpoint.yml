@@ -4,6 +4,10 @@ on:
     branches: [feature/causal-water-ledger-r1]
     paths:
       - '.github/workflows/ocean-source-checkpoint.yml'
+      - 'docs/consolidation/WATER_SEMANTIC_CONSTITUTION.md'
+      - 'docs/consolidation/WATER_SEMANTIC_CONTRACTS.json'
+      - 'docs/consolidation/CHAMPION_REGISTRY.json'
+      - 'scripts/champion-audit.mjs'
       - 'src/ocean/sim/splashShaders.ts'
       - 'src/ocean/sim/SplashSystem.ts'
       - 'src/components/ocean/OceanPanel.tsx'
@@ -42,6 +46,7 @@ jobs:
             .github/workflows/
             scripts/
             docs/consolidation/*.md
+            docs/consolidation/*.json
             README.md
             package.json
             package-lock.json
