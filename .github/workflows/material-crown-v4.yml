@@ -1,0 +1,47 @@
+name: THALASSA V4 real material-crown GIF frames
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - '.github/workflows/material-crown-v4.yml'
+      - 'src/ocean/sim/materialCrown.ts'
+      - 'src/ocean/__tests__/materialCrown.test.ts'
+      - 'scripts/ci-material-crown-animation.mjs'
+  workflow_dispatch:
+jobs:
+  material-animation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - name: Build and validate true material ancestry
+        run: |
+          npm run typecheck
+          npx vitest run src/ocean/__tests__/materialCrown.test.ts src/ocean/__tests__/splashMesh.test.ts src/ocean/__tests__/causalLedger.test.ts
+          npm run build
+      - name: Install Chromium and software GL2
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start production ocean engine
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/v4-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ocean >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/v4-preview.log
+          exit 1
+      - name: Capture 10 consecutive R1/V4 simulation instants
+        run: node scripts/ci-material-crown-animation.mjs
+      - name: Preserve 20 original PNGs and physical receipts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thalassa-v4-material-sheet-real-animation-frames
+          path: captures/material-v4-frames/
+          retention-days: 7
+          if-no-files-found: warn
