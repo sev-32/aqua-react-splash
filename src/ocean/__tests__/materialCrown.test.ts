@@ -22,6 +22,20 @@ function setup(n=16, dz=0.22, vol=0.00015){
   }
   return {P,h};
 }
+function integrateFilmVolume(vertices: Float32Array) {
+ let total=0;
+ for(let i=0;i<vertices.length;i+=15){
+   const d1=[vertices[i+5]-vertices[i],vertices[i+6]-vertices[i+1],vertices[i+7]-vertices[i+2]];
+   const d2=[vertices[i+10]-vertices[i],vertices[i+11]-vertices[i+1],vertices[i+12]-vertices[i+2]];
+   const n=[
+     d1[1]*d2[2]-d1[2]*d2[1],
+     d1[2]*d2[0]-d1[0]*d2[2],
+     d1[0]*d2[1]-d1[1]*d2[0],
+   ];
+   total+=Math.hypot(...n)*0.5*vertices[i+3];
+ }
+ return total;
+}
 describe('V4 material coordinate sheet emitted with water',()=>{
   it('constructs a cylindrical continuous curtain from two original material epochs',()=>{
     const {P,h}=setup();
@@ -30,6 +44,7 @@ describe('V4 material coordinate sheet emitted with water',()=>{
     expect(mesh.triangles).toBeGreaterThan(0);
     expect(mesh.connectedParticles).toBe(32);
     expect(mesh.allocatedVolume).toBeCloseTo(mesh.carrierVolume,10);
+    expect(integrateFilmVolume(mesh.vertices)).toBeCloseTo(mesh.carrierVolume,6);
     expect(mesh.maxOpticalThickness).toBeLessThan(0.27);
     expect(mesh.vertices.every(Number.isFinite)).toBe(true);
   });
