@@ -45,6 +45,18 @@
     {
       "path": "public/mlsmpm-webgpu.html",
       "git_blob_sha1": "50f6e10d817844d424c3a11a7715722dea32f7f7"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "git_blob_sha1": "4235f83096af0f951dfdd6e878500616b7264673"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "git_blob_sha1": "eed2c745057a23ded1385f1cec6fd1d660ee2b3a"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb"
     }
   ],
   "capabilities": [
@@ -119,6 +131,14 @@
       "status": "recoverable executable standalone source already in existing repository; visual/performance verification pending",
       "current": "public/mlsmpm-webgpu.html",
       "acceptance": "real browser WebGPU smoke, matching physical scene with fused pool/ocean, fluid stability and GPU budget"
+    },
+    {
+      "id": "historical_unified_pool_material",
+      "champion": "HybridSplash Fable POOL_REFERENCE_LOCK V5 — existing historical consolidated optical+fluid material",
+      "donor": "user Library: hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "status": "actual HTML+patch+prior audit recovered byte-identically; historical audit reports positive checks but independent runtime physics/render proof not yet complete",
+      "current": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "acceptance": "render actual V5 then compare source-driven heightfield/MPM wet material, refracted depth, terrain caustic receiver, and no false shared-state divergence; do not promote without real match"
     }
   ],
   "explicit_known_debts": [
@@ -159,6 +179,30 @@
       "archived_path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
       "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8",
       "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "git_blob_sha1": "4235f83096af0f951dfdd6e878500616b7264673",
+      "sha256": "ac4a33012f5c5d209d896d6ac1546b778855b2e6e0dffc043a4a1986a69c581c",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "git_blob_sha1": "eed2c745057a23ded1385f1cec6fd1d660ee2b3a",
+      "sha256": "f0d27e2419802b49b8baa0d847206b33010fdc6efaf4aeca3f9de9fb10a466c0",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb",
+      "sha256": "not recorded by historical audit",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
     }
   ]
 }
