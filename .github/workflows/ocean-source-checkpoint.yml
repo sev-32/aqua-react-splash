@@ -6,6 +6,7 @@ on:
       - '.github/workflows/ocean-source-checkpoint.yml'
       - 'docs/consolidation/WATER_SEMANTIC_CONSTITUTION.md'
       - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
       - 'docs/consolidation/CHAMPION_RECOVERY_PASS01.md'
       - 'scripts/ci-champion-pool-ocean.mjs'
       - 'docs/consolidation/WATER_SEMANTIC_CONTRACTS.json'
@@ -51,6 +52,7 @@ jobs:
             docs/consolidation/*.md
             docs/consolidation/*.json
             docs/champions/donors/
+            public/mlsmpm-webgpu.html
             README.md
             package.json
             package-lock.json
