@@ -61,3 +61,67 @@ requested morphology standard.
   deformation/Weber and connectivity, not only render flags.
 - Validate refraction/reflection against the resulting 3D surface normals,
   with a contrast-controlled camera, no artificially opaque foam.
+
+## V3.1 / V3.2 independent real WebGL2 results
+
+V3.1: CI `38050879358`, 12 PNGs, 1600×900, no GL/JS errors.
+The normal/covariance and width gates suppress most rigid triangular shards.
+Crown: 141 triangle faces, 123 ribbons, 247 represented / 2374 live
+particles (10.4%), max surface optical thickness 0.309m.
+It remains insufficiently connected; only 0.199%? No: do NOT infer
+rendered water coverage from particle count without area calibration.
+
+V3.2: CI `38051236254`, artifact `11669329052`, 12 PNGs and full
+receipts, no GL or JS errors. The *same* global bond budget of 4000 was
+distributed via an opt-in 5-neighbors-per-particle cap.
+Legacy R1/V2 graph rules stay unchanged. Tests and production build passed.
+
+| Metric | V3.1 contact | V3.2 contact | V3.1 crown | V3.2 crown | V3.1 breakup | V3.2 breakup | V3.1 fast tow | V3.2 fast tow |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Live particles | 355 | 355 | 2374 | 2374 | 2169 | 2169 | 3192 | 3192 |
+| Reconstructed particles | 225 | 195 | 247 | 1080 | 824 | 1546 | 333 | 845 |
+| Triangle faces | 303 | 95 | 141 | 431 | 1490 | 733 | 1045 | 111 |
+| Strand ribbons | 21 | 56 | 123 | 380 | 347 | 397 | 27 | 586 |
+| Assigned water volume (m³) | 0.??? | 0.095369 | 0.??? | 0.289041 | 0.??? | 0.046550 | 0.??? | 0.016975 |
+
+V3.1 exact connected carrier volumes and V3.2 comparative metrics are stored
+in each workflow's `receipts.json`. Do not infer visual area from them.
+
+The V3.2 crown's supported particle count improved **4.37×**, from
+247/2374 (10.4%) to 1080/2374 (45.5%). Rendered optical-carrier volume
+still matches the volume of represented physics particles by construction
+and independent unit tests check actual triangle area × film thickness.
+There was no change to emitted/settled volumes or MPM forces.
+
+**Visual gate still FAILED:** the huge polygon shards are mostly gone,
+but the continuous liquid curtain and naturally thinning/tearing tendrils
+are still missing. The surface is clear yet overly fragmented against
+the bright ocean background. Do not make V3 the default or merge this
+experimental branch as photorealistic water.
+
+### Decisive next architectural change
+The emitter currently samples the crown as randomized ring particles.
+These are created without retaining a persistent 2D material sheet or
+its angular and temporal adjacency. Reconstruction can only guess
+connectivity afterward, regardless of how fairly a capped graph is
+distributed.
+
+Introduce opt-in `V4 material-sheet emission` at the crown source:
+- Assign a material sheet ID, azimuthal coordinate and emission-time
+  coordinate to each emitted parcel, retaining actual particle ancestry.
+- At birth, form local 2D strips across adjacent angular sectors and
+  consecutive emission epochs (not unrelated nearest particles).
+- Carry those sheet vertices with MLS-MPM motion; physically thin the
+  material via increasing area while preserving its allocated volume.
+- Break material bonds and transfer them into 1D liquid ligaments
+  when strain/instability exceeds measured criteria. Detach droplets
+  from those ligaments; foam/aeration is an independent scattering
+  field, not white albedo on all fast water.
+- Use a bounded near-field budget and LOD; when graphics support is
+  missing, preserve physics and report an explicit fallback.
+- Verify several matched frames over time, not one still; establish
+  real silhouette coverage and reflect/refract a high-contrast
+  background with actual surface normals.
+
+This is a design target, not an implemented V4. The failure of V3
+prevents promoting a nice-looking screenshot as physical proof.
