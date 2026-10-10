@@ -108,3 +108,32 @@ a fixed physical field before coupling any morphological changes back into physi
   new graph-aware classification. The latter remains a candidate until real
   WebGL2 captures are reviewed. Do not enable by default based on build
   success or lower white-pixel counts alone.
+
+## Third real-render A/B: graph bonds and clear-water self-shadow (R2 final experiment)
+- CI workflow `38010830809`, source `9fc8b3eca2aac04b6957a689c8f3a8f698ab9573`,
+  artifact `11653084667`. Eight 1600×900 original PNGs and source-state JSON,
+  GL errors 0 in all stages, no console/page errors.
+- Four stages preserve the same T4 emitted volumes as the reference,
+  0.209238 / 0.714307 / 0.923428 / 0.087348 m³. Conservation accounting
+  residuals are at floating-point noise (~10^-15 m³).
+- Graph-aware coherence makes some connected regions more visible than the
+  first V2 but does NOT reconstruct a sufficiently continuous, physically
+  legible 3D liquid curtain. The result still looks like sporadic refractive
+  streaks over the background sea. **This candidate fails the target
+  morphology/visual-quality gate. It remains opt-in, default OFF.**
+- The subgrid atomization strategy *does* remove the misleading giant white
+  balls. Do not reverse that fix by simply brightening foam or enlarging
+  all particle splats again.
+- Next real engineering change should construct a genuine sheet interface:
+  anisotropic local support from MLS-MPM particle deformation/covariance
+  + graph connectivity to define a tangent plane, with explicit film
+  thickness linked to local water volume and a coherent surface normal.
+  Water filaments become radius-bearing 1D structures and detached aerosol
+  becomes a separate optically thin population. Track morphology across
+  successive time steps and benchmark at fixed physical states.
+- A direct geometric criterion for that development: projected sheet coverage
+  must be spatially connected around the entry waterline until a measurable
+  neck-break or connectivity event. Confirm clear-water Fresnel/refraction on
+  a higher-contrast background without adding fictional whitewater albedo.
+- A single rendered A/B and clean shader are **not** proof of predicted
+  splash morphology or hydrodynamic fidelity.
