@@ -1,0 +1,3425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HybridSplash — WebGPU Hybrid Ocean</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{
+    --ink:#dfe9ee; --dim:#7e93a0; --line:rgba(150,190,210,.14);
+    --glass:rgba(10,16,20,.72); --accent:#5fd4ff; --warn:#ffb35f;
+  }
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#04080b;color:var(--ink);
+    font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #rail{position:fixed;top:14px;left:14px;width:42px;max-height:calc(100vh - 28px);
+    display:flex;flex-direction:column;gap:7px;align-items:center;background:var(--glass);
+    border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(14px);
+    padding:8px 6px;z-index:7}
+  #rail .rail-btn{width:30px;height:30px;display:grid;place-items:center;padding:0;border-radius:9px;
+    font-size:15px;letter-spacing:0;color:var(--dim);background:rgba(95,212,255,.045)}
+  #rail .rail-btn:hover,#rail .rail-btn.on{color:#fff;border-color:var(--accent);background:rgba(95,212,255,.20);
+    box-shadow:0 0 14px rgba(95,212,255,.14)}
+  #rail .rail-sep{width:24px;height:1px;background:var(--line);margin:2px 0}
+  #panel{position:fixed;top:14px;left:68px;width:286px;max-height:calc(100vh - 28px);
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:var(--glass);
+    border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(14px);
+    padding:14px 12px 10px 14px;z-index:6}
+  .page{display:none}
+  .page.active{display:block}
+  .page-title{font-family:'Space Grotesk',sans-serif;font-size:12px;letter-spacing:.12em;color:#fff;
+    margin:8px 0 2px;text-transform:uppercase}
+  .page-desc{color:var(--dim);font-size:10px;line-height:1.45;margin:0 0 8px}
+  #panel::-webkit-scrollbar{width:8px}
+  #panel::-webkit-scrollbar-track{background:rgba(255,255,255,.035);border-radius:8px}
+  #panel::-webkit-scrollbar-thumb{background:rgba(95,212,255,.38);border:1px solid rgba(95,212,255,.18);border-radius:8px}
+  #panel::-webkit-scrollbar-thumb:hover{background:rgba(95,212,255,.58)}
+  #panel h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;
+    letter-spacing:.06em;margin:0 0 2px;color:#fff}
+  #panel h1 em{color:var(--accent);font-style:normal}
+  #sub{color:var(--dim);font-size:10px;letter-spacing:.08em;margin-bottom:10px}
+  .sect{border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+  .sect .lab{font-size:9px;letter-spacing:.18em;color:var(--dim);margin-bottom:6px}
+  .row{display:flex;align-items:center;gap:8px;margin:5px 0}
+  .row label{flex:0 0 86px;color:var(--ink);font-size:11px}
+  .row input[type=range]{flex:1;min-width:0;height:14px;appearance:none;background:transparent}
+  .row input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(150,190,210,.25);border-radius:2px}
+  .row input[type=range]::-webkit-slider-thumb{appearance:none;width:10px;height:10px;border-radius:50%;
+    background:var(--accent);margin-top:-4px;box-shadow:0 0 6px rgba(95,212,255,.6)}
+  .row .val{flex:0 0 38px;text-align:right;color:var(--accent);font-size:10px}
+  .btns{display:flex;gap:6px;flex-wrap:wrap}
+  button{font-family:inherit;font-size:10px;letter-spacing:.06em;color:var(--ink);
+    background:rgba(95,212,255,.07);border:1px solid var(--line);border-radius:6px;
+    padding:5px 9px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:#fff}
+  button.on{background:rgba(95,212,255,.22);border-color:var(--accent);color:#fff}
+  #hud{position:fixed;top:14px;right:14px;text-align:right;z-index:5;
+    background:var(--glass);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;backdrop-filter:blur(14px)}
+  #hud .big{font-size:18px;color:#fff;font-family:'Space Grotesk',sans-serif}
+  #hud .k{color:var(--dim);font-size:9px;letter-spacing:.12em}
+  #hud .v{color:var(--accent)}
+  #help{position:fixed;bottom:14px;left:14px;color:var(--dim);font-size:10px;
+    letter-spacing:.04em;z-index:5;line-height:1.7;background:var(--glass);
+    border:1px solid var(--line);border-radius:10px;padding:8px 12px;backdrop-filter:blur(14px)}
+  #help b{color:var(--ink);font-weight:500}
+  #err{position:fixed;inset:0;display:none;place-items:center;background:#04080b;z-index:50;
+    text-align:center;padding:30px;line-height:1.8;color:var(--warn)}
+  #errTitle{font-size:18px;font-family:'Space Grotesk',sans-serif;color:var(--warn)}
+  #errLog{display:block;margin:14px auto 0;max-width:min(780px,calc(100vw - 60px));max-height:44vh;
+    overflow:auto;text-align:left;white-space:pre-wrap;color:#b8cbd5;background:rgba(255,255,255,.035);
+    border:1px solid var(--line);border-radius:8px;padding:10px 12px;line-height:1.45;user-select:text;
+    -webkit-user-select:text}
+  #fold{display:none;position:fixed;top:14px;left:68px;z-index:8}
+  @media (max-width:760px){
+    #panel{display:none;left:68px;width:min(286px,calc(100vw - 92px))}
+    #panel.open{display:block;max-height:70vh;overflow:auto}
+    #fold{display:block}
+    #help{display:none}
+  }
+
+    </style>
+</head>
+<body>
+<canvas id="gpu"></canvas>
+
+<div id="rail" aria-label="Settings pages">
+  <button class="rail-btn on" data-drawer-page="sea" title="Sea state">≈</button>
+  <button class="rail-btn" data-drawer-page="splash" title="MLS-MPM splash">●</button>
+  <button class="rail-btn" data-drawer-page="surf" title="Surf and foam">≋</button>
+  <button class="rail-btn" data-drawer-page="world" title="World and shore">⌁</button>
+  <button class="rail-btn" data-drawer-page="render" title="Lighting and render">☼</button>
+  <div class="rail-sep"></div>
+  <button class="rail-btn" data-drawer-page="time" title="Playback and app speed">▶</button>
+</div>
+
+<div id="panel">
+  <h1>HYBRID<em>SPLASH</em></h1>
+  <div id="sub">spectral ocean · heightfield δ-sim · MLS-MPM splash</div>
+
+  <div class="page active" data-page="sea">
+    <div class="page-title">Sea State</div>
+    <div class="page-desc">Wave spectrum and base ocean motion.</div>
+    <div class="sect"><div class="lab">PRESETS</div>
+      <div class="btns" id="presets">
+        <button data-p="glass">Glass</button>
+        <button data-p="swell" class="on">Swell</button>
+        <button data-p="storm">Storm</button>
+      </div>
+    </div>
+    <div class="sect"><div class="lab">WIND / SWELL</div>
+      <div class="row"><label>Wind speed</label><input type="range" id="wind" min="1.5" max="18" step="0.1" value="5.1"><span class="val" id="windV"></span></div>
+      <div class="row"><label>Swell height</label><input type="range" id="swell" min="0" max="1.1" step="0.01" value="1.04"><span class="val" id="swellV"></span></div>
+      <div class="row"><label>Choppiness</label><input type="range" id="chop" min="0" max="1" step="0.01" value="1.00"><span class="val" id="chopV"></span></div>
+    </div>
+  </div>
+
+  <div class="page" data-page="splash">
+    <div class="page-title">MLS-MPM Splash</div>
+    <div class="page-desc">Splash carrier birth, energy, feedback, and debug view.</div>
+    <div class="sect"><div class="lab">FLUID CARRIERS</div>
+      <div class="row"><label>Spawn rate</label><input type="range" id="spawn" min="0" max="2" step="0.01" value="1.10"><span class="val" id="spawnV"></span></div>
+      <div class="row"><label>Splash energy</label><input type="range" id="splashEnergy" min="0.35" max="2.4" step="0.01" value="1.25"><span class="val" id="splashEnergyV"></span></div>
+      <div class="row"><label>Droplet size</label><input type="range" id="dropletScale" min="0.45" max="2" step="0.01" value="1.0"><span class="val" id="dropletScaleV"></span></div>
+      <div class="row"><label>Feedback</label><input type="range" id="bft" min="0" max="2" step="0.01" value="1.0"><span class="val" id="bftV"></span></div>
+      <div class="btns">
+        <button id="tSplash" class="on">Splash ON</button>
+        <button id="tFoam" class="on">Foam ON</button>
+      </div>
+    </div>
+    <div class="sect"><div class="lab">SPLASH RENDER DEBUG</div>
+      <div class="btns" id="mpmModes">
+        <button data-mpm-mode="fluid" class="on">Fluid</button>
+        <button data-mpm-mode="particles">Particles</button>
+        <button data-mpm-mode="both">Both</button>
+      </div>
+      <div class="page-desc">Default is Fluid. Particles/Both are only for alignment debugging.</div>
+    </div>
+  </div>
+
+  <div class="page" data-page="surf">
+    <div class="page-title">Surf / Foam</div>
+    <div class="page-desc">Heightfield foam, runup, breaker, and wind bias controls.</div>
+    <div class="sect"><div class="lab">SURF ZONE</div>
+      <div class="row"><label>Foam persistence</label><input type="range" id="foamPersist" min="0.05" max="0.995" step="0.005" value="0.32"><span class="val" id="foamPersistV"></span></div>
+      <div class="row"><label>Turbulence foam</label><input type="range" id="foamTurb" min="0" max="3.2" step="0.01" value="0.82"><span class="val" id="foamTurbV"></span></div>
+      <div class="row"><label>Foam drift</label><input type="range" id="foamAdvect" min="0" max="3.2" step="0.01" value="0.99"><span class="val" id="foamAdvectV"></span></div>
+      <div class="row"><label>Foam amount</label><input type="range" id="foamAmt" min="0" max="2.8" step="0.01" value="0.87"><span class="val" id="foamAmtV"></span></div>
+      <div class="row"><label>Foam strength</label><input type="range" id="foamStrength" min="0" max="3.0" step="0.01" value="0.00"><span class="val" id="foamStrengthV"></span></div>
+      <div class="row"><label>Whitecaps</label><input type="range" id="whitecaps" min="0" max="2.4" step="0.01" value="0.94"><span class="val" id="whitecapsV"></span></div>
+      <div class="row"><label>Leeward foam bias</label><input type="range" id="leeBias" min="0" max="1" step="0.01" value="0.72"><span class="val" id="leeBiasV"></span></div>
+      <div class="row"><label>Leeward wind bias</label><input type="range" id="windLee" min="0" max="1" step="0.01" value="0.61"><span class="val" id="windLeeV"></span></div>
+      <div class="row"><label>Foam wind effect</label><input type="range" id="foamWind" min="0" max="2.5" step="0.01" value="0.00"><span class="val" id="foamWindV"></span></div>
+      <div class="row"><label>Edge exposure</label><input type="range" id="runup" min="0" max="2.2" step="0.01" value="0.82"><span class="val" id="runupV"></span></div>
+      <div class="row"><label>Wet-dry memory</label><input type="range" id="wetDry" min="0.2" max="2.4" step="0.01" value="0.91"><span class="val" id="wetDryV"></span></div>
+      <div class="row"><label>Breaker threshold</label><input type="range" id="breaker" min="0.35" max="1.4" step="0.01" value="0.82"><span class="val" id="breakerV"></span></div>
+    </div>
+  </div>
+
+  <div class="page" data-page="world">
+    <div class="page-title">World</div>
+    <div class="page-desc">Shore, bathymetry, water extents, and world curvature.</div>
+    <div class="sect"><div class="lab">WORLD PRESET</div>
+      <div class="btns" id="worlds">
+        <button data-w="shore" class="on">Shore</button>
+        <button data-w="deep">Deep</button>
+        <button data-w="lake">Lake</button>
+      </div>
+    </div>
+    <div class="sect"><div class="lab">DOMAIN</div>
+      <div class="row"><label>Ocean span</label><input type="range" id="oceanSpan" min="0.75" max="8.0" step="0.01" value="1.15"><span class="val" id="oceanSpanV"></span></div>
+      <div class="row"><label>Ocean width</label><input type="range" id="oceanWidth" min="0.6" max="12.0" step="0.01" value="1.0"><span class="val" id="oceanWidthV"></span></div>
+      <div class="row"><label>Ocean length</label><input type="range" id="oceanLength" min="0.6" max="12.0" step="0.01" value="1.0"><span class="val" id="oceanLengthV"></span></div>
+      <div class="row"><label>Beach width</label><input type="range" id="beachWidth" min="0.35" max="10.0" step="0.01" value="1.0"><span class="val" id="beachWidthV"></span></div>
+      <div class="row"><label>Land reach</label><input type="range" id="landReach" min="0.25" max="8.0" step="0.01" value="1.05"><span class="val" id="landReachV"></span></div>
+      <div class="row"><label>Shore offset</label><input type="range" id="shoreOffset" min="-60" max="60" step="0.1" value="0"><span class="val" id="shoreOffsetV"></span></div>
+      <div class="row"><label>Outer smooth</label><input type="range" id="outerSmooth" min="0" max="1" step="0.01" value="0.55"><span class="val" id="outerSmoothV"></span></div>
+      <div class="row"><label>Planet curve</label><input type="range" id="planetCurve" min="0" max="2.5" step="0.01" value="0.00"><span class="val" id="planetCurveV"></span></div>
+    </div>
+  </div>
+
+  <div class="page" data-page="render">
+    <div class="page-title">Lighting / Render</div>
+    <div class="page-desc">Camera-facing render, sun, atmosphere, caustics, and lensing.</div>
+    <div class="sect"><div class="lab">IMAGE</div>
+      <div class="row"><label>Exposure</label><input type="range" id="expo" min="0.4" max="2.2" step="0.01" value="1.05"><span class="val" id="expoV"></span></div>
+      <div class="row"><label>Sun elevation</label><input type="range" id="sunElev" min="-8" max="90" step="0.5" value="22"><span class="val" id="sunElevV"></span></div>
+      <div class="row"><label>Sun azimuth</label><input type="range" id="sunAz" min="0" max="360" step="1" value="210"><span class="val" id="sunAzV"></span></div>
+      <div class="row"><label>Sun intensity</label><input type="range" id="sunInt" min="0" max="4" step="0.01" value="1.45"><span class="val" id="sunIntV"></span></div>
+      <div class="row"><label>Mie haze</label><input type="range" id="mie" min="0" max="4" step="0.01" value="1.1"><span class="val" id="mieV"></span></div>
+      <div class="row"><label>Atmosphere</label><input type="range" id="atmo" min="0.1" max="2.8" step="0.01" value="1.25"><span class="val" id="atmoV"></span></div>
+      <div class="row"><label>Caustics strength</label><input type="range" id="caustics" min="0" max="2.8" step="0.01" value="1.15"><span class="val" id="causticsV"></span></div>
+      <div class="btns">
+        <button id="tLens">Break lens</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" data-page="time">
+    <div class="page-title">Playback / App</div>
+    <div class="page-desc">Global simulation time scale and interaction speed.</div>
+    <div class="sect"><div class="lab">TIME SCALE</div>
+      <div class="row"><label>Sim speed</label><input type="range" id="simSpeed" min="0" max="3" step="0.01" value="1.0"><span class="val" id="simSpeedV"></span></div>
+      <div class="row"><label>Camera speed</label><input type="range" id="cameraSpeed" min="0.25" max="3" step="0.01" value="1.0"><span class="val" id="cameraSpeedV"></span></div>
+    </div>
+    <div class="sect"><div class="lab">APP CONTROLS</div>
+      <div class="btns">
+        <button id="bReset">Reset water</button>
+        <button id="bPause">Pause</button>
+        <button id="bExport">Export state</button>
+      </div>
+    </div>
+  </div>
+</div>
+<button id="fold">drawer</button>
+
+<div id="hud">
+  <div class="big" id="fps">—</div>
+  <div class="k">FPS</div>
+  <div style="margin-top:6px" class="k">SPLASH POOL <span class="v" id="pcount">65 536</span></div>
+  <div class="k">HF <span class="v">256² · 42m · 3 sub</span> · MPM <span class="v">128×20×128 · 2 sub</span></div>
+</div>
+
+<div id="help">
+  <b>drag</b> push water &nbsp;·&nbsp; <b>click</b> drop &nbsp;·&nbsp; <b>right-drag</b> orbit &nbsp;·&nbsp; <b>wheel</b> zoom &nbsp;·&nbsp; <b>space</b> pause
+</div>
+
+<div id="err"><div>
+  <div id="errTitle">WebGPU not available</div>
+  <div style="color:var(--dim);margin-top:8px;max-width:420px">
+  This simulation needs WebGPU (Chrome / Edge 113+, or recent Safari & Firefox with WebGPU enabled).
+  <span id="errDetail"></span></div>
+  <pre id="errLog"></pre>
+</div></div>
+
+<script type="module">
+/* ============================================================================
+   HYBRIDSPLASH — η_total = η_base + δ_sim + δ_breach
+   L2 spectral ocean  ·  L3 bathymetry-aware heightfield (pool1 rebuilt, WGSL)
+   L4 event-driven MLS-MPM splash (pool2 core)  ·  BFT impact feedback
+   ========================================================================== */
+
+const HN = 256;                 // heightfield resolution (cells per side)
+const WORLD = 42.0;             // world size, metres
+const HDX = WORLD / HN;         // heightfield cell, metres
+const HF_SUB = 3;               // heightfield substeps per frame
+const FRAME_DT = 1 / 60;
+
+const MX = 128, MY = 20, MZ = 128;          // MPM grid
+const MCELL = WORLD / MX;
+const MORG = [-WORLD / 2, -1.2, -WORLD / 2];// grid origin in world
+const MPM_SUB = 2;
+const G_GRID = 9.81 / MCELL;                // gravity in grid units
+const FIX = 1e5, FIXI = 1 / FIX;            // fixed-point scale for atomics
+
+const MAXP = 65536;             // particle pool
+const KCOMP = 80;               // spectral wave components
+const SPAWN_CAP = 700;          // particle births per frame at rate=1
+const CROWN_CAP = 220;
+
+const NVERT = HN;               // render mesh verts per side (matches HF)
+
+/* ---------------------------------------------------------------- WGSL ---- */
+
+const C_PARAMS = /*wgsl*/`
+struct Params {
+  // v0: dt, time, frame, _
+  v0 : vec4f,
+  // v1: windDirX, windDirZ, windSpeed, chop
+  v1 : vec4f,
+  // v2: damping, shoreDrag, sourceGain(bft), spawnRate
+  v2 : vec4f,
+  // v3: mouse world x, z, radius, mode (0 none, 1 wake, 2 drop)
+  v3 : vec4f,
+  // v4: mouse vel x, z, dropStrength, splashOn
+  v4 : vec4f,
+  // v5: spawnBudgetMax, crownBudgetMax, foamOn, worldScaleZ
+  v5 : vec4f,
+  // v6: foamPersistence, turbulenceGain, foamAdvection, edgeExposure
+  v6 : vec4f,
+  // v7: splashEnergy, dropletScale, wetDrySharpness, breakerIndex
+  v7 : vec4f,
+  // v8: foamAmount, whitecapAmount, leewardFoamBias, leewardWindBias
+  v8 : vec4f,
+  // v9: foamStrength, foamWindEffect, _, _
+  v9 : vec4f,
+};
+const HN : i32 = ${HN};
+const HNu : u32 = ${HN}u;
+const WORLD : f32 = ${WORLD};
+const HDX : f32 = ${HDX};
+fn cellWorld(ix:i32, iz:i32) -> vec2f {
+  return vec2f((f32(ix)+0.5)/f32(HN) - 0.5, (f32(iz)+0.5)/f32(HN) - 0.5) * WORLD;
+}
+fn cellWorldExtent(ix:i32, iz:i32, scaleXZ:vec2f) -> vec2f {
+  return vec2f((f32(ix)+0.5)/f32(HN) - 0.5, (f32(iz)+0.5)/f32(HN) - 0.5) * WORLD * max(scaleXZ, vec2f(0.1));
+}
+fn idx2(ix:i32, iz:i32) -> i32 { return clamp(iz,0,HN-1)*HN + clamp(ix,0,HN-1); }
+fn pcg2(p:vec2u) -> vec2u {
+  var v = p * 1664525u + 1013904223u;
+  v.x += v.y * 1664525u; v.y += v.x * 1664525u;
+  v ^= v >> vec2u(16u);
+  v.x += v.y * 1664525u; v.y += v.x * 1664525u;
+  v ^= v >> vec2u(16u);
+  return v;
+}
+fn rand2(p:vec2u) -> vec2f { return vec2f(pcg2(p)) * (1.0/4294967295.0); }
+fn hash21c(p : vec2f) -> f32 {
+  var q = fract(p * vec2f(123.34, 345.45));
+  q += dot(q, q + 34.345);
+  return fract(q.x * q.y);
+}
+fn vnoiseC(p : vec2f) -> f32 {
+  let i = floor(p); let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  let a = hash21c(i); let b = hash21c(i + vec2f(1.0, 0.0));
+  let c = hash21c(i + vec2f(0.0, 1.0)); let d = hash21c(i + vec2f(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+fn fbmC(p : vec2f) -> f32 {
+  var v = 0.0; var a = 0.5; var q = p;
+  for (var k = 0; k < 4; k++) { v += a * vnoiseC(q); q = q * 2.03 + vec2f(17.0, 11.0); a *= 0.5; }
+  return v;
+}
+`;
+
+/* L2 — spectral ocean base layer: finite-depth dispersion, Gerstner chop,
+   per-cell shoaling against bathymetry.  baseState = (etaB, dispX, dispZ, etaDotB) */
+const WG_OCEAN = /*wgsl*/`
+${C_PARAMS}
+struct Comp { d_k_w : vec4f, a_p_c : vec4f }; // (dirX,dirZ,k,omega) (amp,phase,chop,_)
+@group(0) @binding(0) var<storage, read> comps : array<Comp>;
+@group(0) @binding(1) var<storage, read> bathy : array<f32>;
+@group(0) @binding(2) var<storage, read_write> baseState : array<vec4f>;
+@group(0) @binding(3) var<uniform> P : Params;
+@compute @workgroup_size(8,8)
+fn oceanEval(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= HNu || id.y >= HNu) { return; }
+  let i = idx2(i32(id.x), i32(id.y));
+  let worldScale = vec2f(max(P.v0.w, 0.1), max(P.v5.w, 0.1));
+  let pw = cellWorldExtent(i32(id.x), i32(id.y), worldScale);
+  let h = bathy[i];
+  let wet = smoothstep(0.0, 0.45, h);
+  var eta = 0.0; var disp = vec2f(0.0); var etadot = 0.0;
+  let t = P.v0.y;
+  for (var c = 0u; c < ${KCOMP}u; c++) {
+    let A = comps[c].d_k_w; let B = comps[c].a_p_c;
+    let k = A.z; let w = A.w;
+    let ph = k * dot(A.xy, pw) - w * t + B.y;
+    let s = sin(ph); let co = cos(ph);
+    // shoaling: amplitude swells as depth shrinks, then the wet fade kills it on land
+    let th = tanh(max(k * h, 1e-3));
+    let shoal = clamp(pow(th, -0.25), 1.0, 1.8);
+    let a = B.x * shoal * wet;
+    eta    += a * co;
+    etadot += a * w * s;
+    disp   -= A.xy * (B.z * a * s);
+  }
+  baseState[i] = vec4f(eta, disp.x, disp.y, etadot);
+}
+`;
+
+/* δ_breach — consume impact deposits (BFT) into the dynamic layer, then zero */
+const WG_BREACH = /*wgsl*/`
+${C_PARAMS}
+@group(0) @binding(0) var<storage, read_write> breach : array<i32>;
+@group(0) @binding(1) var<storage, read_write> foamImp : array<i32>;
+@group(0) @binding(2) var<storage, read_write> hf : array<vec4f>;
+@group(0) @binding(3) var<uniform> P : Params;
+@compute @workgroup_size(8,8)
+fn breachResolve(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= HNu || id.y >= HNu) { return; }
+  let i = idx2(i32(id.x), i32(id.y));
+  let raw = f32(breach[i]) * ${FIXI} * P.v2.z;   // sourceGain
+  let f = f32(foamImp[i]) * ${FIXI};
+  if (raw != 0.0 || f != 0.0) {
+    var s = hf[i];
+    // Impact sources are deliberately band-limited.  Hard point impulses were
+    // able to recurse into very fine reflected rings at walls/shorelines.
+    let d = clamp(raw, -1.15, 1.15);
+    let hit = smoothstep(0.03, 1.15, abs(d));
+    let headroom = 1.0 - smoothstep(1.35, 3.25, abs(s.y));
+    s.y = clamp(s.y * (1.0 - 0.10 * hit) + d * (0.58 + 0.22 * headroom), -2.65, 2.65);
+    s.x = clamp(s.x + d * 0.006, -1.25, 1.25);
+    s.z = min(s.z + f, 1.6);                      // foam / wetness
+    hf[i] = s;
+    breach[i] = 0; foamImp[i] = 0;
+  }
+}
+`;
+
+/* L3 — dynamic heightfield (pool1's solver rebuilt in WGSL):
+   hf = (etaDyn, etaDot, foam, wetMemory).  Depth-aware wave speed c=sqrt(g·h),
+   shore absorption, edge sponge, mouse wake/drop. */
+const WG_HF = /*wgsl*/`
+${C_PARAMS}
+@group(0) @binding(0) var<storage, read_write> hf : array<vec4f>;
+@group(0) @binding(1) var<storage, read> bathy : array<f32>;
+@group(0) @binding(2) var<uniform> P : Params;
+@compute @workgroup_size(8,8)
+fn hfUpdate(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= HNu || id.y >= HNu) { return; }
+  let ix = i32(id.x); let iz = i32(id.y);
+  let i = idx2(ix, iz);
+  let h = bathy[i];
+  var s = hf[i];
+  let dt = P.v0.x;
+  let edgeCtl = clamp(P.v6.w, 0.0, 2.2);
+  let edgeNorm = smoothstep(0.0, 2.2, edgeCtl);
+  // Land hydraulic activity is now film-state driven. The old runupReach band
+  // opened cells just because they were near the beach, which produced a fixed
+  // water-edge limit. WG_BREAK owns dynamic bore-front injection; WG_HF only
+  // advances film that physically exists.
+  let filmHead = max(s.x, 0.0);
+  let wetGate = smoothstep(0.00045, 0.010, filmHead);
+  if (h <= 0.0 && wetGate <= 0.01) {               // dry land with no actual film
+    let dryFade = exp(-dt * (0.46 / max(P.v7.z, 0.2)));
+    hf[i] = vec4f(0.0, 0.0, s.z * dryFade, max(s.w - dt * 0.90, 0.0));
+    return;
+  }
+  // neighbours: dry land neighbours do not mirror a synthetic shoreline.
+  let hc = s.x;
+  let il = idx2(ix-1,iz); let ir = idx2(ix+1,iz);
+  let idn = idx2(ix,iz-1); let iu = idx2(ix,iz+1);
+  var hl = hf[il].x; if (bathy[il] < 0.0 && hf[il].x <= 0.0006) { hl = 0.0; }
+  var hr = hf[ir].x; if (bathy[ir] < 0.0 && hf[ir].x <= 0.0006) { hr = 0.0; }
+  var hd = hf[idn].x; if (bathy[idn] < 0.0 && hf[idn].x <= 0.0006) { hd = 0.0; }
+  var hu = hf[iu].x; if (bathy[iu] < 0.0 && hf[iu].x <= 0.0006) { hu = 0.0; }
+  let lap = (hl + hr + hd + hu - 4.0 * hc) / (HDX * HDX);
+  let micro = clamp(abs(lap) * HDX * HDX * 1.85, 0.0, 1.0);
+  // depth-aware speed (shallow-water celerity), CFL-safe by substepping
+  let effDepth = max(0.022, h + wetGate * 0.040);
+  let c = sqrt(9.81 * clamp(effDepth, 0.03, 4.0));
+  s.y += lap * c * c * dt;
+  // shallow drag: damp swash/backwash without erasing the wet sheet immediately.
+  let shore = 1.0 - smoothstep(0.0, 0.72, h);
+  let shoreDrag = mix(13.5, 7.2, wetGate);
+  s.y *= max(0.0, 1.0 - P.v2.y * shore * dt * shoreDrag);
+  // global + nonlinear high-frequency damping.  This kills point-source buzz and
+  // reflected micro-ripples while leaving the large swell readable.
+  let velHot = smoothstep(0.95, 3.2, abs(s.y));
+  s.y *= exp(-(P.v2.x + micro * 1.65 + velHot * 0.38) * dt);
+  // domain edge sponge, applied to both velocity and displacement so walls absorb.
+  let e = min(min(f32(ix), f32(HN-1-ix)), min(f32(iz), f32(HN-1-iz)));
+  let sponge = smoothstep(0.0, 22.0, e);
+  s.y *= mix(0.58, 1.0, sponge);
+  s.x *= mix(0.78, 1.0, sponge);
+  // mouse forcing
+  let worldScale = vec2f(max(P.v0.w, 0.1), max(P.v5.w, 0.1));
+  let pw = cellWorldExtent(ix, iz, worldScale);
+  let md = pw - P.v3.xy;
+  let r2 = P.v3.z * P.v3.z;
+  let d2 = dot(md, md);
+  if (P.v3.w > 0.5 && d2 < r2 * 4.0) {
+    let g = exp(-d2 / r2);
+    let sourceLimit = 1.0 - smoothstep(0.85, 2.85, abs(s.y));
+    if (P.v3.w < 1.5) {                            // wake: directional push
+      let mv = P.v4.xy;
+      s.y += g * (dot(md, mv) * -0.9 - length(mv) * 0.25) * dt * 23.0 * sourceLimit;
+    } else {                                       // drop: band-limited plunge
+      s.y -= g * P.v4.z * dt * 42.0 * sourceLimit;
+    }
+  }
+  s.x += s.y * dt;
+  let avg4 = (hl + hr + hd + hu) * 0.25;
+  s.x = mix(s.x, avg4, micro * 0.026);
+  if (h <= 0.0) {
+    // Keep the beach film thin. Edge Exposure affects contact sensitivity and transferred momentum, not
+    // thick raised plates of water.
+    let filmCap = 0.038 + 0.006 * edgeNorm;
+    s.x = clamp(s.x, -0.030, filmCap);
+    s.y *= 0.64 + 0.22 * wetGate;
+    s.z = max(s.z * 0.988, smoothstep(0.004, 0.026, max(s.x, 0.0)) * (0.045 + 0.035 * edgeNorm));
+  } else {
+    s.x = clamp(s.x, -1.6, 1.6);
+  }
+  hf[i] = s;
+}
+`;
+
+/* Break detection χ + foam transport + pack render textures.
+   wetBuf carries real wet-sand material saturation; hf.w is breaker/whitecap hysteresis.
+   surfTex = (etaTotal, nX, nZ, foam) · auxTex = (dispX, dispZ, breakVis, depth) */
+const WG_BREAK = /*wgsl*/`
+${C_PARAMS}
+@group(0) @binding(0) var<storage, read_write> hf : array<vec4f>;
+@group(0) @binding(1) var<storage, read> base : array<vec4f>;
+@group(0) @binding(2) var<storage, read> bathy : array<f32>;
+@group(0) @binding(3) var<uniform> P : Params;
+@group(0) @binding(4) var surfTex : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(5) var auxTex : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(6) var<storage, read_write> wetBuf : array<f32>;
+fn etaT(ix:i32, iz:i32) -> f32 {
+  let j = idx2(ix, iz);
+  return hf[j].x + base[j].x;
+}
+@compute @workgroup_size(8,8)
+fn breakFoam(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= HNu || id.y >= HNu) { return; }
+  let ix = i32(id.x); let iz = i32(id.y);
+  let i = idx2(ix, iz);
+  let h = bathy[i];
+  var s = hf[i];
+  let b = base[i];
+  let dt = P.v0.x * f32(${HF_SUB});           // this pass runs once per frame
+  let e0 = etaT(ix, iz);
+  let exl = etaT(ix-1, iz); let exr = etaT(ix+1, iz);
+  let ezd = etaT(ix, iz-1); let ezu = etaT(ix, iz+1);
+  let grad = vec2f(exr - exl, ezu - ezd) / (2.0 * HDX);
+  let slope = length(grad);
+  let curv = (exl + exr + ezd + ezu - 4.0 * e0) / (HDX * HDX);
+  let etadot = s.y + b.w;
+  let foamGain = max(P.v8.x, 0.0);
+  let whitecapGain = max(P.v8.y, 0.0);
+  let leeBias = clamp(P.v8.z, 0.0, 1.0);
+  let windLeeBias = clamp(P.v8.w, 0.0, 1.0);
+  let foamStrength = max(P.v9.x, 0.0);
+  let foamWindEffect = max(P.v9.y, 0.0);
+  var windDir = vec2f(P.v1.x, P.v1.y);
+  if (length(windDir) < 1e-5) { windDir = vec2f(0.0, 1.0); }
+  windDir = normalize(windDir);
+  var slopeDir = windDir;
+  if (slope > 1e-5) { slopeDir = normalize(grad); }
+  let lee = clamp(0.5 - 0.5 * dot(slopeDir, windDir), 0.0, 1.0);
+  let leeMask = mix(1.0, smoothstep(0.36, 0.84, lee), leeBias);
+  // Rear-face whitecap mask: inverted from the previous build so the whitewater sits
+  // on the back/rear face of the crest instead of the front face.
+  let whiteRear = clamp(0.5 + 0.5 * dot(slopeDir, windDir), 0.0, 1.0);
+  let whitecapMask = mix(1.0, smoothstep(0.36, 0.84, whiteRear), leeBias);
+  let windMask = mix(1.0, smoothstep(0.24, 0.84, lee), windLeeBias);
+  let windFoamGain = mix(1.0, windMask, clamp(foamWindEffect * 0.65, 0.0, 1.0));
+  let hL = bathy[idx2(ix-1, iz)]; let hR = bathy[idx2(ix+1, iz)];
+  let hD = bathy[idx2(ix, iz-1)]; let hU = bathy[idx2(ix, iz+1)];
+  let depthGrad = vec2f(hR - hL, hU - hD) / (2.0 * HDX);
+  var shoreDir = vec2f(-P.v1.x, -P.v1.y);
+  if (length(depthGrad) > 1e-5) { shoreDir = -normalize(depthGrad); }
+  let shoreBand = 1.0 - smoothstep(0.0, 1.15, h); // legacy near-shore cue only; not the runout/deposit authority
+  let landRise = max(-h, 0.0);
+  let edgeCtl = clamp(P.v6.w, 0.0, 2.2);
+  let edgeCtlSoft = smoothstep(0.0, 2.2, edgeCtl);
+  // Safety only: not a spawn line. Film starts only when the instantaneous
+  // water surface crosses the local bed. This guard just prevents water from
+  // being injected over high dry beach/cliffs if a far neighbour has a huge crest.
+  let maxContactRise = 1.05 + 0.18 * edgeCtlSoft;
+  let extremeLandGuard = 1.0 - smoothstep(maxContactRise, maxContactRise + 0.85, landRise);
+  let swashBand = shoreBand * extremeLandGuard;
+  let downDir = -shoreDir;
+  let worldScale = vec2f(max(P.v0.w, 0.1), max(P.v5.w, 0.1));
+  let pw = cellWorldExtent(ix, iz, worldScale);
+  let tangentDir = vec2f(-shoreDir.y, shoreDir.x);
+  // Rill/tendril mask: breaks a sheet into strands aligned up/down the beach.
+  let transverse = dot(pw, tangentDir);
+  let alongShore = dot(pw, shoreDir);
+  let rillSeed = fbmC(vec2f(transverse * 0.26, alongShore * 0.20 - P.v0.y * 0.32));
+  let rillMask = smoothstep(0.44, 0.86, rillSeed + 0.16 * fbmC(pw * 0.55 + shoreDir * P.v0.y * 0.22));
+  let shredMask = mix(0.76, 1.24, rillMask);
+
+  // Dynamic run-up head.  The moving waterline is now driven only by
+  // current wave head, incoming momentum, local beach slope, and breaker state.
+  // Foam / wet memory is allowed to darken sand, but it can no longer pin a
+  // fake static water edge.
+  let off1 = vec2i(round(-shoreDir * 2.0));
+  let off2 = vec2i(round(-shoreDir * 5.0));
+  let off3 = vec2i(round(-shoreDir * 9.0));
+  let off4 = vec2i(round(-shoreDir * 14.0));
+  let i1 = idx2(ix + off1.x, iz + off1.y);
+  let i2 = idx2(ix + off2.x, iz + off2.y);
+  let i3 = idx2(ix + off3.x, iz + off3.y);
+  let i4 = idx2(ix + off4.x, iz + off4.y);
+  let water1 = smoothstep(-0.02, 0.22, bathy[i1]);
+  let water2 = smoothstep(-0.02, 0.42, bathy[i2]);
+  let water3 = smoothstep(-0.02, 0.72, bathy[i3]);
+  let water4 = smoothstep(-0.02, 1.05, bathy[i4]);
+  let head1 = max(etaT(ix + off1.x, iz + off1.y), 0.0) * water1;
+  let head2 = max(etaT(ix + off2.x, iz + off2.y), 0.0) * water2;
+  let head3 = max(etaT(ix + off3.x, iz + off3.y), 0.0) * water3;
+  let head4 = max(etaT(ix + off4.x, iz + off4.y), 0.0) * water4;
+  let offshoreHead = max(max(head1 * 1.00, head2 * 0.94), max(head3 * 0.86, head4 * 0.74));
+  let positiveHead = max(max(e0, 0.0) * smoothstep(-0.02, 0.18, h), offshoreHead);
+  // IMPORTANT: do not keep a fixed shoreline-coupled swash limit. The contact/runout
+  // domain must expand and contract with the actual incident wave head.
+  let dynamicReachDepth = 0.02 + clamp(positiveHead * 1.55 + offshoreHead * 0.45 + max(etadot, 0.0) * 0.05, 0.0, 0.72);
+  let dynamicReachBand = 1.0 - smoothstep(0.0, max(dynamicReachDepth, 0.021), h);
+
+  // Beach-shape controls: gentle slopes spill/bore farther; steep slopes plunge,
+  // foam harder, and drain faster.  This gives crest-over thresholds that respond
+  // to the generated shore geometry rather than a single fixed line.
+  let bathyCurv = abs(hL + hR + hD + hU - 4.0 * h) / max(HDX * HDX, 1e-4);
+  let beachSlope = clamp(length(depthGrad) * 6.6, 0.0, 1.0);
+  let beachShape = clamp(beachSlope * 0.68 + bathyCurv * 0.14, 0.0, 1.0);
+  let lowSlope = 1.0 - smoothstep(0.12, 0.52, beachSlope);
+  let breakerDepth = max(max(bathy[i1], bathy[i2]), 0.055);
+  let breakerRatio = positiveHead / breakerDepth;
+  // Breaker Threshold is now a stable breaker-index control, not a cliff-edge switch.
+  let breakerCtl = smoothstep(0.35, 1.40, clamp(P.v7.w, 0.35, 1.40));
+  // γ (Breaker Threshold) now means one thing: H/d breaking criterion.
+  // It no longer scales swash push, film lift, or optical clearance.
+  let breakerIndex = clamp(P.v7.w, 0.35, 1.45);
+  let breakerThreshold = breakerIndex * mix(0.80, 1.06, beachSlope);
+  let crestOver = smoothstep(breakerThreshold * 0.82, breakerThreshold * 1.34,
+                             breakerRatio + max(etadot, 0.0) * 0.10 + slope * 0.14);
+  let plungingBias = beachSlope;
+  let fingerCoord = transverse;
+  let fingerN = sin(fingerCoord * 2.10 + P.v0.y * 0.70) * 0.50
+              + sin(fingerCoord * 5.30 - P.v0.y * 1.10) * 0.30
+              + sin(fingerCoord * 11.7 + P.v0.y * 0.40) * 0.20;
+  let finger = (0.78 + 0.46 * (0.5 + 0.5 * fingerN)) * mix(0.86, 1.14, rillMask);
+  let jComp = smoothstep(0.34, 1.30, abs(etadot)) * smoothstep(0.18, 0.84, slope);
+  let windGate = clamp(windFoamGain, 0.0, 1.4);
+  // Shared bed-trip cue: trough exposure beside a supported crest. Used by both
+  // land-edge film injection and surf-zone breaking below.
+  let contactExposed1 = 1.0 - smoothstep(-0.005, 0.030, etaT(ix + off1.x, iz + off1.y) + bathy[i1]);
+  let contactExposed2 = 1.0 - smoothstep(-0.005, 0.045, etaT(ix + off2.x, iz + off2.y) + bathy[i2]);
+  let bedTripContact = max(contactExposed1, contactExposed2 * 0.8) * smoothstep(0.025, 0.15, positiveHead) * shoreBand;
+  var wMem = wetBuf[i];
+  let wetMemory = max(P.v7.z, 0.2);
+
+  /* ================= MOMENTUM SWASH FILM (land / swash cells) =================
+     θ = hf.x is film thickness on land cells. u = hf.y is signed speed:
+     +u rides up the beach, -u drains back. Breaking waves inject momentum at
+     the waterline; gravity, thickness gradient, and quadratic friction slow the
+     sheet until it reverses into tendril-like backwash. */
+  if (h <= dynamicReachDepth) {
+    var th = max(s.x, 0.0);
+    var u  = s.y;
+    var downSlope = depthGrad;
+    if (length(downSlope) < 1e-5) { downSlope = -shoreDir; }
+    downSlope = normalize(downSlope);
+    var dirAdv = shoreDir;
+    if (u < 0.0) { dirAdv = normalize(mix(-shoreDir, downSlope, 0.85)); }
+
+    let cfl = clamp(abs(u) * dt / HDX, 0.0, 1.0);
+    let upw = vec2i(round(-dirAdv * sign(u)));
+    let ju = idx2(ix + upw.x, iz + upw.y);
+    let thU = max(hf[ju].x, 0.0) * step(bathy[ju], 0.02);
+    let uU  = hf[ju].y;
+    th = mix(th, thU, cfl);
+    u  = mix(u,  uU,  cfl * 0.9);
+
+    let upSlopeMag = length(depthGrad);
+    let jl = idx2(ix + i32(round(shoreDir.x)), iz + i32(round(shoreDir.y)));
+    let js = idx2(ix - i32(round(shoreDir.x)), iz - i32(round(shoreDir.y)));
+    let thGrad = (max(hf[jl].x, 0.0) - max(hf[js].x, 0.0)) / (2.0 * HDX);
+    u += (-9.81 * (upSlopeMag + thGrad * 0.6)) * dt;
+    u -= 0.018 * u * abs(u) / max(th, 0.004) * dt;
+    if (th < 0.0012) { u *= 0.62; }
+
+    // Edge-exposure / dynamic contact injection. This is NOT a fixed shoreline
+    // band and NOT a runup-height scaler. A land cell receives new film only if
+    // the instantaneous wave surface in neighbouring water/swash cells rises
+    // above THIS cell's bed. Edge Exposure controls contact sensitivity and
+    // transferred momentum from wave severity + approach direction.
+    let seaEta1 = etaT(ix + off1.x, iz + off1.y);
+    let seaEta2 = etaT(ix + off2.x, iz + off2.y);
+    let seaEta3 = etaT(ix + off3.x, iz + off3.y);
+    let seaEtaL = etaT(ix + off1.x + i32(round(tangentDir.x * 2.0)), iz + off1.y + i32(round(tangentDir.y * 2.0)));
+    let seaEtaR = etaT(ix + off1.x - i32(round(tangentDir.x * 2.0)), iz + off1.y - i32(round(tangentDir.y * 2.0)));
+    let jL = idx2(ix + off1.x + i32(round(tangentDir.x * 2.0)), iz + off1.y + i32(round(tangentDir.y * 2.0)));
+    let jR = idx2(ix + off1.x - i32(round(tangentDir.x * 2.0)), iz + off1.y - i32(round(tangentDir.y * 2.0)));
+    let seaDepth1 = seaEta1 + bathy[i1];
+    let seaDepth2 = seaEta2 + bathy[i2];
+    let seaDepth3 = seaEta3 + bathy[i3];
+    let seaDepthL = seaEtaL + bathy[jL];
+    let seaDepthR = seaEtaR + bathy[jR];
+    let liveWater = max(max(smoothstep(0.001, 0.045, seaDepth1),
+                           smoothstep(0.003, 0.075, seaDepth2) * 0.58),
+                       max(smoothstep(0.004, 0.105, seaDepth3) * 0.34,
+                           max(smoothstep(0.001, 0.046, seaDepthL), smoothstep(0.001, 0.046, seaDepthR)) * 0.50));
+    // Compare neighbour water surface to this cell's bed. Lateral samples stop
+    // the source from looking like one ruler-straight shoreline edge.
+    let contactHead = max(max(seaEta1 + h, seaEta2 + h - 0.008),
+                          max(seaEta3 + h - 0.022, max(seaEtaL + h, seaEtaR + h) - 0.006));
+    let approach = clamp(dot(normalize(vec2f(P.v1.x, P.v1.y) + shoreDir * 0.75), shoreDir) * 0.5 + 0.5, 0.0, 1.0);
+    let severity = clamp(max(contactHead, 0.0) * 8.0 + max(etadot, 0.0) * 0.16 + crestOver * 0.45 + bedTripContact * 0.55, 0.0, 1.7);
+    let exposureBias = mix(-0.004, 0.010, edgeCtlSoft); // lower = harder to expose; higher = more eager contact
+    let movingFront = smoothstep(0.003 + exposureBias, 0.042 + exposureBias, contactHead) * liveWater * extremeLandGuard;
+    let newFrontOnly = movingFront * (1.0 - smoothstep(0.006, 0.026, th));
+    let boreH = clamp(contactHead, 0.0, 0.13) * mix(0.62, 1.05, severity) * mix(0.78, 1.12, approach);
+    if (boreH > 0.0018 && newFrontOnly > 0.035) {
+      let edgeMomentum = 0.30 + 0.62 * edgeCtlSoft;
+      let u0 = edgeMomentum * 0.92 * sqrt(9.81 * max(boreH, 0.002)) * finger * newFrontOnly * mix(0.74, 1.12, lowSlope);
+      if (u0 > u) {
+        u = mix(u, u0, 0.30 + 0.16 * newFrontOnly);
+        // Keep uprush as a thin exposure film. Slider does not add thickness.
+        let targetFilm = min(0.0055 + boreH * (0.060 + 0.020 * finger) * mix(0.72, 1.10, lowSlope), 0.034);
+        th = max(th, targetFilm);
+      }
+    }
+
+    th = clamp(th, 0.0, 0.040);
+    u = clamp(u, -2.7, 2.7);
+    let edgeThin = 1.0 - smoothstep(0.0008, 0.005, th);
+    // When no dynamic edge is feeding it, the film cannot freeze in place: it
+    // thins and is biased toward reversal/backwash, producing retreat tendrils.
+    if (movingFront < 0.05 && th > 0.001 && u < 0.20) { u -= dt * (0.42 + landRise * 0.25 + upSlopeMag * 2.4); }
+    let staleSheet = (1.0 - movingFront) * smoothstep(-0.04, 0.55, -u);
+    th *= max(0.0, 1.0 - dt * (0.76 + 2.9 * edgeThin + 0.92 * staleSheet + 0.28 * landRise));
+    if (th < 0.0004) { th = 0.0; u = 0.0; }
+    let filmActive = smoothstep(0.0015, 0.012, th);
+    let front = filmActive * smoothstep(0.16, 0.78, u) * max(movingFront, 0.08);
+    let backwashFast = smoothstep(0.20, 1.05, -u);
+    let tendril = smoothstep(0.0008, 0.005, th) * backwashFast * mix(0.78, 1.32, rillMask);
+
+    let foamU = hf[ju].z;
+    var lfoam = mix(s.z, foamU, cfl * P.v6.x);
+    lfoam *= pow(0.985, dt * 60.0 / wetMemory);
+    lfoam = max(lfoam, front * (0.55 + 0.30 * finger) * foamStrength);
+    lfoam = max(lfoam, tendril * 0.34 * foamStrength);
+    let retreatResid = smoothstep(0.0, 0.04, -u) * edgeThin * lowSlope;
+    lfoam = max(lfoam, retreatResid * 0.45 * clamp(wMem, 0.0, 1.0));
+    s = vec4f(th, u, clamp(lfoam * foamGain, 0.0, 1.6), max(s.w - dt * 0.9, 0.0));
+    hf[i] = s;
+
+    let covered = smoothstep(0.0008, 0.006, th);
+    wMem = max(wMem * exp(-dt * (0.16 / wetMemory) * (1.0 - covered)), covered * (0.42 + 0.98 * covered));
+    let wetNbrA = max(wetBuf[idx2(ix - 1, iz)], wetBuf[idx2(ix + 1, iz)]);
+    let wetNbrB = max(wetBuf[idx2(ix, iz - 1)], wetBuf[idx2(ix, iz + 1)]);
+    wMem = max(wMem, max(wetNbrA, wetNbrB) * 0.965 * (1.0 - smoothstep(0.25, 1.4, landRise)));
+    wetBuf[i] = min(wMem, 1.4);
+
+    let eFilm = -h + th;
+    let nF = normalize(vec3f(-grad.x, 1.0, -grad.y));
+    textureStore(surfTex, vec2i(ix, iz), vec4f(eFilm, nF.x, nF.z, min(s.z, 1.0)));
+    textureStore(auxTex,  vec2i(ix, iz), vec4f(0.0, 0.0, clamp(abs(u) * 0.34, 0.0, 1.0) * filmActive * whitecapGain, th * 1.18));
+    return;
+  }
+
+  /* ========================= WAVE / SURF CELLS (h > 0.02) ==================== */
+  let depthRatio = positiveHead / max(max(h, breakerDepth), 0.08);
+  let shallowBreakMask = 1.0 - smoothstep(0.015, 1.25, h);
+  var breaker = max(crestOver, smoothstep(breakerIndex * 0.62, breakerIndex * 1.28, depthRatio) * shallowBreakMask);
+
+  let exposed1 = 1.0 - smoothstep(-0.005, 0.030, etaT(ix + off1.x, iz + off1.y) + bathy[i1]);
+  let exposed2 = 1.0 - smoothstep(-0.005, 0.045, etaT(ix + off2.x, iz + off2.y) + bathy[i2]);
+  let bedTripZone = 1.0 - smoothstep(0.10, 1.65, h);
+  let bedTrip = max(exposed1, exposed2 * 0.8) * smoothstep(0.035, 0.16, e0 + h) * bedTripZone;
+  breaker = max(breaker, bedTrip * 0.95);
+
+  let satBand = (1.0 - smoothstep(0.05, 1.45, h)) * smoothstep(-0.06, 0.05, h);
+  let satHeight = breakerIndex * max(h, 0.055);
+  let excess = max(e0 - satHeight, 0.0) * satBand * smoothstep(0.18, 0.62, breaker);
+  let dissip = excess * clamp(dt * 7.5, 0.0, 0.85);
+  s.x -= dissip;
+  s.y *= 1.0 - clamp(breaker * satBand * dt * 3.4, 0.0, 0.55);
+
+  let jland = idx2(ix + i32(round(shoreDir.x * 2.0)), iz + i32(round(shoreDir.y * 2.0)));
+  if (bathy[jland] <= 0.02) {
+    let uBack = min(hf[jland].y, 0.0);
+    s.y += uBack * 0.06 * smoothstep(0.45, 0.02, h);
+  }
+
+  let breakActive = max(max(breaker, jComp * windGate), smoothstep(0.22, 0.85, s.w));
+  let turbulence = clamp((abs(etadot) * (0.18 + slope + beachShape * 0.22)
+                          + max(-curv, 0.0) * 0.045) * breakActive
+                         + breaker * mix(0.84, 1.28, plungingBias)
+                         + dissip * 9.0, 0.0, 2.4);
+  let fJ = jComp * windGate;
+  let fS = smoothstep(0.30, 0.62, slope) * max(windGate, dynamicReachBand);
+  let fK = smoothstep(3.0, 10.5, -curv) * breakActive;
+  let fH = dynamicReachBand * max(breaker, smoothstep(0.28, 0.72, slope + beachShape * 0.22));
+  let chi = clamp(1.05*fJ + 0.42*fS + 0.38*fK + 0.88*fH + 0.30*turbulence + dissip * 4.5, 0.0, 1.9);
+  let wetHold = 1.0 + dynamicReachBand * 0.9 + clamp(wetMemory - 1.0, 0.0, 1.4) * 1.2;
+  if (chi > 0.32) { s.w = min(s.w + dt * 2.45 * max(chi - 0.32, 0.0), 1.4); }
+  else            { s.w = max(s.w - dt * 1.05 / wetHold, 0.0); }
+
+  let advVec = shoreDir * P.v6.z * (1.0 + 2.4 * clamp(chi, 0.0, 1.0))
+             + windDir * (0.45 * P.v6.z * windGate * (0.35 + 0.65 * dynamicReachBand));
+  let adv = vec2i(round(advVec));
+  let advFoam = hf[idx2(ix - adv.x, iz - adv.y)].z;
+  let neighFoam = 0.25 * (hf[idx2(ix - 1, iz)].z + hf[idx2(ix + 1, iz)].z + hf[idx2(ix, iz - 1)].z + hf[idx2(ix, iz + 1)].z);
+  let flatSpread = lowSlope * smoothstep(0.08, 0.85, s.w);
+  let foamDecay = clamp(0.999 - (1.0 - P.v6.x) * 0.008, 0.94, 0.9995);
+  let carriedFoam = max(advFoam * P.v6.x, mix(0.0, neighFoam, 0.42 * flatSpread));
+  let persisted = max(s.z, carriedFoam) * pow(foamDecay, dt * 60.0 / (wetMemory * mix(1.0, 1.55, flatSpread)));
+  var fresh = 0.0;
+  if (P.v5.z > 0.5) {
+    fresh += dt * 2.30 * jComp * windGate * whitecapMask;
+    fresh += dt * (2.10 * breaker + 1.05 * crestOver) * leeMask;
+    fresh += dissip * 6.5;
+    fresh += dt * P.v6.y * 0.76 * turbulence * breakActive;
+    fresh *= foamStrength;
+  }
+  let persistedFoam = persisted * mix(1.0, leeMask, 0.22 * leeBias);
+  s.z = clamp(max(persistedFoam, fresh) * foamGain, 0.0, 1.6);
+
+  var eSurf = s.x + b.x;
+  let sheetBand = 1.0 - smoothstep(0.05, 0.56, h);
+  let physDepthNow = max(eSurf + h, 0.0);
+  let sheetMask = clamp(sheetBand * smoothstep(0.004, 0.05, physDepthNow), 0.0, 1.0);
+  let minSurface = -h + 0.006 + sheetBand * 0.012;
+  let liftedSurf = max(eSurf, minSurface);
+  eSurf = mix(eSurf, liftedSurf, sheetMask);
+  s.x = mix(s.x, liftedSurf - b.x, sheetMask);
+  hf[i] = s;
+
+  let finalPhysicalDepth = max(0.0, eSurf + h);
+  let shallowBed = 1.0 - smoothstep(0.38, 1.55, h);
+
+  // Exposed-bed runout is not a shoreline band. When a live wave trough reveals
+  // wet shallow bed anywhere in the surf zone, deposit the same thin foamy layer
+  // that RS_TERRAIN already knows how to render from surfTex.w + wetBuf.
+  let newlyExposedBed = (1.0 - smoothstep(0.004, 0.055, finalPhysicalDepth)) * max(shallowBed, dynamicReachBand);
+  let wetAlready = smoothstep(0.045, 0.38, wMem);
+  let waveActivity = smoothstep(0.018, 0.24, abs(etadot) + slope * 0.055 + max(-curv, 0.0) * 0.010);
+  let breakerMoundExpose = max(bedTrip, max(exposed1, exposed2 * 0.72)) * max(shallowBed, dynamicReachBand);
+  let waveDefinedReach = dynamicReachBand * smoothstep(0.015, 0.18, positiveHead) * max(waveActivity, breaker * 0.65 + crestOver * 0.35);
+  let revealSource = max(max(breakerMoundExpose, waveDefinedReach), newlyExposedBed * max(waveActivity, wetAlready * 0.58));
+  let runoutResid = revealSource * (0.30 + 0.55 * lowSlope) * foamStrength * foamGain;
+  if (runoutResid > 0.010) {
+    // This does not raise water. It only gives the revealed wet bed a foam/sheen
+    // residue and material wetness, so troughs/bore mounds show the dissipating
+    // runout effect wherever exposure actually occurs.
+    s.z = clamp(max(s.z, runoutResid), 0.0, 1.6);
+    hf[i] = s;
+  }
+
+  let directCover = max(smoothstep(0.0015, 0.030, finalPhysicalDepth), runoutResid * 0.72) * shallowBed;
+  wMem = max(wMem * exp(-dt * (0.16 / wetMemory) * (1.0 - directCover)), directCover * (0.42 + 0.98 * directCover));
+  let waveWetNbrA = max(wetBuf[idx2(ix - 1, iz)], wetBuf[idx2(ix + 1, iz)]);
+  let waveWetNbrB = max(wetBuf[idx2(ix, iz - 1)], wetBuf[idx2(ix, iz + 1)]);
+  wMem = max(wMem, max(waveWetNbrA, waveWetNbrB) * 0.955 * max(shallowBed, dynamicReachBand));
+  wetBuf[i] = min(wMem, 1.4);
+
+  let n = normalize(vec3f(-grad.x, 1.0, -grad.y));
+  let wetOptical = finalPhysicalDepth + max(eSurf, 0.0) * 0.045;
+  let staticBlend = smoothstep(0.34, 1.05, h);
+  let opticalDepth = mix(max(0.0, wetOptical), max(0.0, h), staticBlend);
+  textureStore(surfTex, vec2i(ix, iz), vec4f(eSurf, n.x, n.z, min(s.z, 1.0)));
+  let whitecapVis = clamp(max(s.w * 0.92, jComp * windGate * 1.35 + breaker * 0.55), 0.0, 1.0) * whitecapMask * whitecapGain;
+  textureStore(auxTex,  vec2i(ix, iz), vec4f(b.y * P.v1.w, b.z * P.v1.w, whitecapVis, opticalDepth));
+}
+`;
+
+/* SF — event-driven splash genesis.  Pops dead particles from the freelist,
+   inherits crest velocity, drains δ_sim locally (energy bookkeeping). */
+const WG_SPAWN = /*wgsl*/`
+${C_PARAMS}
+struct Pt { pos : vec3f, alive : f32, v : vec3f, cls : f32, C : mat3x3f };
+struct Counters { freeTop : atomic<i32>, spawnB : atomic<i32>, crownB : atomic<i32>, pad : i32 };
+@group(0) @binding(0) var<storage, read_write> hf : array<vec4f>;
+@group(0) @binding(1) var<storage, read> base : array<vec4f>;
+@group(0) @binding(2) var<storage, read> bathy : array<f32>;
+@group(0) @binding(3) var<storage, read_write> cool : array<f32>;
+@group(0) @binding(4) var<storage, read_write> counters : Counters;
+@group(0) @binding(5) var<storage, read_write> freelist : array<u32>;
+@group(0) @binding(6) var<storage, read_write> parts : array<Pt>;
+@group(0) @binding(7) var<storage, read_write> paux : array<vec4f>; // age, life, seed, _
+@group(1) @binding(0) var<uniform> P : Params;
+const MCELL : f32 = ${MCELL};
+const MORG : vec3f = vec3f(${MORG[0]}, ${MORG[1]}, ${MORG[2]});
+@compute @workgroup_size(8,8)
+fn spawnSplash(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= HNu || id.y >= HNu) { return; }
+  let ix = i32(id.x); let iz = i32(id.y);
+  let i = idx2(ix, iz);
+  let h = bathy[i];
+  var cd = cool[i] - P.v0.x * f32(${HF_SUB});
+  cool[i] = max(cd, 0.0);
+  if (P.v4.w < 0.5 || h <= 0.0) { return; }      // splash layer off / land
+  var s = hf[i];
+  let rate = P.v2.w;
+  if (cd > 0.0 || rate <= 0.0) { return; }
+  let rnd = rand2(vec2u(id.x + u32(P.v0.z)*7919u, id.y + u32(P.v0.z)*104729u));
+  // crest velocity from total surface
+  let b = base[i];
+  let exl = hf[idx2(ix-1,iz)].x + base[idx2(ix-1,iz)].x;
+  let exr = hf[idx2(ix+1,iz)].x + base[idx2(ix+1,iz)].x;
+  let ezd = hf[idx2(ix,iz-1)].x + base[idx2(ix,iz-1)].x;
+  let ezu = hf[idx2(ix,iz+1)].x + base[idx2(ix,iz+1)].x;
+  let grad = vec2f(exr - exl, ezu - ezd) / (2.0 * HDX);
+  let eta = s.x + b.x;
+  let etadot = s.y + b.w;
+  let slope = length(grad);
+  let curv = (exl + exr + ezd + ezu - 4.0 * eta) / (HDX * HDX);
+  let hL = bathy[idx2(ix-1, iz)]; let hR = bathy[idx2(ix+1, iz)];
+  let hD = bathy[idx2(ix, iz-1)]; let hU = bathy[idx2(ix, iz+1)];
+  let depthGrad = vec2f(hR - hL, hU - hD) / (2.0 * HDX);
+  let beachSlope = clamp(length(depthGrad) * 9.5, 0.0, 1.0);
+  let localBreakerThreshold = P.v7.w * mix(0.72, 1.12, beachSlope);
+  let depthBreaker = smoothstep(localBreakerThreshold * 0.82, localBreakerThreshold * 1.28, max(eta, 0.0) / max(h, 0.08));
+  let crestEnergy = clamp(s.w * 0.68 + s.z * 0.16 + max(etadot, 0.0) * 0.22
+    + slope * 0.34 + max(-curv, 0.0) * 0.035 + depthBreaker * mix(0.50, 0.72, beachSlope), 0.0, 2.4);
+  if (crestEnergy < 0.44) { return; }
+  // break energy gates eligibility; rate and splashEnergy scale probability.
+  if (rnd.x > clamp(crestEnergy * (0.22 + 0.34 * P.v7.x) * rate, 0.0, 0.92)) { return; }
+  var dir = -grad;
+  let dl = length(dir);
+  if (dl > 1e-4) { dir /= dl; } else { dir = P.v1.xy; }
+  let n = 1u + u32(clamp(crestEnergy * P.v7.x * 1.45 + rnd.y * 2.8, 0.0, 5.0));
+  // Splash/MPM simulation stays in canonical heightfield coordinates.
+  // RS_PART/fluidSplat apply R.atmo visual scale exactly once to match
+  // RS_WATER/RS_TERRAIN.  Do not use cellWorldExtent here or particles get
+  // double-scaled into a different X/Z domain than the camera-visible ocean.
+  let pw = cellWorld(ix, iz);
+  for (var m = 0u; m < n; m++) {
+    let bgt = atomicAdd(&counters.spawnB, 1);
+    if (bgt >= i32(P.v5.x)) { break; }
+    let t = atomicSub(&counters.freeTop, 1);
+    if (t <= 0) { atomicAdd(&counters.freeTop, 1); break; }
+    let pid = freelist[u32(t - 1)];
+    let r = rand2(vec2u(pid * 2u + 11u, u32(P.v0.z) * 31u + m));
+    let r2 = rand2(vec2u(pid * 5u + 3u, u32(P.v0.z) * 17u + m * 13u));
+    let jit = (r - 0.5) * HDX * 2.2;
+    var wp = vec3f(pw.x + jit.x, eta + 0.035 + r2.x * 0.10, pw.y + jit.y);
+    let boost = (0.52 + crestEnergy * 0.72) * P.v7.x;
+    var vw = vec3f(
+      dir.x * (0.8 + 2.6 * r2.x) * boost + P.v1.x * 0.34,
+      max(etadot, 0.0) * 1.25 + (0.62 + 2.4 * r2.y) * boost,
+      dir.y * (0.8 + 2.6 * r2.x) * boost + P.v1.y * 0.34);
+    vw = clamp(vw, vec3f(-14.0), vec3f(14.0));
+    var phase = 1.0;                             // RIDING: attached water/swash carrier
+    // cls is now visual aeration/foam state, not a separate particle species.
+    // 0 = clear water, 1 = entrained white foam/mist.  G2P decays it back toward
+    // clear water after the carrier submerges, so splash water can visually merge
+    // back into the heightfield instead of remaining white blobs.
+    var cls = 0.0;
+    if (r.x > 0.58) { phase = 2.0; }             // SHEET/LIGAMENT
+    if (r.x > 0.82) { phase = 4.0; cls = 0.22; } // DROPLET: lightly aerated
+    if (r.x > 0.95) { phase = 5.0; cls = 0.72; } // SPRAY/MIST: mostly aerated
+
+    var life = 0.55 + r.y * 0.72 + crestEnergy * 0.10;
+    if (phase >= 4.0) { life = 0.62 + r.y * 0.88 + crestEnergy * 0.08; }
+    if (phase >= 5.0) { life = 0.42 + r.y * 0.48; }
+
+    parts[pid].pos = (wp - MORG) / MCELL;
+    parts[pid].v = vw / MCELL;
+    parts[pid].alive = 1.0;
+    parts[pid].cls = cls;
+    parts[pid].C = mat3x3f(vec3f(0.0), vec3f(0.0), vec3f(0.0));
+    paux[pid] = vec4f(0.0, life, f32(pid % 1024u) / 1024.0, phase);
+    // energy drain: sheet leaves the surface
+    s.x -= 0.0035 * P.v7.x;
+    s.y -= 0.034 * P.v7.x;
+  }
+  hf[i] = s;
+  cool[i] = 0.07 + rnd.y * 0.11;
+}
+`;
+
+/* ---- MLS-MPM core (pool2's proven kernels, in world-mapped grid units) ---- */
+const C_MPM = /*wgsl*/`
+struct Pt { pos : vec3f, alive : f32, v : vec3f, cls : f32, C : mat3x3f };
+const MX : i32 = ${MX}; const MY : i32 = ${MY}; const MZ : i32 = ${MZ};
+const NCELL : u32 = ${MX * MY * MZ}u;
+const MCELL : f32 = ${MCELL};
+const MORG : vec3f = vec3f(${MORG[0]}, ${MORG[1]}, ${MORG[2]});
+const FIX : f32 = ${FIX}; const FIXI : f32 = ${FIXI};
+fn enc(v : f32) -> i32 { return i32(v * FIX); }
+fn dec(v : i32) -> f32 { return f32(v) * FIXI; }
+fn gidx(c : vec3i) -> i32 { return c.x * MY * MZ + c.y * MZ + c.z; }
+`;
+
+const WG_MPMCLEAR = /*wgsl*/`
+${C_MPM}
+struct Cell { vx : i32, vy : i32, vz : i32, mass : i32 };
+@group(0) @binding(0) var<storage, read_write> cells : array<Cell>;
+@compute @workgroup_size(64)
+fn clearGrid(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x < NCELL) {
+    cells[id.x].vx = 0; cells[id.x].vy = 0; cells[id.x].vz = 0; cells[id.x].mass = 0;
+  }
+}
+`;
+
+const WG_P2G1 = /*wgsl*/`
+${C_MPM}
+struct Cell { vx : atomic<i32>, vy : atomic<i32>, vz : atomic<i32>, mass : atomic<i32> };
+@group(0) @binding(0) var<storage, read> parts : array<Pt>;
+@group(0) @binding(1) var<storage, read_write> cells : array<Cell>;
+@group(0) @binding(2) var<storage, read> paux : array<vec4f>;
+@compute @workgroup_size(64)
+fn p2g1(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= ${MAXP}u) { return; }
+  let p = parts[id.x];
+  if (p.alive < 0.5) { return; }
+  let phase = paux[id.x].w;
+  if (phase >= 4.0) { return; }                  // ballistic droplets/spray do not enter MLS-MPM
+  let ci = floor(p.pos);
+  let cd = p.pos - (ci + 0.5);
+  var w : array<vec3f, 3>;
+  w[0] = 0.5 * (0.5 - cd) * (0.5 - cd);
+  w[1] = 0.75 - cd * cd;
+  w[2] = 0.5 * (0.5 + cd) * (0.5 + cd);
+  for (var gx = 0; gx < 3; gx++) {
+  for (var gy = 0; gy < 3; gy++) {
+  for (var gz = 0; gz < 3; gz++) {
+    let wt = w[gx].x * w[gy].y * w[gz].z;
+    let cp = vec3i(i32(ci.x) + gx - 1, i32(ci.y) + gy - 1, i32(ci.z) + gz - 1);
+    if (any(cp < vec3i(0)) || any(cp >= vec3i(MX, MY, MZ))) { continue; }
+    let dist = (vec3f(cp) + 0.5) - p.pos;
+    let q = p.C * dist;
+    let mv = wt * (p.v + q);
+    let j = gidx(cp);
+    atomicAdd(&cells[j].mass, enc(wt));
+    atomicAdd(&cells[j].vx, enc(mv.x));
+    atomicAdd(&cells[j].vy, enc(mv.y));
+    atomicAdd(&cells[j].vz, enc(mv.z));
+  }}}
+}
+`;
+
+const WG_P2G2 = /*wgsl*/`
+${C_MPM}
+struct Cell { vx : atomic<i32>, vy : atomic<i32>, vz : atomic<i32>, mass : i32 };
+@group(0) @binding(0) var<storage, read> parts : array<Pt>;
+@group(0) @binding(1) var<storage, read_write> cells : array<Cell>;
+@group(0) @binding(2) var<storage, read> paux : array<vec4f>;
+@group(0) @binding(3) var<uniform> M : vec4f;   // dt, stiffness, restRho, viscosity
+@compute @workgroup_size(64)
+fn p2g2(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= ${MAXP}u) { return; }
+  let p = parts[id.x];
+  if (p.alive < 0.5) { return; }
+  let phase = paux[id.x].w;
+  if (phase >= 4.0) { return; }                  // only cohesive phases produce pressure/viscosity
+  let ci = floor(p.pos);
+  let cd = p.pos - (ci + 0.5);
+  var w : array<vec3f, 3>;
+  w[0] = 0.5 * (0.5 - cd) * (0.5 - cd);
+  w[1] = 0.75 - cd * cd;
+  w[2] = 0.5 * (0.5 + cd) * (0.5 + cd);
+  var density = 0.0;
+  for (var gx = 0; gx < 3; gx++) {
+  for (var gy = 0; gy < 3; gy++) {
+  for (var gz = 0; gz < 3; gz++) {
+    let cp = vec3i(i32(ci.x) + gx - 1, i32(ci.y) + gy - 1, i32(ci.z) + gz - 1);
+    if (any(cp < vec3i(0)) || any(cp >= vec3i(MX, MY, MZ))) { continue; }
+    density += dec(cells[gidx(cp)].mass) * (w[gx].x * w[gy].y * w[gz].z);
+  }}}
+  let volume = 1.0 / max(density, 1e-4);
+  let pressure = max(0.0, M.y * (density / M.z - 1.0));
+  var stress = mat3x3f(
+    vec3f(-pressure, 0.0, 0.0), vec3f(0.0, -pressure, 0.0), vec3f(0.0, 0.0, -pressure));
+  let strain = p.C + transpose(p.C);
+  stress += M.w * strain;
+  let term0 = -volume * 4.0 * M.x * stress;
+  for (var gx = 0; gx < 3; gx++) {
+  for (var gy = 0; gy < 3; gy++) {
+  for (var gz = 0; gz < 3; gz++) {
+    let wt = w[gx].x * w[gy].y * w[gz].z;
+    let cp = vec3i(i32(ci.x) + gx - 1, i32(ci.y) + gy - 1, i32(ci.z) + gz - 1);
+    if (any(cp < vec3i(0)) || any(cp >= vec3i(MX, MY, MZ))) { continue; }
+    let dist = (vec3f(cp) + 0.5) - p.pos;
+    let mom = term0 * (wt * dist);
+    let j = gidx(cp);
+    atomicAdd(&cells[j].vx, enc(mom.x));
+    atomicAdd(&cells[j].vy, enc(mom.y));
+    atomicAdd(&cells[j].vz, enc(mom.z));
+  }}}
+}
+`;
+
+const WG_GRID = /*wgsl*/`
+${C_MPM}
+struct Cell { vx : i32, vy : i32, vz : i32, mass : i32 };
+@group(0) @binding(0) var<storage, read_write> cells : array<Cell>;
+@group(0) @binding(1) var<uniform> M : vec4f;    // dt, stiffness, restRho, viscosity
+@group(0) @binding(2) var surfTex : texture_2d<f32>;
+@group(0) @binding(3) var<storage, read> bathy : array<f32>;
+const HN2 : i32 = ${HN};
+@compute @workgroup_size(64)
+fn updateGrid(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= NCELL) { return; }
+  let m = cells[id.x].mass;
+  if (m <= 0) { return; }
+  var v = vec3f(dec(cells[id.x].vx), dec(cells[id.x].vy), dec(cells[id.x].vz)) / dec(m);
+  let dt = M.x;
+  v.y -= ${G_GRID} * dt;
+  // cell -> world
+  let x = i32(id.x) / (MY * MZ);
+  let y = (i32(id.x) / MZ) % MY;
+  let z = i32(id.x) % MZ;
+  let wp = MORG + (vec3f(f32(x), f32(y), f32(z)) + 0.5) * MCELL;
+  // sample water surface + bathymetry under this column
+  let hx = clamp(i32((wp.x / ${WORLD} + 0.5) * f32(HN2)), 0, HN2 - 1);
+  let hz = clamp(i32((wp.z / ${WORLD} + 0.5) * f32(HN2)), 0, HN2 - 1);
+  let surf = textureLoad(surfTex, vec2i(hx, hz), 0).r;
+  let depth = bathy[hz * HN2 + hx];
+  let floorY = -depth;                            // seabed / land height
+  // water-surface support band: splash rests and slides on the sheet
+  if (wp.y < surf + 0.02) {
+    v.y = max(v.y, 0.0);
+    v = vec3f(v.x * 0.94, v.y, v.z * 0.94);
+  }
+  // solid ground (beach run-up)
+  if (wp.y < floorY + MCELL * 0.8) {
+    v.y = max(v.y, 0.0);
+    v = vec3f(v.x * 0.72, v.y, v.z * 0.72);
+  }
+  let sp = length(v);
+  if (sp > 60.0) { v *= 60.0 / sp; }
+  cells[id.x].vx = enc(v.x); cells[id.x].vy = enc(v.y); cells[id.x].vz = enc(v.z);
+}
+`;
+
+const WG_G2P = /*wgsl*/`
+${C_MPM}
+struct Cell { vx : i32, vy : i32, vz : i32, mass : i32 };
+@group(0) @binding(0) var<storage, read_write> parts : array<Pt>;
+@group(0) @binding(1) var<storage, read> cells : array<Cell>;
+@group(0) @binding(2) var<uniform> M : vec4f;
+@group(0) @binding(3) var<storage, read_write> paux : array<vec4f>;
+@group(0) @binding(4) var surfTex : texture_2d<f32>;
+@group(0) @binding(5) var<storage, read> bathy : array<f32>;
+
+fn columnForPos(pos : vec3f) -> vec2i {
+  let wp = MORG + pos * MCELL;
+  let hx = clamp(i32((wp.x / ${WORLD} + 0.5) * f32(${HN})), 0, ${HN - 1});
+  let hz = clamp(i32((wp.z / ${WORLD} + 0.5) * f32(${HN})), 0, ${HN - 1});
+  return vec2i(hx, hz);
+}
+
+fn heightfieldSupport(pos : vec3f) -> vec4f {
+  let c = columnForPos(pos);
+  let surf = textureLoad(surfTex, c, 0).r;
+  let ground = -bathy[c.y * ${HN} + c.x];
+  // The contact plane is the real local column: current wave/swash height when
+  // wet, otherwise the terrain heightfield.  This removes the old flat y-min
+  // clamp that made droplets skate on an invisible floor.
+  return vec4f(surf, ground, max(surf, ground), 0.0);
+}
+
+fn applyDynamicFloor(posIn : vec3f, velIn : vec3f, preserveDownwardImpact : bool) -> vec4f {
+  var pos = posIn;
+  var vel = velIn;
+  let h = heightfieldSupport(pos);
+  let supportCellY = (h.z + 0.012 - MORG.y) / MCELL;
+  if (pos.y < supportCellY) {
+    pos.y = supportCellY;
+    if (preserveDownwardImpact) {
+      vel.y = min(vel.y, -0.001);       // let WG_IMPACT see the collision and merge/free it
+      vel.x *= 0.82;
+      vel.z *= 0.82;
+    } else {
+      vel.y = max(vel.y, 0.0);
+      vel.x *= 0.88;
+      vel.z *= 0.88;
+    }
+  }
+  return vec4f(pos.y, vel.x, vel.y, vel.z);
+}
+
+@compute @workgroup_size(64)
+fn g2p(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= ${MAXP}u) { return; }
+  var p = parts[id.x];
+  if (p.alive < 0.5) { return; }
+  var aux = paux[id.x];
+  var phase = max(aux.w, 1.0);
+
+  if (phase >= 4.0) {
+    // Ballistic droplets/spray still collide with the same heightfield column as
+    // the water renderer.  They no longer use loB.y as a hidden global floor.
+    p.v.y -= ${G_GRID} * M.x;
+    p.v *= 0.992;
+    if (phase > 4.5) { p.v *= 0.976; p.v.y += ${G_GRID} * M.x * 0.38; }
+    p.C = mat3x3f(vec3f(0.0), vec3f(0.0), vec3f(0.0));
+    p.pos += p.v * M.x;
+
+    let loB = vec3f(1.5);
+    let hiB = vec3f(f32(MX) - 2.5, f32(MY) - 2.5, f32(MZ) - 2.5);
+    let xnB = p.pos + p.v * M.x * 2.0;
+    if (xnB.x < loB.x) { p.v.x += (loB.x - xnB.x); }
+    if (xnB.x > hiB.x) { p.v.x += (hiB.x - xnB.x); }
+    if (xnB.y > hiB.y) { p.v.y += (hiB.y - xnB.y); }
+    if (xnB.z < loB.z) { p.v.z += (loB.z - xnB.z); }
+    if (xnB.z > hiB.z) { p.v.z += (hiB.z - xnB.z); }
+
+    let dynB = applyDynamicFloor(p.pos, p.v, true);
+    p.pos.y = dynB.x;
+    p.v = vec3f(dynB.y, dynB.z, dynB.w);
+    p.pos.x = clamp(p.pos.x, loB.x, hiB.x);
+    p.pos.z = clamp(p.pos.z, loB.z, hiB.z);
+    p.pos.y = min(p.pos.y, f32(MY) - 1.5);
+
+    let cFoamB = columnForPos(p.pos);
+    let surfFoamB = textureLoad(surfTex, cFoamB, 0).r;
+    let wpFoamB = MORG + p.pos * MCELL;
+    let vwFoamB = p.v * MCELL;
+    let gapFoamB = wpFoamB.y - surfFoamB;
+    let nearSurfaceB = 1.0 - smoothstep(0.06, 0.55, abs(gapFoamB));
+    let submergedB = 1.0 - smoothstep(-0.45, -0.04, gapFoamB);
+    let reentryB = (1.0 - smoothstep(-0.05, 0.26, gapFoamB)) * smoothstep(0.65, 2.8, -vwFoamB.y);
+    let shearFoamB = smoothstep(1.3, 5.8, length(vwFoamB)) * nearSurfaceB;
+    p.cls = clamp(max(p.cls, max(reentryB, shearFoamB) * 0.92), 0.0, 1.0);
+    p.cls = max(0.0, p.cls - M.x * (0.28 + 0.82 * submergedB));
+    if (aux.x + M.x > aux.y) { p.cls *= 0.45; }
+
+    parts[id.x] = p;
+    paux[id.x] = vec4f(aux.x + M.x, aux.y, aux.z, phase);
+    return;
+  }
+
+  let ci = floor(p.pos);
+  let cd = p.pos - (ci + 0.5);
+  var w : array<vec3f, 3>;
+  w[0] = 0.5 * (0.5 - cd) * (0.5 - cd);
+  w[1] = 0.75 - cd * cd;
+  w[2] = 0.5 * (0.5 + cd) * (0.5 + cd);
+  var v = vec3f(0.0);
+  var B = mat3x3f(vec3f(0.0), vec3f(0.0), vec3f(0.0));
+  for (var gx = 0; gx < 3; gx++) {
+  for (var gy = 0; gy < 3; gy++) {
+  for (var gz = 0; gz < 3; gz++) {
+    let wt = w[gx].x * w[gy].y * w[gz].z;
+    let cp = vec3i(i32(ci.x) + gx - 1, i32(ci.y) + gy - 1, i32(ci.z) + gz - 1);
+    if (any(cp < vec3i(0)) || any(cp >= vec3i(MX, MY, MZ))) { continue; }
+    let j = gidx(cp);
+    let wv = vec3f(dec(cells[j].vx), dec(cells[j].vy), dec(cells[j].vz)) * wt;
+    let dist = (vec3f(cp) + 0.5) - p.pos;
+    B += mat3x3f(wv * dist.x, wv * dist.y, wv * dist.z);
+    v += wv;
+  }}}
+
+  let c0 = columnForPos(p.pos);
+  let surf = textureLoad(surfTex, c0, 0);
+  if (phase < 1.5) {
+    let N = normalize(vec3f(surf.y, 1.0, surf.z));
+    let wp = MORG + p.pos * MCELL;
+    let gap = wp.y - surf.x;
+    let alpha = clamp(1.0 - aux.x / 0.35, 0.0, 1.0);
+    let attach = (-gap * 34.0 * alpha) / MCELL;
+    v += N * attach * M.x;
+    v = vec3f(v.x * 0.985, v.y, v.z * 0.985);
+    if (aux.x > 0.35) { phase = 2.0; }
+  } else if (phase < 2.5 && aux.x > 0.55) {
+    phase = 3.0;                                  // LIGAMENT
+  } else if (phase < 3.5 && aux.x > 0.82) {
+    phase = 4.0;                                  // DROPLET
+  }
+
+  p.C = B * 4.0;
+  p.v = v;
+  p.pos += v * M.x;
+
+  // domain walls: X/Z and upper ceiling only; the lower support is the dynamic
+  // local water/terrain heightfield, not a world-constant y plane.
+  let lo = vec3f(1.5);
+  let hi = vec3f(f32(MX) - 2.5, f32(MY) - 2.5, f32(MZ) - 2.5);
+  let xn = p.pos + p.v * M.x * 2.0;
+  if (xn.x < lo.x) { p.v.x += (lo.x - xn.x); }
+  if (xn.x > hi.x) { p.v.x += (hi.x - xn.x); }
+  if (xn.y > hi.y) { p.v.y += (hi.y - xn.y); }
+  if (xn.z < lo.z) { p.v.z += (lo.z - xn.z); }
+  if (xn.z > hi.z) { p.v.z += (hi.z - xn.z); }
+
+  let dyn = applyDynamicFloor(p.pos, p.v, phase > 1.5);
+  p.pos.y = dyn.x;
+  p.v = vec3f(dyn.y, dyn.z, dyn.w);
+  p.pos.x = clamp(p.pos.x, lo.x, hi.x);
+  p.pos.z = clamp(p.pos.z, lo.z, hi.z);
+  p.pos.y = min(p.pos.y, f32(MY) - 1.5);
+
+  let cFoam = columnForPos(p.pos);
+  let surfFoam = textureLoad(surfTex, cFoam, 0).r;
+  let wpFoam = MORG + p.pos * MCELL;
+  let vwFoam = p.v * MCELL;
+  let gapFoam = wpFoam.y - surfFoam;
+  let nearSurface = 1.0 - smoothstep(0.05, 0.50, abs(gapFoam));
+  let submerged = 1.0 - smoothstep(-0.42, -0.035, gapFoam);
+  let reentryFoam = (1.0 - smoothstep(-0.04, 0.22, gapFoam)) * smoothstep(0.50, 2.4, -vwFoam.y);
+  let shearFoam = smoothstep(1.05, 4.8, length(vwFoam)) * nearSurface;
+  let sheetFoam = select(0.0, 0.18, phase > 1.5 && phase < 3.5) * nearSurface;
+  p.cls = clamp(max(p.cls, max(max(reentryFoam, shearFoam), sheetFoam)), 0.0, 1.0);
+  // Foam is a transient optical state.  It decays back to clear water fastest
+  // after the carrier is under the surface, matching the heightfield water color
+  // instead of staying as permanent white material.
+  p.cls = max(0.0, p.cls - M.x * (0.22 + 0.88 * submerged));
+  if (aux.x + M.x > aux.y) { p.cls *= 0.45; }
+
+  parts[id.x] = p;
+  paux[id.x] = vec4f(aux.x + M.x, aux.y, aux.z, phase);
+}
+`;
+
+/* Impact / merge / crown — fragments return to the body (BFT deposits),
+   strong hits eject a small secondary crown. */
+const WG_IMPACT = /*wgsl*/`
+${C_MPM}
+struct Counters { freeTop : atomic<i32>, spawnB : atomic<i32>, crownB : atomic<i32>, pad : i32 };
+@group(0) @binding(0) var<storage, read_write> parts : array<Pt>;
+@group(0) @binding(1) var<storage, read_write> paux : array<vec4f>;
+@group(0) @binding(2) var surfTex : texture_2d<f32>;
+@group(0) @binding(3) var<storage, read_write> breach : array<atomic<i32>>;
+@group(0) @binding(4) var<storage, read_write> foamImp : array<atomic<i32>>;
+@group(0) @binding(5) var<storage, read_write> counters : Counters;
+@group(0) @binding(6) var<storage, read_write> freelist : array<u32>;
+@group(0) @binding(7) var<uniform> IP : vec4f;   // dt, impactGain, crownMax, frame
+@group(0) @binding(8) var<storage, read> bathy : array<f32>;
+const HN2 : i32 = ${HN};
+
+@compute @workgroup_size(64)
+fn impact(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x >= ${MAXP}u) { return; }
+  var p = parts[id.x];
+  if (p.alive < 0.5) { return; }
+
+  let a = paux[id.x];
+  let wp = MORG + p.pos * MCELL;
+  let vw = p.v * MCELL;
+  let hx = clamp(i32((wp.x / ${WORLD} + 0.5) * f32(HN2)), 0, HN2 - 1);
+  let hz = clamp(i32((wp.z / ${WORLD} + 0.5) * f32(HN2)), 0, HN2 - 1);
+  let hi = hz * HN2 + hx;
+  let surf = textureLoad(surfTex, vec2i(hx, hz), 0).r;
+  let ground = -bathy[hi];
+  let support = max(surf, ground);
+  let waterCovered = surf >= ground - 0.045;
+
+  let phase = max(a.w, 1.0);
+  let sunk = phase > 1.5 && wp.y < surf - 0.10;
+  // Merge on the real local support height.  On a dry exposed beach that support
+  // is terrain; on wet cells it is the moving wave/swash heightfield.
+  let landed = phase > 1.5 && wp.y < support + 0.045 && vw.y < -0.55;
+  let expired = a.x > a.y;
+  if ((sunk || landed || expired) == false) { return; }
+
+  // Deposit only into wet columns. Dry terrain impacts just recycle the particle,
+  // avoiding the old visible pile-up on a hidden lower clamp.
+  let impactGain = max(IP.y, 0.0);
+  if ((sunk || landed) && vw.y < -0.15 && waterCovered) {
+    var cw = 1.0;
+    if (p.cls > 0.5 && p.cls < 1.5) { cw = 1.8; }
+    let d = clamp(vw.y * 0.16 * cw * impactGain, -1.2, 0.0);
+    atomicAdd(&breach[hi], i32(d * FIX));
+    atomicAdd(&foamImp[hi], i32(min(-vw.y * 0.10 * impactGain, 0.5) * FIX));
+  }
+
+  p.alive = 0.0;
+  p.pos = vec3f(2.0, f32(MY) - 3.0, 2.0);
+  p.v = vec3f(0.0, 0.0, 0.0);
+  p.C = mat3x3f(vec3f(0.0, 0.0, 0.0), vec3f(0.0, 0.0, 0.0), vec3f(0.0, 0.0, 0.0));
+  parts[id.x] = p;
+  paux[id.x] = vec4f(0.0, 0.0, 0.0, 0.0);
+
+  let ft = atomicAdd(&counters.freeTop, 1);
+  if (ft >= 0 && ft < i32(${MAXP})) {
+    freelist[u32(ft)] = id.x;
+  }
+}
+`;
+
+/* ------------------------------------------------------------- RENDER ---- */
+
+const C_SHADE = /*wgsl*/`
+struct RU {
+  viewProj : mat4x4f,
+  eye : vec4f,                  // xyz, _
+  sun : vec4f,                  // dir xyz, intensity
+  misc : vec4f,                 // time, exposure, lensOn, foamOn
+  mouse : vec4f,                // world x, z, lensR, causticsGain
+  cam0 : vec4f,                 // right.xyz, tanHalfFov*aspect
+  cam1 : vec4f,                 // up.xyz, tanHalfFov
+  cam2 : vec4f,                 // fwd.xyz, dropletScale
+  atmo : vec4f,                 // mie, atmosphereGain, visualScaleX, visualScaleZ
+  fx   : vec4f,                 // foamAmount, whitecapAmount, leewardFoamBias, leewardWindBias
+  lod  : vec4f,                 // outerSmooth, planetCurve, detailLock, _
+  invViewProj : mat4x4f,        // inverse viewProj for screen-thickness MLS-MPM water surface reconstruction
+};
+fn aces(x : vec3f) -> vec3f {
+  let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
+}
+fn hash21(p : vec2f) -> f32 {
+  var q = fract(p * vec2f(123.34, 345.45));
+  q += dot(q, q + 34.345);
+  return fract(q.x * q.y);
+}
+fn vnoise(p : vec2f) -> f32 {
+  let i = floor(p); let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  let a = hash21(i); let b = hash21(i + vec2f(1.0, 0.0));
+  let c = hash21(i + vec2f(0.0, 1.0)); let d = hash21(i + vec2f(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+fn fbm(p : vec2f) -> f32 {
+  var v = 0.0; var a = 0.5; var q = p;
+  for (var i = 0; i < 4; i++) { v += a * vnoise(q); q = q * 2.03 + vec2f(17.0); a *= 0.5; }
+  return v;
+}
+fn skyColor(rd : vec3f, sunDir : vec3f, sunI : f32, mieScale : f32, atmoGain : f32) -> vec3f {
+  let y = clamp(rd.y, -0.08, 1.0);
+  let up = clamp(y, 0.0, 1.0);
+  let mu = clamp(dot(rd, sunDir), -1.0, 1.0);
+  let day = smoothstep(-0.08, 0.05, sunDir.y);
+  let twilight = smoothstep(0.32, -0.04, sunDir.y) * smoothstep(-0.22, 0.05, sunDir.y);
+  let phaseR = 0.059683 * (1.0 + mu * mu);
+  let g = 0.76;
+  let phaseM = 0.11937 * (1.0 - g * g) / pow(max(0.035, 1.0 + g * g - 2.0 * g * mu), 1.5);
+  let betaR = vec3f(0.34, 0.62, 1.18);
+  let ray = betaR * phaseR * (0.35 + 1.25 * pow(up, 0.42)) * day;
+  let mie = vec3f(1.0, 0.82, 0.58) * phaseM * mieScale * (0.08 + 0.92 * day);
+  let horizon = vec3f(0.78, 0.88, 1.0) * pow(1.0 - up, 5.0) * (0.20 + 0.55 * day) * atmoGain;
+  let sunset = vec3f(1.0, 0.36, 0.10) * pow(1.0 - up, 3.0) * twilight * (0.55 + 0.45 * max(mu, 0.0));
+  let night = smoothstep(-0.03, -0.26, sunDir.y);
+  let starSeed = hash21(floor(rd.xz * 900.0 + rd.y * 137.0));
+  let stars = pow(starSeed, 72.0) * night * smoothstep(0.02, 0.25, rd.y);
+  var col = (ray + mie + horizon + sunset) * (0.32 + 0.68 * atmoGain) * max(sunI, 0.0);
+  col += vec3f(0.008, 0.014, 0.032) * (0.4 + night);
+  col += vec3f(0.62, 0.72, 1.0) * stars;
+  let sunDisc = smoothstep(0.99970, 0.99986, mu);
+  let sunGlow = pow(max(mu, 0.0), 380.0) * 12.0 + pow(max(mu, 0.0), 12.0) * 0.32 * mieScale;
+  let sunTransmit = exp(-vec3f(0.78, 0.32, 0.09) * max(1.0 - sunDir.y, 0.0) * atmoGain);
+  col += sunTransmit * (sunDisc * 2.8 + sunGlow) * sunI;
+  return col;
+}
+fn sandColor(p : vec2f) -> vec3f {
+  let n = fbm(p * 2.4) * 0.5 + fbm(p * 9.0) * 0.18;
+  return mix(vec3f(0.72, 0.62, 0.45), vec3f(0.82, 0.73, 0.55), n);
+}
+
+// POOL REFERENCE OPTICAL LOCK — equation anchors ported from the working
+// WaterPRO pool reference. No Beer fog/body-color substitute is permitted here.
+const IOR_AIR : f32 = 1.0;
+const IOR_WATER : f32 = 1.333;
+const ETA_AIR_TO_WATER : f32 = IOR_AIR / IOR_WATER;
+const ETA_WATER_TO_AIR : f32 = IOR_WATER / IOR_AIR;
+const abovewaterColor : vec3f = vec3f(0.25, 1.0, 1.25);
+const underwaterColor : vec3f = vec3f(0.4, 0.9, 1.0);
+
+fn propoolSafeY(y : f32) -> f32 {
+  // Preserve the sign of the pool equation denominator. V4 used abs(y), which
+  // changes the receiver projection direction and can misalign caustics.
+  if (abs(y) < 0.045) { return select(-0.045, 0.045, y >= 0.0); }
+  return y;
+}
+fn propoolUvFromDomain(xz : vec2f, domain : vec2f) -> vec2f {
+  return clamp(xz / max(domain, vec2f(0.001)) + vec2f(0.5), vec2f(0.001), vec2f(0.999));
+}
+fn propoolCausticReceiverUv(point : vec3f, refractedLight : vec3f, domain : vec2f) -> vec2f {
+  // Pool reference: poolUv(0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y))
+  let receiver = 0.75 * (point.xz - point.y * refractedLight.xz / propoolSafeY(refractedLight.y));
+  return propoolUvFromDomain(receiver, domain);
+}
+fn propoolFresnelAbove(normal : vec3f, incomingRay : vec3f) -> f32 {
+  // Pool waterAboveFragmentShader equation.
+  return mix(0.25, 1.0, pow(clamp(1.0 - dot(normal, -incomingRay), 0.0, 1.0), 3.0));
+}
+fn propoolFresnelBelow(normal : vec3f, incomingRay : vec3f) -> f32 {
+  // Pool waterBelowFragmentShader equation.
+  return mix(0.5, 1.0, pow(clamp(1.0 - dot(normal, -incomingRay), 0.0, 1.0), 3.0));
+}
+fn propoolNormalizedPointScale(point : vec3f, domain : vec2f, depth : f32) -> f32 {
+  // Pool getWallColor: scale = 0.5; scale /= length(point). Fable must normalize
+  // metres into the pool's [-1,1] receiver coordinates before applying that law.
+  let halfDomain = max(domain * 0.5, vec2f(0.001));
+  let q = vec3f(point.x / halfDomain.x, point.y / max(depth, 0.1), point.z / halfDomain.y);
+  return clamp(0.5 / max(length(q), 0.35), 0.18, 1.45);
+}
+`;
+
+/* ProPool caustic render target pass — this is the missing architecture from the
+   pool app: render the refracted water mesh into a caustic texture using the
+   old/new projected-area ratio, then let receiver materials sample that texture. */
+const RS_CAUSTIC = /*wgsl*/`
+${C_SHADE}
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var surfTex : texture_2d<f32>;
+@group(0) @binding(2) var smp : sampler;
+@group(0) @binding(3) var<storage, read> bathy : array<f32>;
+const NV : f32 = ${NVERT}.0;
+const WORLD : f32 = ${WORLD};
+const HN2 : i32 = 256;
+struct VOut {
+  @builtin(position) cp : vec4f,
+  @location(0) oldPos : vec3f,
+  @location(1) newPos : vec3f,
+};
+fn bathyAt(ix : i32, iz : i32) -> f32 {
+  return bathy[clamp(iz, 0, HN2 - 1) * HN2 + clamp(ix, 0, HN2 - 1)];
+}
+fn sampleBathyUv(uv : vec2f) -> f32 {
+  let p = uv * f32(HN2) - vec2f(0.5);
+  let p0 = floor(p);
+  let f = fract(p);
+  let x0 = i32(p0.x); let z0 = i32(p0.y);
+  let d00 = bathyAt(x0, z0);
+  let d10 = bathyAt(x0 + 1, z0);
+  let d01 = bathyAt(x0, z0 + 1);
+  let d11 = bathyAt(x0 + 1, z0 + 1);
+  return max(0.04, mix(mix(d00, d10, f.x), mix(d01, d11, f.x), f.y));
+}
+fn propoolProjectToReceiver(origin : vec3f, ray : vec3f, receiverDepth : f32) -> vec3f {
+  // Pool project() receiver-plane equation with poolDepthY replaced by Fable's
+  // actual seabed/bathymetry at the same domain address. This is the necessary
+  // non-pool adaptation: Fable has sloped beach depth, not one flat cube floor.
+  let t = (-origin.y - receiverDepth) / propoolSafeY(ray.y);
+  return origin + ray * clamp(t, 0.0, 80.0);
+}
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  let gx = f32(vid % ${NVERT}u);
+  let gz = f32(vid / ${NVERT}u);
+  let uv = vec2f(gx, gz) / (NV - 1.0);
+  let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  let domain = vec2f(WORLD * visualScale.x, WORLD * visualScale.y);
+  let halfDomain = max(domain * 0.5, vec2f(0.001));
+  let baseXZ = vec2f((uv.x - 0.5) * domain.x, (uv.y - 0.5) * domain.y);
+  let receiverDepth = sampleBathyUv(uv);
+
+  // Pool causticsVertexShader: info.ba *= 0.5; normal = vec3(info.b, sqrt(...), info.a)
+  let slope = vec2f(s.y, s.z) * 0.5;
+  let normal = normalize(vec3f(slope.x, sqrt(max(0.0, 1.0 - dot(slope, slope))), slope.y));
+  let lightDir = normalize(R.sun.xyz);
+  let refractedLight = refract(-lightDir, vec3f(0.0, 1.0, 0.0), ETA_AIR_TO_WATER);
+  let ray = refract(-lightDir, normal, ETA_AIR_TO_WATER);
+
+  let v = vec3f(baseXZ.x, 0.0, baseXZ.y);
+  let oldPos = propoolProjectToReceiver(v, refractedLight, receiverDepth);
+  let newPos = propoolProjectToReceiver(v + vec3f(0.0, s.x, 0.0), ray, receiverDepth);
+
+  var o : VOut;
+  o.oldPos = oldPos;
+  o.newPos = newPos;
+  // Pool reference clip equation, with sign-preserved refractedLight.y.
+  let clip = 0.75 * ((newPos.xz + refractedLight.xz / propoolSafeY(refractedLight.y)) / halfDomain);
+  o.cp = vec4f(clip, 0.0, 1.0);
+  return o;
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let oldArea = max(length(dpdx(v.oldPos)) * length(dpdy(v.oldPos)), 1e-5);
+  let newArea = max(length(dpdx(v.newPos)) * length(dpdy(v.newPos)), 1e-5);
+  return vec4f(oldArea / newArea * 0.2, 1.0, 0.0, 0.0);
+}
+`;
+
+const POOL_REF_MATERIAL = /*wgsl*/`
+fn poolReferenceReceiverColor(point : vec3f, depth : f32, receiverN : vec3f, submerged : f32) -> vec3f {
+  let domain = vec2f(WORLD * max(R.atmo.z, 0.1), WORLD * max(R.atmo.w, 0.1));
+  var color = sandColor(point.xz);
+  var scale = propoolNormalizedPointScale(point, domain, depth);
+  let refractedLight = -refract(-normalize(R.sun.xyz), vec3f(0.0, 1.0, 0.0), ETA_AIR_TO_WATER);
+  let diffuse = max(0.0, dot(refractedLight, normalize(receiverN)));
+  let ca = textureSampleLevel(causticTex, smp, propoolCausticReceiverUv(point, refractedLight, domain), 0.0);
+  scale += diffuse * ca.r * 2.0 * ca.g * clamp(R.mouse.w, 0.0, 3.0) * submerged;
+  return color * scale;
+}
+fn poolReferenceSurfaceRayColor(origin : vec3f, ray : vec3f, depth : f32, waterColor : vec3f) -> vec3f {
+  var color : vec3f;
+  if (ray.y < 0.0) {
+    let floorY = -max(depth, 0.04);
+    let tHit = clamp((floorY - origin.y) / propoolSafeY(ray.y), 0.0, 80.0);
+    color = poolReferenceReceiverColor(origin + ray * tHit, depth, vec3f(0.0, 1.0, 0.0), 1.0);
+  } else {
+    color = skyColor(ray, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
+    color += vec3f(pow(max(0.0, dot(normalize(R.sun.xyz), ray)), 5000.0)) * vec3f(10.0, 8.0, 6.0);
+  }
+  if (ray.y < 0.0) { color *= waterColor; }
+  return color;
+}
+fn poolReferenceFineNormal(wp : vec3f, N0 : vec3f, foam : f32) -> vec3f {
+  let t = R.misc.x;
+  let duv1 = wp.xz * 1.9 + vec2f(t * 0.55, t * 0.31);
+  let duv2 = wp.xz * 5.3 - vec2f(t * 0.42, -t * 0.5);
+  let e = 0.09;
+  let h1 = fbm(duv1); let h1x = fbm(duv1 + vec2f(e, 0.0)); let h1z = fbm(duv1 + vec2f(0.0, e));
+  let h2 = vnoise(duv2); let h2x = vnoise(duv2 + vec2f(e, 0.0)); let h2z = vnoise(duv2 + vec2f(0.0, e));
+  let distF = clamp(1.0 - length(R.eye.xyz - wp) / 46.0, 0.15, 1.0);
+  let dN = vec2f((h1x - h1) + (h2x - h2) * 0.45, (h1z - h1) + (h2z - h2) * 0.45) * (1.35 * distF) / e * 0.055;
+  return normalize(mix(normalize(N0 + vec3f(dN.x, 0.0, dN.y)), vec3f(0.0, 1.0, 0.0), clamp(foam, 0.0, 1.0) * 0.45));
+}
+fn poolReferenceWaterAbove(wp : vec3f, N0 : vec3f, depth : f32, foam : f32) -> vec3f {
+  var N = poolReferenceFineNormal(wp, N0, foam);
+  let incomingRay = normalize(wp - R.eye.xyz);
+  if (dot(N, -incomingRay) < 0.0) { N = -N; }
+
+  // Direct pool waterAboveFragmentShader equation:
+  // reflected/refracted rays, Fresnel mix, abovewaterColor for both ray samples.
+  let reflectedRay = reflect(incomingRay, N);
+  let refractedRay = refract(incomingRay, N, ETA_AIR_TO_WATER);
+  let fresnel = propoolFresnelAbove(N, incomingRay);
+  let reflectedColor = poolReferenceSurfaceRayColor(wp, reflectedRay, depth, abovewaterColor);
+  let refractedColor = poolReferenceSurfaceRayColor(wp, refractedRay, depth, abovewaterColor);
+  var col = mix(refractedColor, reflectedColor, fresnel);
+
+  // Foam is not a second water material. It is a mask over the same water solution.
+  if (foam > 0.003) {
+    let fn1 = fbm(wp.xz * 5.5 + vec2f(R.misc.x * 0.22, -R.misc.x * 0.17));
+    let fm = clamp(foam * 1.22 - fn1 * 0.62, 0.0, 1.0);
+    let fdiff = clamp(dot(N, normalize(R.sun.xyz)), 0.0, 1.0) * 0.85 + 0.35;
+    col = mix(col, vec3f(0.93, 0.97, 1.0) * fdiff * (0.6 + 0.5 * R.sun.w), fm);
+  }
+  return col;
+}
+`;
+
+/* Water surface — vertex displaces by η_total + Gerstner lateral, fragment
+   does fresnel sky reflection, refracted seabed with Beer-Lambert absorption,
+   heightfield-derived caustics, SSS crest glow, sun glints, foam, debug lens. */
+const RS_WATER = /*wgsl*/`
+${C_SHADE}
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var surfTex : texture_2d<f32>;
+@group(0) @binding(2) var auxTex : texture_2d<f32>;
+@group(0) @binding(3) var smp : sampler;
+@group(0) @binding(4) var causticTex : texture_2d<f32>;
+const NV : f32 = ${NVERT}.0;
+const WORLD : f32 = ${WORLD};
+struct VOut {
+  @builtin(position) cp : vec4f,
+  @location(0) wp : vec3f,
+  @location(1) n : vec3f,
+  @location(2) data : vec4f,   // foam, breakVis, depth, etaT
+};
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  let gx = f32(vid % ${NVERT}u);
+  let gz = f32(vid / ${NVERT}u);
+  let uv = vec2f(gx, gz) / (NV - 1.0);
+  let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+  let a = textureSampleLevel(auxTex, smp, uv, 0.0);
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  // Mesh spans the real enlarged physical domain. The sampled heightfield was
+  // also evaluated over this domain, so wave wavelengths remain physical rather
+  // than stretched or repeated.
+  let baseXZ = vec2f((uv.x - 0.5) * WORLD * visualScale.x,
+                     (uv.y - 0.5) * WORLD * visualScale.y);
+  let outerR = max(abs(baseXZ.x) / max(0.001, 0.5 * WORLD * visualScale.x), abs(baseXZ.y) / max(0.001, 0.5 * WORLD * visualScale.y));
+  let planetDrop = clamp(R.lod.y, 0.0, 2.5) * WORLD * 0.018 * outerR * outerR;
+  var wp = vec3f(baseXZ.x + a.x, s.x - planetDrop, baseXZ.y + a.y);
+  var o : VOut;
+  o.wp = wp;
+  o.n = normalize(vec3f(s.y, 1.0, s.z));
+  o.data = vec4f(s.w, a.z, a.w, s.x);
+  o.cp = R.viewProj * vec4f(wp, 1.0);
+  return o;
+}
+${POOL_REF_MATERIAL}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let depth = v.data.z;
+  if (depth < 0.004) { discard; }
+
+  let visualScaleF = max(R.atmo.zw, vec2f(0.1));
+  let outerRF = max(abs(v.wp.x) / max(0.001, 0.5 * WORLD * visualScaleF.x), abs(v.wp.z) / max(0.001, 0.5 * WORLD * visualScaleF.y));
+  let outerBlend = smoothstep(0.58, 0.98, outerRF) * clamp(R.lod.x, 0.0, 1.0);
+
+  let windXZ = normalize(vec2f(0.23337295247532416, 0.9723873019805175));
+  let slopeGuess = normalize(v.n.xz + vec2f(1e-4, 0.0));
+  let slopeRear = clamp(0.5 - 0.5 * dot(slopeGuess, windXZ), 0.0, 1.0);
+  let whitecapMask = mix(1.0, smoothstep(0.36, 0.84, slopeRear), clamp(R.fx.z, 0.0, 1.0));
+  let foamBody = clamp(v.data.x * max(R.fx.x, 0.0), 0.0, 1.2) * (1.0 - outerBlend * 0.45);
+  let whitecap = clamp(v.data.y * 0.6 * max(R.fx.y, 0.0) * whitecapMask, 0.0, 1.2) * (1.0 - outerBlend * 0.35);
+  let foam = clamp(foamBody + whitecap, 0.0, 1.0) * R.misc.w;
+
+  var col = poolReferenceWaterAbove(v.wp, v.n, depth, foam);
+
+  if (R.misc.z > 0.5) {
+    let dl = length(v.wp.xz - R.mouse.xy);
+    if (dl < R.mouse.z) {
+      let heat = v.data.y;
+      let hm = mix(vec3f(0.05, 0.1, 0.35), vec3f(1.0, 0.25, 0.05), clamp(heat * 1.3, 0.0, 1.0))
+             + vec3f(0.9) * v.data.x * 0.35;
+      let ring = smoothstep(0.06, 0.0, abs(dl - R.mouse.z * 0.985));
+      col = mix(col, hm, 0.85) + vec3f(0.4, 0.9, 1.0) * ring;
+    }
+  }
+
+  // Pool reference material is returned directly. No ACES/body fog pass here.
+  return vec4f(clamp(col * R.misc.y, vec3f(0.0), vec3f(8.0)), 1.0);
+}
+`;
+
+/* Terrain (beach / lakebed above the waterline) */
+const RS_TERRAIN = /*wgsl*/`
+${C_SHADE}
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var<storage, read> bathy : array<f32>;
+@group(0) @binding(2) var surfTex : texture_2d<f32>;
+@group(0) @binding(3) var smp : sampler;
+@group(0) @binding(4) var<storage, read> wetBuf : array<f32>;
+@group(0) @binding(5) var causticTex : texture_2d<f32>;
+${POOL_REF_MATERIAL}
+const NV : u32 = ${NVERT}u;
+const WORLD : f32 = ${WORLD};
+const HN2 : i32 = ${HN};
+struct VOut {
+  @builtin(position) cp : vec4f,
+  @location(0) wp : vec3f,
+  @location(1) wet : f32,
+  @location(2) foamResid : f32,
+  @location(3) waterDepth : f32,
+  @location(4) waterSurface : f32,
+};
+fn bathyAt(ix : i32, iz : i32) -> f32 {
+  return bathy[clamp(iz, 0, HN2 - 1) * HN2 + clamp(ix, 0, HN2 - 1)];
+}
+fn wetAt(ix : i32, iz : i32) -> f32 {
+  return wetBuf[clamp(iz, 0, HN2 - 1) * HN2 + clamp(ix, 0, HN2 - 1)];
+}
+fn sampleBathy(uv : vec2f) -> f32 {
+  // Match normalized texture filtering used by the water surface textures.
+  let p = uv * f32(HN2) - vec2f(0.5);
+  let p0 = floor(p);
+  let f = fract(p);
+  let x0 = i32(p0.x); let z0 = i32(p0.y);
+  let d00 = bathyAt(x0, z0);
+  let d10 = bathyAt(x0 + 1, z0);
+  let d01 = bathyAt(x0, z0 + 1);
+  let d11 = bathyAt(x0 + 1, z0 + 1);
+  return mix(mix(d00, d10, f.x), mix(d01, d11, f.x), f.y);
+}
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  let gx = vid % NV;
+  let gz = vid / NV;
+  let uv = vec2f(f32(gx), f32(gz)) / f32(NV - 1u);
+  let depth = sampleBathy(uv);
+  let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+  let ix = i32(gx);
+  let iz = i32(gz);
+  let wetCenter = wetAt(ix, iz);
+  let wetCross = max(max(wetAt(ix - 1, iz), wetAt(ix + 1, iz)), max(wetAt(ix, iz - 1), wetAt(ix, iz + 1)));
+  let wetDiag = max(max(wetAt(ix - 1, iz - 1), wetAt(ix + 1, iz - 1)), max(wetAt(ix - 1, iz + 1), wetAt(ix + 1, iz + 1)));
+  let wetCell = clamp(max(wetCenter, max(wetCross * 0.82, wetDiag * 0.62)) / 1.25, 0.0, 1.0);
+  let physicalDepth = s.x + depth;
+  let nearShore = smoothstep(-0.44, 0.34, depth) * (1.0 - smoothstep(0.85, 2.30, depth));
+  let shallowSubmergedBand = 1.0 - smoothstep(1.65, 3.60, depth);
+  // Terrain bury is now tied to actual water coverage only. Foam/wet memory can
+  // darken sand, but it cannot hold a fixed shoreline or z-fight the water mesh.
+  let activeWaterSheet = smoothstep(0.004, 0.060, physicalDepth) * nearShore;
+  let terrainBury = activeWaterSheet * (0.010 + 0.026 * activeWaterSheet);
+  var o : VOut;
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  let baseXZ = vec2f((uv.x - 0.5) * WORLD * visualScale.x,
+                     (uv.y - 0.5) * WORLD * visualScale.y);
+  let outerR = max(abs(baseXZ.x) / max(0.001, 0.5 * WORLD * visualScale.x), abs(baseXZ.y) / max(0.001, 0.5 * WORLD * visualScale.y));
+  let planetDrop = clamp(R.lod.y, 0.0, 2.5) * WORLD * 0.018 * outerR * outerR;
+  o.wp = vec3f(baseXZ.x, -depth - terrainBury - planetDrop, baseXZ.y);
+  o.waterDepth = max(physicalDepth, 0.0);
+  o.waterSurface = s.x - planetDrop;
+  // Wet band: actual sheet + saturation history + softer foam staining; visual only,
+  // not geometry.  wetCell is deliberately treated as a material state, so a
+  // trough-revealed bed stays dark even when there is no water between camera and sand.
+  let materialBand = max(nearShore, shallowSubmergedBand * 0.82);
+  let wetHistory = smoothstep(0.030, 0.38, wetCell) * materialBand * smoothstep(-0.52, 2.85, depth);
+  let troughReveal = smoothstep(0.085, 0.0, physicalDepth) * smoothstep(0.20, 0.70, wetCell) * materialBand;
+  o.wet = clamp(activeWaterSheet * 1.10 + wetHistory * 1.36 + troughReveal * 0.85 + s.w * 0.16, 0.0, 1.0)
+        + clamp(1.0 - abs(-depth - s.x) * 3.2, 0.0, 1.0) * step(-0.35, -depth) * activeWaterSheet;
+  let exposedResid = (1.0 - activeWaterSheet) * materialBand * smoothstep(0.05, 0.85, max(s.w, wetCell)) * smoothstep(0.10, 0.0, physicalDepth);
+  o.foamResid = clamp(s.w * exposedResid, 0.0, 1.0);
+  o.cp = R.viewProj * vec4f(o.wp, 1.0);
+  return o;
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  var col = sandColor(v.wp.xz);
+  let terrainNraw = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
+  let terrainN = select(-terrainNraw, terrainNraw, terrainNraw.y >= 0.0);
+  let sunDiffuse = max(0.0, dot(normalize(R.sun.xyz), terrainN)) * 0.62 + 0.38;
+  col *= sunDiffuse * (0.55 + 0.55 * R.sun.w);
+
+  let submerged = smoothstep(0.004, 0.055, v.waterDepth);
+  let wet = clamp(v.wet, 0.0, 1.0) * (1.0 - submerged);
+  col *= mix(1.0, 0.58, wet * (0.66 + 0.34 * fbm(v.wp.xz * 7.0)));
+
+  if (submerged > 0.001) {
+    // Pool cubeFragmentShader behavior: receiver color from getWallColor(), then
+    // below-water multiplier underwaterColor * 1.2. The caustic energy is already
+    // part of poolReferenceReceiverColor(), so there is no second fake caustic path.
+    let receiver = poolReferenceReceiverColor(v.wp, max(v.waterDepth, 0.04), terrainN, submerged);
+    col = mix(col, receiver * underwaterColor * 1.2, submerged);
+  }
+
+  let foamResid = clamp(v.foamResid, 0.0, 1.0);
+  let foamPattern = smoothstep(0.42, 0.78, fbm(v.wp.xz * 8.8) + wet * 0.18) * foamResid;
+  col = mix(col, vec3f(0.96, 0.97, 0.94), foamPattern * 0.82);
+  return vec4f(clamp(col * R.misc.y, vec3f(0.0), vec3f(8.0)), 1.0);
+}
+`;
+
+/* Splash particles — velocity-stretched sphere impostors, class-shaded */
+const RS_PART = /*wgsl*/`
+${C_SHADE}
+struct Pt { pos : vec3f, alive : f32, v : vec3f, cls : f32, C : mat3x3f };
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var<storage, read> parts : array<Pt>;
+@group(0) @binding(2) var<storage, read> paux : array<vec4f>;
+const MCELL : f32 = ${MCELL};
+const MORG : vec3f = vec3f(${MORG[0]}, ${MORG[1]}, ${MORG[2]});
+struct VOut {
+  @builtin(position) cp : vec4f,
+  @location(0) uv : vec2f,
+  @location(1) info : vec4f,    // foam, fade, speed, phase
+  @location(2) wp : vec3f,
+  @location(3) viewAxis : vec3f,
+};
+@vertex
+fn vs(@builtin(vertex_index) vid : u32, @builtin(instance_index) iid : u32) -> VOut {
+  var o : VOut;
+  let p = parts[iid];
+  let a = paux[iid];
+  if (p.alive < 0.5) {
+    o.cp = vec4f(0.0, 0.0, 2.0, 1.0); o.uv = vec2f(0.0);
+    o.info = vec4f(0.0); o.wp = vec3f(0.0); o.viewAxis = vec3f(0.0);
+    return o;
+  }
+
+  // MPM particles stay in canonical heightfield coordinates. This renderer is
+  // alignment/debug only, but it still uses the same visual X/Z scale and the
+  // same water material constants as RS_WATER. It is not alpha-ghost water.
+  let wpSim = MORG + p.pos * MCELL;
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  let wp = vec3f(wpSim.x * visualScale.x, wpSim.y, wpSim.z * visualScale.y);
+  let vw = vec3f(p.v.x * MCELL * visualScale.x, p.v.y * MCELL, p.v.z * MCELL * visualScale.y);
+
+  let phase = max(a.w, 1.0);
+  let corner = vec2f(f32(vid & 1u) * 2.0 - 1.0, f32((vid >> 1u) & 1u) * 2.0 - 1.0);
+
+  let fwd = normalize(R.eye.xyz - wp);
+  var up0 = vec3f(0.0, 1.0, 0.0);
+  if (abs(fwd.y) > 0.985) { up0 = vec3f(1.0, 0.0, 0.0); }
+  let right = normalize(cross(up0, fwd));
+  let up = cross(fwd, right);
+
+  let dropletScale = max(R.cam2.w, 0.1);
+  let speed = length(vw);
+  var size = 0.045 * dropletScale;
+  if (phase > 1.5 && phase < 3.5) { size = 0.078 * dropletScale; }
+  if (p.cls > 0.45) { size *= 0.95; }
+  if (phase >= 4.0) { size = 0.043 * dropletScale; }
+  if (phase >= 5.0) { size = 0.032 * dropletScale; }
+
+  let fadeIn = clamp(a.x * 10.0, 0.0, 1.0);
+  let fadeOut = clamp((a.y - a.x) * 4.5, 0.0, 1.0);
+  let fade = fadeIn * fadeOut;
+
+  let vs2 = vec2f(dot(vw, right), dot(vw, up));
+  let sp = length(vs2);
+  var ax = vec2f(1.0, 0.0); var stretch = 1.0;
+  if (sp > 0.35 && p.cls < 0.72) {
+    ax = vs2 / sp;
+    let phaseStretch = select(1.0, 2.0, phase > 1.5 && phase < 3.5);
+    stretch = clamp(1.0 + sp * 0.13 * phaseStretch, 1.0, 3.8);
+  }
+  let c2 = vec2f(corner.x * ax.x - corner.y * ax.y, corner.x * ax.y + corner.y * ax.x);
+  let cs = vec2f(c2.x * stretch, c2.y);
+  let world = wp + right * cs.x * size + up * cs.y * size;
+  o.cp = R.viewProj * vec4f(world, 1.0);
+  o.uv = corner;
+  o.info = vec4f(clamp(p.cls, 0.0, 1.0), fade, sp, phase);
+  o.wp = wp;
+  o.viewAxis = fwd;
+  return o;
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let r2 = dot(v.uv, v.uv);
+  if (r2 > 1.0) { discard; }
+
+  let phase = v.info.w;
+  let foamState = clamp(v.info.x, 0.0, 1.0);
+  let sheetPhase = select(0.0, 1.0, phase > 1.5 && phase < 3.5);
+  let core = smoothstep(1.0, 0.10, r2);
+  let feather = smoothstep(1.0, 0.36, r2);
+  let coverage = mix(feather, max(feather, core), sheetPhase);
+
+  let V = normalize(v.viewAxis);
+  let L = normalize(R.sun.xyz);
+  // Same basic Fresnel/sky/body-water recipe as RS_WATER; clear particles are
+  // rendered as water surface-elements, not partial-opacity ghosts.
+  let t = R.misc.x;
+  let d1 = fbm(v.wp.xz * 2.1 + vec2f(t * 0.55, t * 0.31));
+  let d2 = fbm(v.wp.xz * 5.6 - vec2f(t * 0.42, -t * 0.50));
+  var N = normalize(vec3f(v.uv.x * 0.28 + (d1 - 0.5) * 0.12,
+                          0.78,
+                          v.uv.y * 0.28 + (d2 - 0.5) * 0.12));
+  N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), foamState * 0.35));
+
+  let F0 = 0.022;
+  let cosT = clamp(dot(N, V), 0.0, 1.0);
+  let fres = F0 + (1.0 - F0) * pow(1.0 - cosT, 5.0);
+  var Rd = reflect(-V, N);
+  Rd.y = abs(Rd.y) * 0.96 + 0.02;
+  let refl = skyColor(Rd, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
+  let body = vec3f(0.015, 0.11, 0.16) * (0.5 + 0.5 * R.sun.w);
+  var col = mix(body, refl, fres);
+
+  let H = normalize(V + L);
+  let nh = clamp(dot(N, H), 0.0, 1.0);
+  let sunTrans = exp(-vec3f(0.62, 0.26, 0.08) * max(1.0 - R.sun.y, 0.0) * R.atmo.y);
+  col += sunTrans * (pow(nh, 760.0) * 5.0 + pow(nh, 64.0) * 0.12)
+         * R.sun.w * (0.25 + fres);
+
+  let foamNoise = fbm(v.wp.xz * 7.0 + vec2f(t * 0.22, -t * 0.17));
+  let foamMask = smoothstep(0.36, 0.88, foamState - foamNoise * 0.18) * R.misc.w;
+  let fdiff = clamp(dot(N, L), 0.0, 1.0) * 0.85 + 0.35;
+  let foamCol = vec3f(0.93, 0.97, 1.0) * fdiff * (0.6 + 0.5 * R.sun.w);
+  col = mix(col, foamCol, foamMask);
+
+  col = aces(col * R.misc.y);
+  let fade = v.info.y * select(1.0, 0.82, phase >= 5.0);
+  // Debug particles are no longer translucent ghosts.  They are opaque water
+  // surface elements with a hard material silhouette; use MLS-MPM Fluid for the
+  // connected metaball surface.
+  if (coverage * fade < 0.48) { discard; }
+  return vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0);
+}
+
+`;
+
+
+/* Screen-space fluid splash — particles are no longer drawn as visible dots.
+   MLS-MPM particles splat into a blurred thickness field, then a single coherent
+   heightfield-water material is resolved back over the ocean.  The resolve uses
+   the same RS_WATER color equations as the heightfield instead of a separate cyan material. */
+const fluidSplatWGSL = /*wgsl*/`
+${C_SHADE}
+struct Pt { pos : vec3f, alive : f32, v : vec3f, cls : f32, C : mat3x3f };
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var<storage, read> parts : array<Pt>;
+@group(0) @binding(2) var<storage, read> paux : array<vec4f>;
+const MCELL : f32 = ${MCELL};
+const MORG : vec3f = vec3f(${MORG[0]}, ${MORG[1]}, ${MORG[2]});
+struct VOut {
+  @builtin(position) cp : vec4f,
+  @location(0) uv : vec2f,
+  @location(1) info : vec4f,      // fade, speed, phase, aeration/foam
+  @location(2) ndcDepth : f32,    // weighted depth for world reconstruction in final material pass
+};
+@vertex
+fn vs(@builtin(vertex_index) vid : u32, @builtin(instance_index) iid : u32) -> VOut {
+  var o : VOut;
+  let p = parts[iid];
+  let a = paux[iid];
+  if (p.alive < 0.5) {
+    o.cp = vec4f(0.0, 0.0, 2.0, 1.0);
+    o.uv = vec2f(4.0);
+    o.info = vec4f(0.0);
+    o.ndcDepth = 1.0;
+    return o;
+  }
+  let wpSim = MORG + p.pos * MCELL;
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  let wp = vec3f(wpSim.x * visualScale.x, wpSim.y, wpSim.z * visualScale.y);
+  let vw = vec3f(p.v.x * MCELL * visualScale.x, p.v.y * MCELL, p.v.z * MCELL * visualScale.y);
+  let phase = max(a.w, 1.0);
+  let corner = vec2f(f32(vid & 1u) * 2.0 - 1.0, f32((vid >> 1u) & 1u) * 2.0 - 1.0);
+  let fwd = normalize(R.eye.xyz - wp);
+  var up0 = vec3f(0.0, 1.0, 0.0);
+  if (abs(fwd.y) > 0.985) { up0 = vec3f(1.0, 0.0, 0.0); }
+  let right = normalize(cross(up0, fwd));
+  let up = cross(fwd, right);
+  let speed = length(vw);
+  let dropletScale = max(R.cam2.w, 0.1);
+  // Slightly broader than visible particles so MLS-MPM carriers close into sheets.
+  var radius = (0.118 + clamp(speed, 0.0, 5.0) * 0.009) * dropletScale;
+  if (phase > 1.5 && phase < 3.5) { radius *= 1.22; }
+  if (phase >= 4.0) { radius *= 0.58; }
+  if (phase >= 5.0) { radius *= 0.46; }
+  let world = wp + right * corner.x * radius + up * corner.y * radius;
+  let fadeIn = clamp(a.x * 10.0, 0.0, 1.0);
+  let fadeOut = clamp((a.y - a.x) * 4.5, 0.0, 1.0);
+  o.cp = R.viewProj * vec4f(world, 1.0);
+  o.uv = corner;
+  o.info = vec4f(fadeIn * fadeOut, speed, phase, clamp(p.cls, 0.0, 1.0));
+  o.ndcDepth = clamp(o.cp.z / max(o.cp.w, 1e-5), 0.0, 1.0);
+  return o;
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let r2 = dot(v.uv, v.uv);
+  if (r2 > 1.0) { discard; }
+  let core = pow(max(1.0 - r2, 0.0), 0.62);
+  var cohesive = select(1.0, 0.42, v.info.z >= 4.0);
+  cohesive = select(cohesive, cohesive * 1.32, v.info.z > 1.5 && v.info.z < 3.5);
+  // Reference metaball behavior: store a dense field, then apply an isolation
+  // threshold in the material pass.  This keeps the core solid and eliminates
+  // the low-alpha ghost halo from the previous build.
+  let thick = core * v.info.x * cohesive * 0.070;
+  let motion = clamp(v.info.y * 0.075, 0.0, 1.0);
+  // Foam is not the default material.  It is only the transient aeration state
+  // from the MLS-MPM particle, and it decays back to clear water in G2P.
+  let mist = smoothstep(4.6, 5.2, v.info.z) * 0.18;
+  let foam = clamp(v.info.w + mist * v.info.w, 0.0, 1.0) * v.info.x;
+  // rgba = thickness, foam*thickness, ndcDepth*thickness, motion*thickness.
+  return vec4f(thick, thick * foam, thick * v.ndcDepth, thick * motion);
+}
+`;
+
+const fluidBlurWGSL = /*wgsl*/`
+struct BlurU { dir : vec4f };
+@group(0) @binding(0) var srcTex : texture_2d<f32>;
+@group(0) @binding(1) var<uniform> B : BlurU;
+struct VOut { @builtin(position) cp : vec4f };
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+  var o : VOut;
+  let p = pos[vid];
+  o.cp = vec4f(p, 0.0, 1.0);
+  return o;
+}
+fn loadClamped(p : vec2i, dim : vec2i) -> vec4f {
+  return textureLoad(srcTex, clamp(p, vec2i(0), dim - vec2i(1)), 0);
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let dim = vec2i(textureDimensions(srcTex));
+  // The splat target is screen-sized.  Sample by the fragment pixel coordinate
+  // instead of reconstructed UVs; this preserves the exact attachment orientation
+  // that the world-space particles wrote into.
+  let p = clamp(vec2i(v.cp.xy), vec2i(0), dim - vec2i(1));
+  let d = vec2i(B.dir.xy);
+  var sum = loadClamped(p, dim) * 0.227027;
+  sum += loadClamped(p + d * 1, dim) * 0.1945946;
+  sum += loadClamped(p - d * 1, dim) * 0.1945946;
+  sum += loadClamped(p + d * 2, dim) * 0.1216216;
+  sum += loadClamped(p - d * 2, dim) * 0.1216216;
+  sum += loadClamped(p + d * 3, dim) * 0.054054;
+  sum += loadClamped(p - d * 3, dim) * 0.054054;
+  sum += loadClamped(p + d * 4, dim) * 0.016216;
+  sum += loadClamped(p - d * 4, dim) * 0.016216;
+  return sum;
+}
+`;
+
+const fluidCompositeWGSL = /*wgsl*/`
+${C_SHADE}
+@group(0) @binding(0) var<uniform> R : RU;
+@group(0) @binding(1) var fluidTex : texture_2d<f32>;
+@group(0) @binding(2) var sceneTex : texture_2d<f32>;
+@group(0) @binding(3) var surfTex : texture_2d<f32>;
+@group(0) @binding(4) var smp : sampler;
+@group(0) @binding(5) var causticTex : texture_2d<f32>;
+@group(0) @binding(6) var<storage, read> bathy : array<f32>;
+${POOL_REF_MATERIAL}
+const HN2 : i32 = 256;
+const WORLD : f32 = 42.0;
+struct VOut { @builtin(position) cp : vec4f, @location(0) ndc : vec2f };
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  var pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+  var o : VOut;
+  let p = pos[vid];
+  o.cp = vec4f(p, 0.0, 1.0);
+  o.ndc = p;
+  return o;
+}
+fn loadFluid(p : vec2i, dim : vec2i) -> vec4f {
+  return textureLoad(fluidTex, clamp(p, vec2i(0), dim - vec2i(1)), 0);
+}
+fn loadScene(p : vec2i, dim : vec2i) -> vec3f {
+  return textureLoad(sceneTex, clamp(p, vec2i(0), dim - vec2i(1)), 0).rgb;
+}
+fn bathyAt(ix : i32, iz : i32) -> f32 {
+  return bathy[clamp(iz, 0, HN2 - 1) * HN2 + clamp(ix, 0, HN2 - 1)];
+}
+fn sampleBathyUv(uv : vec2f) -> f32 {
+  let p = uv * f32(HN2) - vec2f(0.5);
+  let p0 = floor(p);
+  let f = fract(p);
+  let x0 = i32(p0.x); let z0 = i32(p0.y);
+  let d00 = bathyAt(x0, z0);
+  let d10 = bathyAt(x0 + 1, z0);
+  let d01 = bathyAt(x0, z0 + 1);
+  let d11 = bathyAt(x0 + 1, z0 + 1);
+  return mix(mix(d00, d10, f.x), mix(d01, d11, f.x), f.y);
+}
+fn worldUv(xz : vec2f) -> vec2f {
+  let visualScale = max(R.atmo.zw, vec2f(0.1));
+  return clamp(vec2f(xz.x / max(WORLD * visualScale.x, 0.001),
+                     xz.y / max(WORLD * visualScale.y, 0.001)) + vec2f(0.5),
+               vec2f(0.001), vec2f(0.999));
+}
+fn reconstructWorld(ndc : vec2f, z : f32) -> vec3f {
+  let h = R.invViewProj * vec4f(ndc, z, 1.0);
+  return h.xyz / max(abs(h.w), 1e-6);
+}
+fn referenceSplashWaterMaterial(wp : vec3f, N0 : vec3f, foamIn : f32, thick : f32, motion : f32) -> vec3f {
+  let uv = worldUv(wp.xz);
+  let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+  let bedDepth = sampleBathyUv(uv);
+  let depth = clamp(max(s.x + bedDepth, 0.045 + thick * 8.0), 0.004, 10.0);
+  let foam = clamp(foamIn * max(R.fx.x, 0.0), 0.0, 1.0) * R.misc.w;
+  return poolReferenceWaterAbove(wp, N0, depth, foam);
+}
+
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let dim = vec2i(textureDimensions(fluidTex));
+  let p = clamp(vec2i(v.cp.xy), vec2i(0), dim - vec2i(1));
+  let bg = loadScene(p, dim);
+  let c = loadFluid(p, dim);
+  let thick = c.r;
+
+  // Hard metaball isolation: below field surface there is no splash material.
+  // Above it, the material is the same opaque reference water shader.
+  if (thick <= 0.0032) {
+    return vec4f(bg, 1.0);
+  }
+
+  let l = loadFluid(p + vec2i(-1, 0), dim).r;
+  let r = loadFluid(p + vec2i( 1, 0), dim).r;
+  let u = loadFluid(p + vec2i(0, -1), dim).r;
+  let d = loadFluid(p + vec2i(0,  1), dim).r;
+  let grad = vec2f(l - r, u - d);
+
+  let invThick = 1.0 / max(thick, 1e-5);
+  let foam = clamp(c.g * invThick, 0.0, 1.0);
+  let ndcDepth = clamp(c.b * invThick, 0.0, 1.0);
+  let motion = clamp(c.a * invThick, 0.0, 1.0);
+  let wp = reconstructWorld(v.ndc, ndcDepth);
+
+  // Do not build the fluid normal from the view vector; that produced
+  // camera-facing cyan bubbles.  Start from the heightfield normal and let the
+  // MLS-MPM thickness gradient add only geometric splash curvature.
+  let su = textureSampleLevel(surfTex, smp, worldUv(wp.xz), 0.0);
+  let hfN = normalize(vec3f(su.y, 1.0, su.z));
+  let splashN = normalize(hfN + R.cam0.xyz * grad.x * 18.0 - R.cam1.xyz * grad.y * 18.0);
+  let detached = smoothstep(0.08, 0.70, abs(wp.y - su.x));
+  var N = normalize(mix(hfN, splashN, 0.42 + detached * 0.38));
+
+  let col = referenceSplashWaterMaterial(wp, N, foam, thick, motion);
+  return vec4f(clamp(col, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+`;
+
+const RS_SKY = /*wgsl*/`
+${C_SHADE}
+@group(0) @binding(0) var<uniform> R : RU;
+struct VOut { @builtin(position) cp : vec4f, @location(0) ndc : vec2f };
+@vertex
+fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+  var o : VOut;
+  let p = vec2f(f32((vid << 1u) & 2u), f32(vid & 2u)) * 2.0 - 1.0;
+  o.cp = vec4f(p, 0.99995, 1.0);
+  o.ndc = p;
+  return o;
+}
+@fragment
+fn fs(v : VOut) -> @location(0) vec4f {
+  let dir = normalize(R.cam2.xyz
+        + R.cam0.xyz * (v.ndc.x * R.cam0.w)
+        + R.cam1.xyz * (v.ndc.y * R.cam1.w));
+  var col = skyColor(dir, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
+  if (dir.y < 0.0) {            // below horizon: deep sea haze (mostly hidden)
+    col = mix(col, vec3f(0.05, 0.12, 0.17), clamp(-dir.y * 6.0, 0.0, 1.0));
+  }
+  col = aces(col * R.misc.y);
+  return vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0);
+}
+`;
+
+/* ================================ HOST ==================================== */
+
+const $ = (id) => document.getElementById(id);
+const bootDiag = {
+  schema: 'ion.cosmos.hybridsplash.boot_diagnostics.v1',
+  startedAt: new Date().toISOString(),
+  steps: [],
+  adapter: null,
+  device: null,
+  canvas: null,
+  shaderMessages: [],
+  scopedErrors: [],
+  errors: [],
+  frameSubmits: 0,
+  firstFrameAt: null,
+  renderLoopArmed: false,
+};
+const runtimeProbe = {
+  schema: 'ion.cosmos.hybridsplash.runtime_probe.v1',
+  candidateOnly: true,
+  acceptedVisualProof: false,
+  frame: 0,
+  simTime: 0,
+  fps: null,
+  paused: false,
+  canvas: null,
+  visualReadback: null,
+};
+const consoleRing = [];
+const consoleNative = {
+  error: console.error.bind(console),
+  warn: console.warn.bind(console),
+  log: console.log.bind(console),
+};
+
+function plain(value, depth = 0) {
+  if (value == null || typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (depth > 4) return '[depth-limit]';
+  if (value instanceof Error || value?.name || value?.message) {
+    return {
+      name: value.name || 'Error',
+      message: value.message || String(value),
+      stack: value.stack ? String(value.stack).split('\n').slice(0, 8).join('\n') : undefined,
+    };
+  }
+  if (Array.isArray(value)) return value.slice(0, 80).map((item) => plain(item, depth + 1));
+  if (value instanceof Map) return Object.fromEntries([...value.entries()].slice(0, 80).map(([k, v]) => [k, plain(v, depth + 1)]));
+  if (value instanceof Set) return [...value].slice(0, 80).map((item) => plain(item, depth + 1));
+  if (typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value).slice(0, 80)) {
+      if (/token|secret|password|authorization|cookie/i.test(key)) continue;
+      try { out[key] = plain(value[key], depth + 1); } catch { out[key] = '[unreadable]'; }
+    }
+    return out;
+  }
+  return String(value);
+}
+function diagStep(label, data = null) {
+  bootDiag.steps.push({
+    atMs: Math.round(performance.now()),
+    label,
+    data: data == null ? null : plain(data),
+  });
+}
+function summarizeLimits(limits) {
+  if (!limits) return null;
+  const keys = [
+    'maxTextureDimension2D',
+    'maxStorageBuffersPerShaderStage',
+    'maxStorageTexturesPerShaderStage',
+    'maxSampledTexturesPerShaderStage',
+    'maxBindGroups',
+    'maxBindingsPerBindGroup',
+    'maxBufferSize',
+    'maxStorageBufferBindingSize',
+    'maxComputeInvocationsPerWorkgroup',
+    'maxComputeWorkgroupStorageSize',
+  ];
+  const out = {};
+  for (const key of keys) if (key in limits) out[key] = limits[key];
+  return out;
+}
+async function collectAdapterInfo(adapter) {
+  const info = {
+    features: adapter.features ? [...adapter.features].sort() : [],
+    limits: summarizeLimits(adapter.limits),
+  };
+  try {
+    if (adapter.info) info.info = plain(adapter.info);
+    else if (adapter.requestAdapterInfo) info.info = plain(await adapter.requestAdapterInfo());
+  } catch (error) {
+    info.infoError = plain(error);
+  }
+  return info;
+}
+function collectDeviceInfo(device) {
+  return {
+    features: device.features ? [...device.features].sort() : [],
+    limits: summarizeLimits(device.limits),
+  };
+}
+function recordConsole(level, args) {
+  consoleRing.push({
+    atMs: Math.round(performance.now()),
+    level,
+    args: args.map((item) => plain(item, 1)),
+  });
+  if (consoleRing.length > 200) consoleRing.shift();
+}
+console.error = (...args) => { recordConsole('error', args); consoleNative.error(...args); };
+console.warn = (...args) => { recordConsole('warn', args); consoleNative.warn(...args); };
+function recordError(kind, error, data = null) {
+  bootDiag.errors.push({
+    atMs: Math.round(performance.now()),
+    kind,
+    error: plain(error),
+    data: data == null ? null : plain(data),
+  });
+  refreshFailureLog();
+}
+function formatBootDiagnostics(extra = null) {
+  return JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    candidateOnly: true,
+    acceptedVisualProof: false,
+    bootDiag,
+    runtimeProbe,
+    recentConsole: consoleRing.slice(-40),
+    extra: extra == null ? null : plain(extra),
+  }, null, 2);
+}
+function refreshFailureLog(extra = null) {
+  const log = $('errLog');
+  if (log) log.textContent = formatBootDiagnostics(extra);
+}
+function showFailure(title, msg, extra = null) {
+  const err = $('err'), errTitle = $('errTitle'), errDetail = $('errDetail');
+  if (errTitle) errTitle.textContent = title || 'WebGPU boot failed';
+  if (errDetail) errDetail.textContent = msg ? ' (' + msg + ')' : '';
+  refreshFailureLog(extra);
+  if (err) err.style.display = 'grid';
+}
+function fail(msg, extra = null) {
+  const error = new Error('webgpu: ' + msg);
+  recordError('fail', error, extra);
+  showFailure('WebGPU boot failed', msg, extra);
+  throw error;
+}
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2) + '\n'], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+/* ---------- mat4 (column-major) + vec helpers ---------- */
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross3 = (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
+const dot3 = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const norm3 = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+function mat4Mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+  }
+  return o;
+}
+function mat4Invert(a) {
+  // Column-major 4x4 inverse.  Returns identity if the camera matrix is singular,
+  // so the capture path never writes NaNs into the render uniform.
+  const out = new Float32Array(16);
+  const a00 = a[0],  a01 = a[1],  a02 = a[2],  a03 = a[3];
+  const a10 = a[4],  a11 = a[5],  a12 = a[6],  a13 = a[7];
+  const a20 = a[8],  a21 = a[9],  a22 = a[10], a23 = a[11];
+  const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+  const b00 = a00 * a11 - a01 * a10;
+  const b01 = a00 * a12 - a02 * a10;
+  const b02 = a00 * a13 - a03 * a10;
+  const b03 = a01 * a12 - a02 * a11;
+  const b04 = a01 * a13 - a03 * a11;
+  const b05 = a02 * a13 - a03 * a12;
+  const b06 = a20 * a31 - a21 * a30;
+  const b07 = a20 * a32 - a22 * a30;
+  const b08 = a20 * a33 - a23 * a30;
+  const b09 = a21 * a32 - a22 * a31;
+  const b10 = a21 * a33 - a23 * a31;
+  const b11 = a22 * a33 - a23 * a32;
+
+  let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-12) {
+    out[0] = out[5] = out[10] = out[15] = 1;
+    return out;
+  }
+  det = 1.0 / det;
+
+  out[0]  = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+  out[1]  = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+  out[2]  = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+  out[3]  = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+  out[4]  = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+  out[5]  = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+  out[6]  = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+  out[7]  = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+  out[8]  = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+  out[9]  = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+  out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+  out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+  out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+  out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+  out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+  out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+  return out;
+}
+function perspective(fovY, aspect, near, far) {
+  const f = 1 / Math.tan(fovY / 2);
+  const o = new Float32Array(16);
+  o[0] = f / aspect; o[5] = f;
+  o[10] = far / (near - far); o[11] = -1;
+  o[14] = near * far / (near - far);
+  return o;
+}
+function lookAt(eye, tgt, up) {
+  const z = norm3(sub3(eye, tgt));
+  const x = norm3(cross3(up, z));
+  const y = cross3(z, x);
+  const o = new Float32Array(16);
+  o[0] = x[0]; o[1] = y[0]; o[2]  = z[0];
+  o[4] = x[1]; o[5] = y[1]; o[6]  = z[1];
+  o[8] = x[2]; o[9] = y[2]; o[10] = z[2];
+  o[12] = -dot3(x, eye); o[13] = -dot3(y, eye); o[14] = -dot3(z, eye); o[15] = 1;
+  return o;
+}
+
+/* ---------- CPU noise (bathymetry) ---------- */
+function hash2(x, z) {
+  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+function vnoise2(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  const xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  const a = hash2(xi, zi), b = hash2(xi + 1, zi);
+  const c = hash2(xi, zi + 1), d = hash2(xi + 1, zi + 1);
+  return a + (b - a) * u + (c - a) * v * (1 - u) + (d - b) * u * v;
+}
+function fbm2(x, z) {
+  let s = 0, a = 0.5;
+  for (let o = 0; o < 4; o++) { s += a * vnoise2(x, z); x = x * 2.03 + 17.1; z = z * 2.03 + 9.7; a *= 0.5; }
+  return s;
+}
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
+/* ---------- worlds ---------- */
+function genBathy(mode) {
+  const b = new Float32Array(HN * HN);
+  const oceanSpan = Math.min(8.0, Math.max(0.45, state?.oceanSpan ?? 1.15));
+  const oceanWidth = Math.max(0.35, state?.oceanWidth ?? 1.0);
+  const oceanLength = Math.max(0.35, state?.oceanLength ?? 1.0);
+  const beachWidth = Math.max(0.35, state?.beachWidth ?? 1.0);
+  const landReach = state?.landReach ?? 1.05;
+  const shoreOffset = state?.shoreOffset ?? 0;
+  const worldX = WORLD * oceanWidth;
+  const worldZ = WORLD * oceanLength;
+  for (let z = 0; z < HN; z++) for (let x = 0; x < HN; x++) {
+    const wx = ((x + 0.5) / HN - 0.5) * worldX;
+    const wz = ((z + 0.5) / HN - 0.5) * worldZ;
+    const n = fbm2(wx * 0.11 / oceanSpan + 3.0, wz * 0.11 / oceanSpan + 7.0) - 0.5;
+    let d;
+    if (mode === 'deep') {
+      d = 3.4 * oceanSpan + n * 0.6;
+    } else if (mode === 'lake') {
+      const r = Math.hypot(wx, wz);
+      const basin = 13.0 * oceanSpan;
+      d = 3.0 * oceanSpan - 3.6 * Math.pow(r / basin, 2.4) + n * 0.45;
+    } else { // shore: beach toward +z with wavy shoreline + offshore sandbar
+      const shoreBase = worldZ * 0.28 + shoreOffset;
+      const shoreline = shoreBase + (fbm2(wx * 0.06 / oceanSpan, 11.3) - 0.5) * (2.2 + landReach * 1.4);
+      const oceanToe = -worldZ * (0.42 + 0.10 * (oceanSpan - 1.0));
+      const t = clamp01((wz - oceanToe) / Math.max(1.0, shoreline - oceanToe));
+      d = 3.4 * oceanSpan - (3.55 + landReach * 0.62) * Math.pow(t, 1.22);
+      // True larger domain: oceanWidth/oceanLength expand the physical coastal
+      // coordinate system. They do not divide coordinates, tile, or stretch an
+      // existing 42m patch. Beach width only adjusts the local beach slope/profile.
+      if (wz > shoreline) {
+        const landDist = (wz - shoreline) / beachWidth;
+        const beachSlope = (0.038 + landReach * 0.034) / beachWidth;
+        const berm = 0.035 * Math.tanh(landDist * 0.55);
+        const grain = (fbm2(wx * 0.22 + 41.0, wz * 0.18 - 13.0) - 0.5) * 0.028;
+        d = -0.045 - berm - Math.pow(Math.max(0.0, landDist), 1.08) * beachSlope + grain;
+      }
+      const barCenter = shoreline - 7.6 * oceanSpan;
+      const bar = Math.exp(-Math.pow((wz - barCenter) / ((1.15 + 0.35 * oceanSpan) * Math.sqrt(beachWidth)), 2));
+      d -= bar * 0.85 * clamp01(d / 1.2);
+      d += n * 0.3 * clamp01(d + 0.6);
+    }
+    b[z * HN + x] = d;
+  }
+  return b;
+}
+
+/* ---------- spectrum (JONSWAP-sampled Gerstner bank) ---------- */
+function mulberry(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const WIND_DIR = norm3([0.24, 0, 1.0]);
+function genSpectrum(U, Hs) {
+  const rnd = mulberry(1337);
+  const out = new Float32Array(KCOMP * 8);
+  const g = 9.81, gamma = 3.3;
+  const wp = 0.855 * g / Math.max(U, 2.0);
+  const k0 = 2 * Math.PI / 26.0, k1 = 2 * Math.PI / 0.5;
+  const amps = [];
+  let s2 = 0;
+  for (let i = 0; i < KCOMP; i++) {
+    const fr = (i + rnd() * 0.9 + 0.05) / KCOMP;
+    const k = k0 * Math.pow(k1 / k0, fr);
+    const w = Math.sqrt(g * k * Math.tanh(k * 3.4));
+    const sig = w <= wp ? 0.07 : 0.09;
+    const r = Math.exp(-Math.pow(w - wp, 2) / (2 * sig * sig * wp * wp));
+    let S = Math.pow(w, -5) * Math.exp(-1.25 * Math.pow(wp / w, 4)) * Math.pow(gamma, r);
+    // log-spaced dω weighting
+    S *= w;
+    const spreadMax = 0.30 + 0.55 * clamp01(w / wp - 0.55);
+    const th = (rnd() * 2 - 1);
+    const ang = Math.atan2(WIND_DIR[2], WIND_DIR[0]) + th * th * Math.sign(th) * spreadMax * 1.45;
+    const a = Math.sqrt(Math.max(S, 0)) * (0.75 + rnd() * 0.5);
+    amps.push({ k, w, ang, a, ph: rnd() * Math.PI * 2 });
+    s2 += a * a * 0.5;
+  }
+  const scale = (Hs / 4) / Math.sqrt(Math.max(s2, 1e-9));
+  for (let i = 0; i < KCOMP; i++) {
+    const c = amps[i];
+    const o = i * 8;
+    out[o + 0] = Math.cos(c.ang); out[o + 1] = Math.sin(c.ang);
+    out[o + 2] = c.k; out[o + 3] = c.w;
+    out[o + 4] = c.a * scale; out[o + 5] = c.ph;
+    out[o + 6] = 1.0; out[o + 7] = 0.0;
+  }
+  return out;
+}
+
+/* ---------- app state ---------- */
+const state = {
+  wind: 5.1, swell: 1.04, chop: 1.0,
+  spawn: 1.10, bft: 1.0, splashOn: 1, foamOn: 1,
+  splashEnergy: 1.25, dropletScale: 1.0,
+  foamPersist: 0.32, foamTurb: 0.82, foamAdvect: 0.99, foamAmt: 0.87, foamStrength: 0.34, whitecaps: 0.94, leeBias: 0.72, windLee: 0.61, foamWind: 0.0, runup: 0.82, wetDry: 0.91, breaker: 0.82,
+  oceanSpan: 1.15, oceanWidth: 1.0, oceanLength: 1.0, beachWidth: 1.0, landReach: 1.05, shoreOffset: 0,
+  outerSmooth: 0.55, planetCurve: 0.0,
+  expo: 1.05, sunElev: 22, sunAz: 210, sunInt: 1.45, mie: 1.1, atmo: 1.25, caustics: 1.15, lens: 0,
+  world: 'shore', paused: false,
+  simSpeed: 1.0, cameraSpeed: 1.0,
+  mpmRenderMode: 'fluid',
+};
+window.__hybridState = state;
+
+
+const cam = { yaw: 0.62, pitch: 0.42, dist: 32, tgt: [0, 0.2, 1.5] };
+const ptr = {
+  mode: 0, world: [0, 0], vel: [0, 0], dropTimer: 0,
+  downAt: 0, downPx: [0, 0], moved: false,
+  pointers: new Map(), pinchD: 0,
+};
+
+function exportRouteState(extra = null) {
+  return {
+    schema: 'ion.cosmos.hybridsplash.route_state.v1',
+    generatedAt: new Date().toISOString(),
+    target: 'hybridsplashFable_fixed.html',
+    candidateOnly: true,
+    acceptedVisualProof: false,
+    route: {
+      protocol: location.protocol,
+      origin: location.origin === 'null' ? null : location.origin,
+      pathname: location.protocol === 'file:' ? '[file-path-redacted]' : location.pathname,
+      search: location.search,
+      hash: location.hash,
+    },
+    browser: {
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      webgpu: Boolean(navigator.gpu),
+    },
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+    state: { ...state },
+    camera: {
+      yaw: cam.yaw,
+      pitch: cam.pitch,
+      dist: cam.dist,
+      target: [...cam.tgt],
+    },
+    pointer: {
+      mode: ptr.mode,
+      world: [...ptr.world],
+      velocity: [...ptr.vel],
+      dropTimer: ptr.dropTimer,
+      activePointers: ptr.pointers.size,
+    },
+    runtimeProbe: plain(runtimeProbe),
+    bootDiag: plain(bootDiag),
+    recentConsole: consoleRing.slice(-80),
+    extra: extra == null ? null : plain(extra),
+  };
+}
+window.IONHybridSplashValidation = {
+  exportRouteState,
+  exportDiagnostics: () => plain(bootDiag),
+  exportConsole: () => consoleRing.slice(),
+  exportBundle: () => ({
+    routeState: exportRouteState(),
+    diagnostics: plain(bootDiag),
+    console: consoleRing.slice(-200),
+  }),
+};
+window.addEventListener('error', (event) => {
+  recordError('window.error', event.error || event.message, {
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+  });
+});
+window.addEventListener('unhandledrejection', (event) => {
+  recordError('window.unhandledrejection', event.reason || 'unhandled rejection');
+});
+setTimeout(() => {
+  if (bootDiag.renderLoopArmed && bootDiag.frameSubmits === 0 && $('err')?.style.display !== 'grid') {
+    showFailure('WebGPU frame stalled', 'render loop armed but no frame submitted after 4 seconds', { watchdog: 'first-frame-submit' });
+  }
+}, 4000);
+
+/* ============================== INIT ====================================== */
+async function init() {
+  diagStep('init:start');
+  if (!navigator.gpu) fail('navigator.gpu missing');
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) fail('no adapter');
+  bootDiag.adapter = await collectAdapterInfo(adapter);
+  diagStep('adapter:ready', bootDiag.adapter);
+  const device = await adapter.requestDevice();
+  bootDiag.device = collectDeviceInfo(device);
+  diagStep('device:ready', bootDiag.device);
+  if (device.addEventListener) {
+    device.addEventListener('uncapturederror', (event) => {
+      recordError('gpu.uncapturederror', event.error || 'uncaptured WebGPU error');
+      showFailure('WebGPU runtime error', event.error?.message || 'uncaptured WebGPU error', { source: 'uncapturederror' });
+    });
+  }
+  device.lost.then((info) => {
+    if (info.reason === 'destroyed') {
+      diagStep('device:destroyed', info);
+      return;
+    }
+    recordError('gpu.device_lost', info);
+    showFailure('WebGPU device lost', info.message || info.reason || 'device lost', { info });
+  });
+
+  const canvas = $('gpu');
+  const ctx = canvas.getContext('webgpu');
+  if (!ctx) fail('webgpu context missing');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  bootDiag.canvas = { format, alphaMode: 'opaque' };
+  try {
+    ctx.configure({ device, format, alphaMode: 'opaque' });
+  } catch (error) {
+    fail('canvas configure failed', { error });
+  }
+  diagStep('canvas:configured', bootDiag.canvas);
+
+  /* ---------- buffers ---------- */
+  const SB = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
+  const mk = (size, usage) => device.createBuffer({ size, usage });
+  const compBuf   = mk(KCOMP * 32, SB);
+  const bathyBuf  = mk(HN * HN * 4, SB);
+  const hfBuf     = mk(HN * HN * 16, SB);
+  const wetBuf    = mk(HN * HN * 4, SB);
+  const baseBuf   = mk(HN * HN * 16, SB);
+  const coolBuf   = mk(HN * HN * 4, SB);
+  const breachBuf = mk(HN * HN * 4, SB);
+  const foamIBuf  = mk(HN * HN * 4, SB);
+  const partsBuf  = mk(MAXP * 80, SB);
+  const pauxBuf   = mk(MAXP * 16, SB);
+  const freeBuf   = mk(MAXP * 4, SB);
+  const cntBuf    = mk(16, SB);
+  const cellsBuf  = mk(MX * MY * MZ * 16, SB);
+  const UB = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
+  const paramsU = mk(160, UB);
+  const renderU = mk(288, UB);
+  const mpmU    = mk(16, UB);
+  const impactU = mk(16, UB);
+  const fluidBlurHU = mk(16, UB);
+  const fluidBlurVU = mk(16, UB);
+
+  const idxData = new Uint32Array((NVERT - 1) * (NVERT - 1) * 6);
+  { let p = 0;
+    for (let z = 0; z < NVERT - 1; z++) for (let x = 0; x < NVERT - 1; x++) {
+      const a = z * NVERT + x, b = a + 1, c = a + NVERT, d = c + 1;
+      idxData[p++] = a; idxData[p++] = c; idxData[p++] = b;
+      idxData[p++] = b; idxData[p++] = c; idxData[p++] = d;
+    } }
+  const idxBuf = device.createBuffer({ size: idxData.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(idxBuf, 0, idxData);
+  const idxCount = idxData.length;
+
+  const texU = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING;
+  const surfTex = device.createTexture({ size: [HN, HN], format: 'rgba16float', usage: texU });
+  const auxTex  = device.createTexture({ size: [HN, HN], format: 'rgba16float', usage: texU });
+  const causticTex = device.createTexture({
+    label: 'propool-style-causticTex',
+    size: [HN, HN],
+    format: 'rgba16float',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const surfV = surfTex.createView(), auxV = auxTex.createView(), causticV = causticTex.createView();
+  const smp = device.createSampler({ magFilter: 'linear', minFilter: 'linear',
+    addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+
+  /* ---------- pipelines ---------- */
+  async function makeShaderModule(label, code) {
+    const module = device.createShaderModule({ label, code });
+    if (typeof module.getCompilationInfo === 'function') {
+      const info = await module.getCompilationInfo();
+      const messages = [...(info.messages || [])].map((msg) => ({
+        label,
+        type: msg.type,
+        message: msg.message,
+        lineNum: msg.lineNum,
+        linePos: msg.linePos,
+        offset: msg.offset,
+        length: msg.length,
+      }));
+      if (messages.length) bootDiag.shaderMessages.push(...messages);
+      const errors = messages.filter((msg) => msg.type === 'error');
+      if (errors.length) fail('shader compilation failed: ' + label, { messages: errors });
+    }
+    return module;
+  }
+  async function withGpuErrorScope(label, createFn) {
+    const useScopes = typeof device.pushErrorScope === 'function' && typeof device.popErrorScope === 'function';
+    if (!useScopes) return createFn();
+    device.pushErrorScope('validation');
+    device.pushErrorScope('internal');
+    let result;
+    try {
+      result = await createFn();
+    } catch (error) {
+      recordError('gpu.create_exception', error, { label });
+      throw error;
+    }
+    const internal = await device.popErrorScope().catch((error) => ({ scopePopError: plain(error) }));
+    const validation = await device.popErrorScope().catch((error) => ({ scopePopError: plain(error) }));
+    for (const [scope, error] of [['validation', validation], ['internal', internal]]) {
+      if (!error) continue;
+      const entry = { label, scope, error: plain(error) };
+      bootDiag.scopedErrors.push(entry);
+      fail('GPU ' + scope + ' error: ' + label, entry);
+    }
+    return result;
+  }
+  const cs = async (label, code, entry) => withGpuErrorScope('compute:' + label, async () => {
+    const module = await makeShaderModule(label, code);
+    return device.createComputePipeline({
+      label,
+      layout: 'auto',
+      compute: { module, entryPoint: entry },
+    });
+  });
+  const pOcean  = await cs('WG_OCEAN', WG_OCEAN, 'oceanEval');
+  const pBreach = await cs('WG_BREACH', WG_BREACH, 'breachResolve');
+  const pHf     = await cs('WG_HF', WG_HF, 'hfUpdate');
+  const pBreak  = await cs('WG_BREAK', WG_BREAK, 'breakFoam');
+  const pSpawn  = await cs('WG_SPAWN', WG_SPAWN, 'spawnSplash');
+  const pClear  = await cs('WG_MPMCLEAR', WG_MPMCLEAR, 'clearGrid');
+  const pP2g1   = await cs('WG_P2G1', WG_P2G1, 'p2g1');
+  const pP2g2   = await cs('WG_P2G2', WG_P2G2, 'p2g2');
+  const pGrid   = await cs('WG_GRID', WG_GRID, 'updateGrid');
+  const pG2p    = await cs('WG_G2P', WG_G2P, 'g2p');
+  const pImpact = await cs('WG_IMPACT', WG_IMPACT, 'impact');
+
+  const depthFmt = 'depth32float';
+  const rp = async (label, code, opts) => withGpuErrorScope('render:' + label, async () => {
+    const mod = await makeShaderModule(label, code);
+    return device.createRenderPipeline({
+      label,
+      layout: 'auto',
+      vertex: { module: mod, entryPoint: 'vs' },
+      fragment: { module: mod, entryPoint: 'fs',
+        targets: [{ format, blend: opts.blend }] },
+      primitive: { topology: opts.topo || 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: depthFmt,
+        depthWriteEnabled: opts.depthWrite, depthCompare: opts.depthCmp },
+    });
+  });
+  const alphaBlend = {
+    color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+    alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+  };
+  const additiveBlend = {
+    color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+    alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+  };
+  const fluidFmt = 'rgba16float';
+  const rpFluid = async (label, code, opts = {}) => withGpuErrorScope('render:' + label, async () => {
+    const mod = await makeShaderModule(label, code);
+    const desc = {
+      label,
+      layout: 'auto',
+      vertex: { module: mod, entryPoint: 'vs' },
+      fragment: { module: mod, entryPoint: 'fs',
+        targets: [{ format: opts.format || format, blend: opts.blend }] },
+      primitive: { topology: opts.topo || 'triangle-list', cullMode: 'none' },
+    };
+    if (opts.depth) {
+      desc.depthStencil = { format: depthFmt,
+        depthWriteEnabled: Boolean(opts.depthWrite), depthCompare: opts.depthCmp || 'always' };
+    }
+    return device.createRenderPipeline(desc);
+  });
+  const rCaustic = await rpFluid('RS_CAUSTIC', RS_CAUSTIC, { format: 'rgba16float', blend: additiveBlend });
+  const rSky     = await rp('RS_SKY',     RS_SKY,     { depthWrite: false, depthCmp: 'always' });
+  const rTerrain = await rp('RS_TERRAIN', RS_TERRAIN, { depthWrite: true,  depthCmp: 'less' });
+  const rWater   = await rp('RS_WATER',   RS_WATER,   { depthWrite: true,  depthCmp: 'less' });
+  const rPart    = await rp('RS_PART',    RS_PART,    { depthWrite: true, depthCmp: 'less', topo: 'triangle-strip' });
+  const rFluidSplat = await rpFluid('RS_MLSMPM_FLUID_SPLAT', fluidSplatWGSL, { format: fluidFmt, topo: 'triangle-strip', depth: true, depthWrite: false, depthCmp: 'less', blend: additiveBlend });
+  const rFluidBlur = await rpFluid('RS_MLSMPM_FLUID_BLUR', fluidBlurWGSL, { format: fluidFmt });
+  const rFluidComposite = await rpFluid('RS_MLSMPM_FLUID_COMPOSITE', fluidCompositeWGSL, { format, depth: true, depthWrite: false, depthCmp: 'always' });
+  diagStep('pipelines:ready', { compute: 11, render: 8, fluid: 'heightfield-rs-water-material-unified-no-cyan-overlay', caustics: 'ProPool-style render-target pass' });
+
+  /* ---------- bind groups ---------- */
+  const bgResource = (r) => {
+    const ctor = r?.constructor?.name || '';
+    return /^(GPUTextureView|GPUSampler)$/.test(ctor) ? r : { buffer: r };
+  };
+  const bg = (pipe, entries, gi = 0) => device.createBindGroup({
+    layout: pipe.getBindGroupLayout(gi),
+    entries: entries.map((r, i) => ({ binding: i, resource: bgResource(r) })),
+  });
+  const bgOcean  = bg(pOcean,  [compBuf, bathyBuf, baseBuf, paramsU]);
+  const bgBreach = bg(pBreach, [breachBuf, foamIBuf, hfBuf, paramsU]);
+  const bgHf     = bg(pHf,     [hfBuf, bathyBuf, paramsU]);
+  const bgBreak  = bg(pBreak,  [hfBuf, baseBuf, bathyBuf, paramsU, surfV, auxV, wetBuf]);
+  const bgSpawn0 = bg(pSpawn,  [hfBuf, baseBuf, bathyBuf, coolBuf, cntBuf, freeBuf, partsBuf, pauxBuf]);
+  const bgSpawn1 = bg(pSpawn,  [paramsU], 1);
+  const bgClear  = bg(pClear,  [cellsBuf]);
+  const bgP2g1   = bg(pP2g1,   [partsBuf, cellsBuf, pauxBuf]);
+  const bgP2g2   = bg(pP2g2,   [partsBuf, cellsBuf, pauxBuf, mpmU]);
+  const bgGrid   = bg(pGrid,   [cellsBuf, mpmU, surfV, bathyBuf]);
+  const bgG2p    = bg(pG2p,    [partsBuf, cellsBuf, mpmU, pauxBuf, surfV, bathyBuf]);
+  const bgImpact = bg(pImpact, [partsBuf, pauxBuf, surfV, breachBuf, foamIBuf, cntBuf, freeBuf, impactU, bathyBuf]);
+  const bgCaustic = bg(rCaustic, [renderU, surfV, smp, bathyBuf]);
+  const bgSky     = bg(rSky,     [renderU]);
+  const bgTerrain = bg(rTerrain, [renderU, bathyBuf, surfV, smp, wetBuf, causticV]);
+  const bgWater   = bg(rWater,   [renderU, surfV, auxV, smp, causticV]);
+  const bgPart    = bg(rPart,    [renderU, partsBuf, pauxBuf]);
+  const bgFluidSplat = bg(rFluidSplat, [renderU, partsBuf, pauxBuf]);
+  let bgFluidBlurH = null, bgFluidBlurV = null, bgFluidComposite = null;
+
+  /* ---------- world + spectrum + pool seeding ---------- */
+  function uploadWorld() { device.queue.writeBuffer(bathyBuf, 0, genBathy(state.world)); }
+  function uploadSpectrum() { device.queue.writeBuffer(compBuf, 0, genSpectrum(state.wind, state.swell)); }
+  function resetWater() {
+    device.queue.writeBuffer(hfBuf, 0, new Float32Array(HN * HN * 4));
+    device.queue.writeBuffer(wetBuf, 0, new Float32Array(HN * HN));
+    device.queue.writeBuffer(coolBuf, 0, new Float32Array(HN * HN));
+    device.queue.writeBuffer(breachBuf, 0, new Int32Array(HN * HN));
+    device.queue.writeBuffer(foamIBuf, 0, new Int32Array(HN * HN));
+    device.queue.writeBuffer(partsBuf, 0, new Float32Array(MAXP * 20));
+    const fl = new Uint32Array(MAXP);
+    for (let i = 0; i < MAXP; i++) fl[i] = i;
+    device.queue.writeBuffer(freeBuf, 0, fl);
+    device.queue.writeBuffer(cntBuf, 0, new Int32Array([MAXP, 0, 0, 0]));
+  }
+  uploadWorld(); uploadSpectrum(); resetWater();
+
+  /* ---------- depth + resize ---------- */
+  let depthTex = null, depthV = null, aspect = 1;
+  let fluidTexA = null, fluidTexB = null, fluidAV = null, fluidBV = null;
+  let sceneTex = null, sceneV = null;
+  function onResize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+    const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
+    const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+    if (canvas.width === w && canvas.height === h && depthTex && fluidTexA && sceneTex) return;
+    canvas.width = w; canvas.height = h;
+    aspect = w / h;
+    runtimeProbe.canvas = { width: w, height: h, devicePixelRatio: dpr };
+    if (depthTex) depthTex.destroy();
+    if (fluidTexA) fluidTexA.destroy();
+    if (fluidTexB) fluidTexB.destroy();
+    if (sceneTex) sceneTex.destroy();
+    depthTex = device.createTexture({ size: [w, h], format: depthFmt,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT });
+    depthV = depthTex.createView();
+    const fluidUsage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+    fluidTexA = device.createTexture({ size: [w, h], format: fluidFmt, usage: fluidUsage });
+    fluidTexB = device.createTexture({ size: [w, h], format: fluidFmt, usage: fluidUsage });
+    sceneTex = device.createTexture({ size: [w, h], format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+    fluidAV = fluidTexA.createView();
+    fluidBV = fluidTexB.createView();
+    sceneV = sceneTex.createView();
+    device.queue.writeBuffer(fluidBlurHU, 0, new Float32Array([1, 0, w, h]));
+    device.queue.writeBuffer(fluidBlurVU, 0, new Float32Array([0, 1, w, h]));
+    bgFluidBlurH = bg(rFluidBlur, [fluidAV, fluidBlurHU]);
+    bgFluidBlurV = bg(rFluidBlur, [fluidBV, fluidBlurVU]);
+    bgFluidComposite = bg(rFluidComposite, [renderU, fluidAV, sceneV, surfV, smp, causticV, bathyBuf]);
+  }
+  window.addEventListener('resize', onResize);
+  onResize();
+
+  /* ---------- offscreen visual readback probe ---------- */
+  const READBACK_N = 64;
+  const READBACK_BPR = 256; // 64 rgba8 pixels; WebGPU copy rows must be 256-byte aligned.
+  const readbackTex = device.createTexture({
+    label: 'hybridsplash-visual-readback-color',
+    size: [READBACK_N, READBACK_N],
+    format,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+  });
+  const readbackDepth = device.createTexture({
+    label: 'hybridsplash-visual-readback-depth',
+    size: [READBACK_N, READBACK_N],
+    format: depthFmt,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  const readbackBuf = device.createBuffer({
+    label: 'hybridsplash-visual-readback-buffer',
+    size: READBACK_BPR * READBACK_N,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+  const visualReadback = {
+    schema: 'ion.cosmos.hybridsplash.visual_readback.v1',
+    candidateOnly: true,
+    acceptedVisualProof: false,
+    requested: false,
+    pending: false,
+    complete: false,
+    failed: false,
+    encodedAtFrame: null,
+    completedAtFrame: null,
+    size: [READBACK_N, READBACK_N],
+    bytesPerRow: READBACK_BPR,
+    meanRgb: null,
+    maxRgb: null,
+    nonZeroRgb: null,
+    totalPixels: READBACK_N * READBACK_N,
+    nonBlack: false,
+    error: null,
+  };
+  runtimeProbe.visualReadback = visualReadback;
+  function analyzeVisualReadback(bytes, atFrame) {
+    let sum = 0, max = 0, nonZero = 0;
+    for (let y = 0; y < READBACK_N; y++) {
+      const row = y * READBACK_BPR;
+      for (let x = 0; x < READBACK_N; x++) {
+        const i = row + x * 4;
+        const r = bytes[i], g = bytes[i + 1], b = bytes[i + 2];
+        const rgb = r + g + b;
+        sum += rgb / 3;
+        max = Math.max(max, r, g, b);
+        if (rgb > 0) nonZero++;
+      }
+    }
+    visualReadback.pending = false;
+    visualReadback.complete = true;
+    visualReadback.completedAtFrame = atFrame;
+    visualReadback.completedAt = new Date().toISOString();
+    visualReadback.meanRgb = Math.round((sum / visualReadback.totalPixels) * 1000) / 1000;
+    visualReadback.maxRgb = max;
+    visualReadback.nonZeroRgb = nonZero;
+    visualReadback.nonBlack = max > 4 && nonZero > visualReadback.totalPixels * 0.01;
+    diagStep('visual-readback:complete', visualReadback);
+  }
+  function scheduleVisualReadbackMap(atFrame) {
+    visualReadback.requested = true;
+    visualReadback.pending = true;
+    const workDone = typeof device.queue.onSubmittedWorkDone === 'function'
+      ? device.queue.onSubmittedWorkDone()
+      : Promise.resolve();
+    workDone.then(() => readbackBuf.mapAsync(GPUMapMode.READ)).then(() => {
+      const bytes = new Uint8Array(readbackBuf.getMappedRange()).slice();
+      readbackBuf.unmap();
+      analyzeVisualReadback(bytes, atFrame);
+    }).catch((error) => {
+      visualReadback.pending = false;
+      visualReadback.failed = true;
+      visualReadback.error = plain(error);
+      diagStep('visual-readback:failed', visualReadback);
+    });
+  }
+  function encodeVisualReadback(enc) {
+    if (visualReadback.complete || visualReadback.pending || visualReadback.failed || frame < 1) return false;
+    const rr = enc.beginRenderPass({
+      label: 'visual-readback-pass',
+      colorAttachments: [{ view: readbackTex.createView(),
+        clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
+      depthStencilAttachment: { view: readbackDepth.createView(),
+        depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
+    });
+    rr.setPipeline(rSky); rr.setBindGroup(0, bgSky); rr.draw(3);
+    rr.setIndexBuffer(idxBuf, 'uint32');
+    rr.setPipeline(rTerrain); rr.setBindGroup(0, bgTerrain); rr.drawIndexed(idxCount);
+    rr.setPipeline(rWater); rr.setBindGroup(0, bgWater); rr.drawIndexed(idxCount);
+    if (state.mpmRenderMode !== 'fluid') { rr.setPipeline(rPart); rr.setBindGroup(0, bgPart); rr.draw(4, MAXP); }
+    rr.end();
+    enc.copyTextureToBuffer(
+      { texture: readbackTex },
+      { buffer: readbackBuf, bytesPerRow: READBACK_BPR, rowsPerImage: READBACK_N },
+      [READBACK_N, READBACK_N, 1],
+    );
+    visualReadback.encodedAtFrame = frame;
+    return true;
+  }
+
+  /* ---------- camera + picking ---------- */
+  const visualScaleX = () => Math.max(0.1, state.oceanWidth || 1.0);
+  const visualScaleZ = () => Math.max(0.1, state.oceanLength || 1.0);
+  const visualScaleMax = () => Math.max(visualScaleX(), visualScaleZ());
+  const FOV = 50 * Math.PI / 180;
+  function camBasis() {
+    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+    const eye = [cam.tgt[0] + cam.dist * cp * sy,
+                 cam.tgt[1] + cam.dist * sp,
+                 cam.tgt[2] + cam.dist * cp * cy];
+    const fwd = norm3(sub3(cam.tgt, eye));
+    const right = norm3(cross3(fwd, [0, 1, 0]));
+    const up = cross3(right, fwd);
+    return { eye, fwd, right, up };
+  }
+  function pickWater(px, py) {
+    const { eye, fwd, right, up } = camBasis();
+    const tf = Math.tan(FOV / 2);
+    const nx = (px / canvas.clientWidth) * 2 - 1;
+    const ny = 1 - (py / canvas.clientHeight) * 2;
+    const dir = norm3([
+      fwd[0] + right[0] * nx * tf * aspect + up[0] * ny * tf,
+      fwd[1] + right[1] * nx * tf * aspect + up[1] * ny * tf,
+      fwd[2] + right[2] * nx * tf * aspect + up[2] * ny * tf]);
+    if (dir[1] > -1e-4) return null;
+    const t = -eye[1] / dir[1];
+    if (t < 0 || t > 900) return null;
+    const xVis = eye[0] + dir[0] * t;
+    const zVis = eye[2] + dir[2] * t;
+    // Pointer coordinates remain in the same physical world-space as the enlarged
+    // ocean domain. Do not divide by scale, and do not wrap/tile.
+    return [xVis, zVis];
+  }
+
+  /* ---------- pointers ---------- */
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    cam.dist = Math.min(260, Math.max(6, cam.dist * (1 + Math.sign(e.deltaY) * 0.09 * (state.cameraSpeed ?? 1))));
+  }, { passive: false });
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, ctrl: e.ctrlKey });
+    if (ptr.pointers.size === 2) {
+      const ps = [...ptr.pointers.values()];
+      ptr.pinchD = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
+      ptr.mode = 0;
+    } else if (e.button === 2 || e.ctrlKey) {
+      // orbit handled in move
+    } else {
+      ptr.downAt = performance.now();
+      ptr.downPx = [e.clientX, e.clientY];
+      ptr.moved = false;
+      const w = pickWater(e.clientX, e.clientY);
+      if (w) { ptr.world = w; ptr.vel = [0, 0]; }
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const prev = ptr.pointers.get(e.pointerId);
+    const hov = pickWater(e.clientX, e.clientY);
+    if (hov) ptr.world = hov;                       // lens follows cursor
+    if (!prev) return;
+    const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    if (ptr.pointers.size === 2) {
+      prev.x = e.clientX; prev.y = e.clientY;
+      const ps = [...ptr.pointers.values()];
+      const d = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
+      if (ptr.pinchD > 0) cam.dist = Math.min(60, Math.max(6, cam.dist * ptr.pinchD / Math.max(d, 1)));
+      ptr.pinchD = d;
+      cam.yaw -= dx * 0.005 * (state.cameraSpeed ?? 1); cam.pitch = Math.min(1.45, Math.max(0.06, cam.pitch + dy * 0.005 * (state.cameraSpeed ?? 1)));
+      return;
+    }
+    if (prev.btn === 2 || prev.ctrl) {
+      cam.yaw -= dx * 0.006 * (state.cameraSpeed ?? 1);
+      cam.pitch = Math.min(1.45, Math.max(0.06, cam.pitch + dy * 0.006 * (state.cameraSpeed ?? 1)));
+    } else if (prev.btn === 0) {
+      if (Math.hypot(e.clientX - ptr.downPx[0], e.clientY - ptr.downPx[1]) > 7) ptr.moved = true;
+      if (ptr.moved && hov) {
+        const dt = Math.max(1e-3, FRAME_DT);
+        const vx = (hov[0] - ptr.world[0]) / dt, vz = (hov[1] - ptr.world[1]) / dt;
+        ptr.vel = [ptr.vel[0] * 0.6 + vx * 0.4 * 0.12, ptr.vel[1] * 0.6 + vz * 0.4 * 0.12];
+        ptr.mode = 1;
+      }
+    }
+    prev.x = e.clientX; prev.y = e.clientY;
+  });
+  const endPtr = (e) => {
+    const was = ptr.pointers.get(e.pointerId);
+    ptr.pointers.delete(e.pointerId);
+    if (was && was.btn === 0 && !was.ctrl && !ptr.moved &&
+        performance.now() - ptr.downAt < 260 && ptr.pointers.size === 0) {
+      const w = pickWater(e.clientX, e.clientY);
+      if (w) { ptr.world = w; ptr.dropTimer = 3; }
+    }
+    if (ptr.pointers.size === 0) { ptr.mode = 0; ptr.vel = [0, 0]; }
+  };
+  canvas.addEventListener('pointerup', endPtr);
+  canvas.addEventListener('pointercancel', endPtr);
+
+  /* ---------- UI ---------- */
+  const fmt1 = (x) => (Math.round(x * 100) / 100).toString();
+  const bindSlider = (id, key, vid, suffix, after) => {
+    const el = $(id), out = $(vid);
+    const show = () => { out.textContent = fmt1(state[key]) + (suffix || ''); };
+    el.value = state[key]; show();
+    el.addEventListener('input', () => {
+      state[key] = parseFloat(el.value); show();
+      if (after) after();
+    });
+    return el;
+  };
+  const sWind  = bindSlider('wind', 'wind', 'windV', '', () => uploadSpectrum());
+  const sSwell = bindSlider('swell', 'swell', 'swellV', 'm', () => uploadSpectrum());
+  const sChop  = bindSlider('chop', 'chop', 'chopV', '');
+  const sSpawn = bindSlider('spawn', 'spawn', 'spawnV', '×');
+  const sSplashEnergy = bindSlider('splashEnergy', 'splashEnergy', 'splashEnergyV', '×');
+  const sDropletScale = bindSlider('dropletScale', 'dropletScale', 'dropletScaleV', '×');
+  const sBft   = bindSlider('bft', 'bft', 'bftV', '×');
+  const sFoamPersist = bindSlider('foamPersist', 'foamPersist', 'foamPersistV', '');
+  const sFoamTurb = bindSlider('foamTurb', 'foamTurb', 'foamTurbV', '×');
+  const sFoamAdvect = bindSlider('foamAdvect', 'foamAdvect', 'foamAdvectV', 'px');
+  const sFoamAmt = bindSlider('foamAmt', 'foamAmt', 'foamAmtV', '×');
+  const sFoamStrength = bindSlider('foamStrength', 'foamStrength', 'foamStrengthV', '×');
+  const sWhitecaps = bindSlider('whitecaps', 'whitecaps', 'whitecapsV', '×');
+  const sLeeBias = bindSlider('leeBias', 'leeBias', 'leeBiasV', '');
+  const sWindLee = bindSlider('windLee', 'windLee', 'windLeeV', '');
+  const sFoamWind = bindSlider('foamWind', 'foamWind', 'foamWindV', '×');
+  const sRunup = bindSlider('runup', 'runup', 'runupV', '×');
+  const sWetDry = bindSlider('wetDry', 'wetDry', 'wetDryV', '×');
+  const sBreaker = bindSlider('breaker', 'breaker', 'breakerV', 'γ');
+  const rebuildWorld = () => { uploadWorld(); resetWater(); };
+  const sOceanSpan = bindSlider('oceanSpan', 'oceanSpan', 'oceanSpanV', '×', rebuildWorld);
+  const sOceanWidth = bindSlider('oceanWidth', 'oceanWidth', 'oceanWidthV', '×', rebuildWorld);
+  const sOceanLength = bindSlider('oceanLength', 'oceanLength', 'oceanLengthV', '×', rebuildWorld);
+  const sBeachWidth = bindSlider('beachWidth', 'beachWidth', 'beachWidthV', '×', rebuildWorld);
+  const sLandReach = bindSlider('landReach', 'landReach', 'landReachV', '×', rebuildWorld);
+  const sShoreOffset = bindSlider('shoreOffset', 'shoreOffset', 'shoreOffsetV', 'm', rebuildWorld);
+  bindSlider('outerSmooth', 'outerSmooth', 'outerSmoothV', '');
+  bindSlider('planetCurve', 'planetCurve', 'planetCurveV', '×');
+  bindSlider('expo', 'expo', 'expoV', '');
+  const sSunElev = bindSlider('sunElev', 'sunElev', 'sunElevV', '°');
+  const sSunAz = bindSlider('sunAz', 'sunAz', 'sunAzV', '°');
+  const sSunInt = bindSlider('sunInt', 'sunInt', 'sunIntV', '×');
+  const sMie = bindSlider('mie', 'mie', 'mieV', '×');
+  const sAtmo = bindSlider('atmo', 'atmo', 'atmoV', '×');
+  bindSlider('caustics', 'caustics', 'causticsV', '×');
+  bindSlider('simSpeed', 'simSpeed', 'simSpeedV', '×');
+  bindSlider('cameraSpeed', 'cameraSpeed', 'cameraSpeedV', '×');
+  const setTog = (el, on) => el.classList.toggle('on', !!on);
+  const syncToggleButtons = () => {
+    setTog($('tSplash'), state.splashOn);
+    $('tSplash').textContent = state.splashOn ? 'Splash ON' : 'Splash OFF';
+    setTog($('tFoam'), state.foamOn);
+    $('tFoam').textContent = state.foamOn ? 'Foam ON' : 'Foam OFF';
+  };
+  syncToggleButtons();
+  const syncMpmModeButtons = () => {
+    const box = $('mpmModes');
+    if (!box) return;
+    [...box.children].forEach((b) => setTog(b, b.dataset.mpmMode === state.mpmRenderMode));
+  };
+  syncMpmModeButtons();
+  $('mpmModes').addEventListener('click', (e) => {
+    const m = e.target.dataset && e.target.dataset.mpmMode;
+    if (!m) return;
+    state.mpmRenderMode = m;
+    syncMpmModeButtons();
+  });
+  $('tSplash').addEventListener('click', () => {
+    state.splashOn = state.splashOn ? 0 : 1;
+    syncToggleButtons();
+  });
+  $('tFoam').addEventListener('click', () => {
+    state.foamOn = state.foamOn ? 0 : 1;
+    syncToggleButtons();
+  });
+  $('tLens').addEventListener('click', () => {
+    state.lens = state.lens ? 0 : 1; setTog($('tLens'), state.lens);
+  });
+  $('bReset').addEventListener('click', resetWater);
+  const setPause = (p) => {
+    state.paused = p;
+    $('bPause').textContent = p ? 'Resume' : 'Pause';
+    setTog($('bPause'), p);
+  };
+  $('bPause').addEventListener('click', () => setPause(!state.paused));
+  $('bExport').addEventListener('click', () => {
+    downloadJson('hybridsplash-route-state.json', window.IONHybridSplashValidation.exportBundle());
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPause(!state.paused); }
+  });
+  $('fold').addEventListener('click', () => $('panel').classList.toggle('open'));
+  const setDrawerPage = (page) => {
+    document.querySelectorAll('#panel .page').forEach((el) => {
+      el.classList.toggle('active', el.dataset.page === page);
+    });
+    document.querySelectorAll('#rail .rail-btn[data-drawer-page]').forEach((btn) => {
+      setTog(btn, btn.dataset.drawerPage === page);
+    });
+  };
+  $('rail').addEventListener('click', (e) => {
+    const btn = e.target.closest('.rail-btn[data-drawer-page]');
+    if (!btn) return;
+    setDrawerPage(btn.dataset.drawerPage);
+    $('panel').classList.add('open');
+  });
+  setDrawerPage('sea');
+
+  const PRESETS = {
+    glass: { wind: 3.0, swell: 0.10, chop: 0.30, spawn: 0.4, splashEnergy: 0.75, foamTurb: 0.34, foamAmt: 0.45, foamStrength: 0.55, whitecaps: 0.10, leeBias: 0.15, windLee: 0.20, foamWind: 0.45, runup: 0.35, breaker: 0.92, caustics: 1.35, sunElev: 42, sunAz: 150, sunInt: 1.55, mie: 0.65, atmo: 0.85, oceanSpan: 1.05, oceanWidth: 1.2, oceanLength: 1.25, beachWidth: 0.85, landReach: 0.75, shoreOffset: 1.5, outerSmooth: 0.45, planetCurve: 0.0 },
+    swell: { wind: 5.1, swell: 1.04, chop: 1.0, spawn: 1.10, bft: 1.0, splashOn: 1, foamOn: 1, splashEnergy: 1.25, dropletScale: 1.0, foamPersist: 0.32, foamTurb: 0.82, foamAdvect: 0.99, foamAmt: 0.87, foamStrength: 0.34, whitecaps: 0.94, leeBias: 0.72, windLee: 0.61, foamWind: 0.0, runup: 0.82, wetDry: 0.91, breaker: 0.82, caustics: 1.15, sunElev: 22, sunAz: 210, sunInt: 1.45, mie: 1.1, atmo: 1.25, oceanSpan: 1.15, oceanWidth: 1.25, oceanLength: 1.3, beachWidth: 1.0, landReach: 1.05, shoreOffset: 0, outerSmooth: 0.55, planetCurve: 0.0 },
+    storm: { wind: 14.0, swell: 0.85, chop: 0.95, spawn: 1.6, splashEnergy: 1.75, foamTurb: 1.45, foamAmt: 1.35, foamStrength: 1.45, whitecaps: 1.65, leeBias: 0.55, windLee: 0.55, foamWind: 1.55, runup: 1.28, breaker: 0.64, caustics: 0.9, sunElev: 10, sunAz: 190, sunInt: 0.95, mie: 2.4, atmo: 1.9, oceanSpan: 1.35, oceanWidth: 1.45, oceanLength: 1.55, beachWidth: 1.25, landReach: 1.5, shoreOffset: -2.0, outerSmooth: 0.62, planetCurve: 0.15 },
+  };
+  $('presets').addEventListener('click', (e) => {
+    const p = e.target.dataset && e.target.dataset.p;
+    if (!p) return;
+    [...$('presets').children].forEach((b) => setTog(b, b === e.target));
+    Object.assign(state, PRESETS[p]);
+    syncToggleButtons();
+    ['wind', 'swell', 'chop', 'spawn', 'splashEnergy', 'dropletScale', 'bft',
+     'foamPersist', 'foamTurb', 'foamAdvect', 'foamAmt', 'foamStrength', 'whitecaps', 'leeBias', 'windLee', 'foamWind', 'runup', 'wetDry', 'breaker',
+     'oceanSpan', 'oceanWidth', 'oceanLength', 'beachWidth', 'landReach', 'shoreOffset', 'outerSmooth', 'planetCurve', 'expo', 'sunElev', 'sunAz',
+     'sunInt', 'mie', 'atmo', 'caustics'].forEach((k) => {
+      const el = $(k);
+      if (el && state[k] !== undefined) { el.value = state[k]; el.dispatchEvent(new Event('input')); }
+    });
+  });
+  $('worlds').addEventListener('click', (e) => {
+    const w = e.target.dataset && e.target.dataset.w;
+    if (!w) return;
+    [...$('worlds').children].forEach((b) => setTog(b, b === e.target));
+    state.world = w;
+    uploadWorld(); resetWater();
+  });
+
+  /* ---------- frame loop ---------- */
+  const pf = new Float32Array(40);
+  const rf = new Float32Array(72);
+  const zero8 = new Int32Array(2);
+  let simTime = 0, frame = 0;
+  let fpsN = 0, fpsT = 0, last = performance.now();
+  const HFG = HN / 8;
+  const CELLG = Math.ceil((MX * MY * MZ) / 64);
+  const PARTG = Math.ceil(MAXP / 64);
+  const frameDt = () => FRAME_DT * Math.max(0, Math.min(3, state.simSpeed ?? 1));
+  function sunDirectionFromState() {
+    const el = state.sunElev * Math.PI / 180;
+    const az = state.sunAz * Math.PI / 180;
+    return norm3([
+      Math.cos(el) * Math.sin(az),
+      Math.sin(el),
+      Math.cos(el) * Math.cos(az),
+    ]);
+  }
+
+  function writeUniforms() {
+    const dt = frameDt();
+    const mode = ptr.dropTimer > 0 ? 2 : ptr.mode;
+    pf[0] = dt / HF_SUB; pf[1] = simTime; pf[2] = frame; pf[3] = visualScaleX();
+    pf[4] = WIND_DIR[0]; pf[5] = WIND_DIR[2]; pf[6] = state.wind; pf[7] = state.chop;
+    pf[8] = 0.32; pf[9] = 1.15; pf[10] = state.bft; pf[11] = state.spawn;
+    pf[12] = ptr.world[0]; pf[13] = ptr.world[1];
+    pf[14] = mode === 2 ? 0.7 : 0.95; pf[15] = mode;
+    pf[16] = ptr.vel[0]; pf[17] = ptr.vel[1]; pf[18] = 0.55; pf[19] = state.splashOn;
+    pf[20] = SPAWN_CAP * state.spawn; pf[21] = CROWN_CAP; pf[22] = state.foamOn; pf[23] = visualScaleZ();
+    pf[24] = state.foamPersist; pf[25] = state.foamTurb; pf[26] = state.foamAdvect; pf[27] = state.runup;
+    pf[28] = state.splashEnergy; pf[29] = state.dropletScale; pf[30] = state.wetDry; pf[31] = state.breaker ?? 0.78;
+    pf[32] = state.foamAmt ?? 1.0; pf[33] = state.whitecaps ?? 1.0; pf[34] = state.leeBias ?? 0.0; pf[35] = state.windLee ?? 0.0;
+    pf[36] = state.foamStrength ?? 1.0; pf[37] = state.foamWind ?? 1.0; pf[38] = 0.0; pf[39] = 0.0;
+    device.queue.writeBuffer(paramsU, 0, pf);
+
+    const { eye, fwd, right, up } = camBasis();
+    const view = lookAt(eye, cam.tgt, [0, 1, 0]);
+    const proj = perspective(FOV, aspect, 0.1, 300);
+    const viewProj = mat4Mul(proj, view);
+    rf.set(viewProj, 0);
+    rf.set(mat4Invert(viewProj), 56);
+    rf[16] = eye[0]; rf[17] = eye[1]; rf[18] = eye[2]; rf[19] = 0;
+    const sd = sunDirectionFromState();
+    rf[20] = sd[0]; rf[21] = sd[1]; rf[22] = sd[2]; rf[23] = state.sunInt;
+    rf[24] = simTime; rf[25] = state.expo; rf[26] = state.lens; rf[27] = state.foamOn;
+    rf[28] = ptr.world[0]; rf[29] = ptr.world[1]; rf[30] = 2.3; rf[31] = state.caustics;
+    const tf = Math.tan(FOV / 2);
+    rf[32] = right[0]; rf[33] = right[1]; rf[34] = right[2]; rf[35] = tf * aspect;
+    rf[36] = up[0]; rf[37] = up[1]; rf[38] = up[2]; rf[39] = tf;
+    rf[40] = fwd[0]; rf[41] = fwd[1]; rf[42] = fwd[2]; rf[43] = state.dropletScale;
+    rf[44] = state.mie; rf[45] = state.atmo; rf[46] = visualScaleX(); rf[47] = visualScaleZ();
+    rf[48] = state.foamAmt ?? 1.0; rf[49] = state.whitecaps ?? 1.0; rf[50] = state.leeBias ?? 0.0; rf[51] = state.windLee ?? 0.0;
+    rf[52] = state.outerSmooth ?? 0.55; rf[53] = state.planetCurve ?? 0.0; rf[54] = 1.0; rf[55] = 0.0;
+    device.queue.writeBuffer(renderU, 0, rf);
+
+    device.queue.writeBuffer(mpmU, 0, new Float32Array([dt / MPM_SUB, 50.0, 3.0, 0.10]));
+    device.queue.writeBuffer(impactU, 0, new Float32Array([dt, 1.0, CROWN_CAP, frame]));
+  }
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const rdt = Math.min((now - last) / 1000, 0.25);
+    last = now;
+    fpsN++; fpsT += rdt;
+    if (fpsT >= 0.5) {
+      runtimeProbe.fps = Math.round(fpsN / fpsT);
+      $('fps').textContent = runtimeProbe.fps;
+      fpsN = 0; fpsT = 0;
+    }
+
+    writeUniforms();
+    const enc = device.createCommandEncoder();
+
+    if (!state.paused) {
+      device.queue.writeBuffer(cntBuf, 4, zero8);   // reset frame budgets
+      const cSurface = enc.beginComputePass({ label: 'surface-field-pass' });
+      cSurface.setPipeline(pOcean); cSurface.setBindGroup(0, bgOcean); cSurface.dispatchWorkgroups(HFG, HFG);
+      cSurface.setPipeline(pBreach); cSurface.setBindGroup(0, bgBreach); cSurface.dispatchWorkgroups(HFG, HFG);
+      cSurface.setPipeline(pHf); cSurface.setBindGroup(0, bgHf);
+      for (let s = 0; s < HF_SUB; s++) cSurface.dispatchWorkgroups(HFG, HFG);
+      cSurface.setPipeline(pBreak); cSurface.setBindGroup(0, bgBreak); cSurface.dispatchWorkgroups(HFG, HFG);
+      cSurface.setPipeline(pSpawn); cSurface.setBindGroup(0, bgSpawn0); cSurface.setBindGroup(1, bgSpawn1);
+      cSurface.dispatchWorkgroups(HFG, HFG);
+      cSurface.end();
+
+      const cMpm = enc.beginComputePass({ label: 'mpm-feedback-pass' });
+      for (let s = 0; s < MPM_SUB; s++) {
+        cMpm.setPipeline(pClear); cMpm.setBindGroup(0, bgClear); cMpm.dispatchWorkgroups(CELLG);
+        cMpm.setPipeline(pP2g1); cMpm.setBindGroup(0, bgP2g1); cMpm.dispatchWorkgroups(PARTG);
+        cMpm.setPipeline(pP2g2); cMpm.setBindGroup(0, bgP2g2); cMpm.dispatchWorkgroups(PARTG);
+        cMpm.setPipeline(pGrid); cMpm.setBindGroup(0, bgGrid); cMpm.dispatchWorkgroups(CELLG);
+        cMpm.setPipeline(pG2p); cMpm.setBindGroup(0, bgG2p); cMpm.dispatchWorkgroups(PARTG);
+      }
+      cMpm.setPipeline(pImpact); cMpm.setBindGroup(0, bgImpact); cMpm.dispatchWorkgroups(PARTG);
+      cMpm.end();
+      simTime += frameDt(); frame++;
+      if (ptr.dropTimer > 0) ptr.dropTimer--;
+    }
+    // ProPool architecture: generate causticTex after surfTex/auxTex update and
+    // before any receiver material samples it in terrain/water render passes.
+    const caPass = enc.beginRenderPass({
+      label: 'propool-caustic-map-pass',
+      colorAttachments: [{ view: causticV,
+        clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+    });
+    caPass.setIndexBuffer(idxBuf, 'uint32');
+    caPass.setPipeline(rCaustic); caPass.setBindGroup(0, bgCaustic); caPass.drawIndexed(idxCount);
+    caPass.end();
+
+    runtimeProbe.frame = frame;
+    runtimeProbe.simTime = simTime;
+    runtimeProbe.paused = state.paused;
+    const visualReadbackEncoded = encodeVisualReadback(enc);
+
+    const frameView = ctx.getCurrentTexture().createView();
+
+    // 1) Draw the real Hybrid scene first into a sampleable scene texture.
+    // The final MLS-MPM fluid pass uses sceneV only as the no-fluid background.
+    // Fluid pixels are shaded by the same RS_WATER heightfield material block,
+    // not by a separate cyan/alpha overlay.
+    const r = enc.beginRenderPass({
+      colorAttachments: [{ view: sceneV,
+        clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
+      depthStencilAttachment: { view: depthV,
+        depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
+    });
+    r.setPipeline(rSky); r.setBindGroup(0, bgSky); r.draw(3);
+    r.setIndexBuffer(idxBuf, 'uint32');
+    r.setPipeline(rTerrain); r.setBindGroup(0, bgTerrain); r.drawIndexed(idxCount);
+    r.setPipeline(rWater); r.setBindGroup(0, bgWater); r.drawIndexed(idxCount);
+    r.end();
+
+    // Optional original aligned particle draw.  This remains the trusted location
+    // baseline and can be toggled independently from the fluid reconstruction.
+    if (state.mpmRenderMode === 'particles' || state.mpmRenderMode === 'both') {
+      const rpPass = enc.beginRenderPass({
+        label: 'mls-mpm-worldspace-particle-pass',
+        colorAttachments: [{ view: sceneV, loadOp: 'load', storeOp: 'store' }],
+        depthStencilAttachment: { view: depthV, depthLoadOp: 'load', depthStoreOp: 'store' },
+      });
+      rpPass.setPipeline(rPart); rpPass.setBindGroup(0, bgPart); rpPass.draw(4, MAXP);
+      rpPass.end();
+    }
+
+    // 2) Reconstruct MLS-MPM as optical water: splat particle thickness through
+    // the SAME viewProj and loaded scene depth, blur/filter it, then use that
+    // thickness as a refractive lens over sceneV in the final pass.
+    const wantsFluid = (state.mpmRenderMode === 'fluid' || state.mpmRenderMode === 'both');
+    if (wantsFluid && fluidAV && fluidBV && bgFluidBlurH && bgFluidBlurV && bgFluidComposite) {
+      const fsplat = enc.beginRenderPass({
+        label: 'mls-mpm-world-aligned-thickness-splat-pass',
+        colorAttachments: [{ view: fluidAV,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+        depthStencilAttachment: { view: depthV,
+          depthLoadOp: 'load', depthStoreOp: 'store' },
+      });
+      fsplat.setPipeline(rFluidSplat); fsplat.setBindGroup(0, bgFluidSplat); fsplat.draw(4, MAXP);
+      fsplat.end();
+
+      const fblurH = enc.beginRenderPass({
+        label: 'mls-mpm-fluid-thickness-blur-x-pass',
+        colorAttachments: [{ view: fluidBV,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+      });
+      fblurH.setPipeline(rFluidBlur); fblurH.setBindGroup(0, bgFluidBlurH); fblurH.draw(3);
+      fblurH.end();
+
+      const fblurV = enc.beginRenderPass({
+        label: 'mls-mpm-fluid-thickness-blur-y-pass',
+        colorAttachments: [{ view: fluidAV,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+      });
+      fblurV.setPipeline(rFluidBlur); fblurV.setBindGroup(0, bgFluidBlurV); fblurV.draw(3);
+      fblurV.end();
+    } else if (fluidAV) {
+      const fclear = enc.beginRenderPass({
+        label: 'mls-mpm-fluid-thickness-clear-pass',
+        colorAttachments: [{ view: fluidAV,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+      });
+      fclear.end();
+    }
+
+    // 3) Final water-optical composite.  Even with no active thickness this blits
+    // sceneV to the swapchain; with thickness it refracts/magnifies sceneV and
+    // mixes only turbulence/aeration into foam.
+    const fcomp = enc.beginRenderPass({
+      label: 'mls-mpm-heightfield-water-material-resolve-pass',
+      colorAttachments: [{ view: frameView,
+        clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
+      depthStencilAttachment: { view: depthV,
+        depthLoadOp: 'load', depthStoreOp: 'store' },
+    });
+    fcomp.setPipeline(rFluidComposite); fcomp.setBindGroup(0, bgFluidComposite); fcomp.draw(3);
+    fcomp.end();
+    device.queue.submit([enc.finish()]);
+    bootDiag.frameSubmits++;
+    if (!bootDiag.firstFrameAt) bootDiag.firstFrameAt = new Date().toISOString();
+    if (visualReadbackEncoded) scheduleVisualReadbackMap(frame);
+  }
+  bootDiag.renderLoopArmed = true;
+  requestAnimationFrame((t) => { last = t; requestAnimationFrame(loop); });
+}
+
+init().catch((e) => {
+  console.error(e);
+  recordError('init.catch', e);
+  if ($('err').style.display !== 'grid') {
+    showFailure('WebGPU boot failed', e && e.message ? e.message : 'init failed', { source: 'init.catch' });
+  }
+});
+</script>
+</body>
+</html>
