@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aqua Phase 7 SWE — Reference Visual Transplant Single HTML</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#111820; --panel2:#0f151c; --line:#27313c; --line2:#1d2630;
+    --text:#c9d1d9; --muted:#6e7681; --hot:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+    --cyan:#28d7ff;
+  }
+  *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px}
+  canvas{display:block} button,input,select{font:inherit;color:inherit} select{background:#151b23;border:1px solid var(--line);height:24px;color:#c9d1d9;border-radius:0;text-transform:uppercase;font-size:10px;padding:0 6px} button{background:#151b23;border:1px solid var(--line);height:24px;padding:0 8px;cursor:pointer;color:#c9d1d9;border-radius:0;text-transform:uppercase;letter-spacing:.06em;font-size:10px} button:hover{border-color:#3d4652;background:#1b2430} button.on{border-color:var(--hot);color:#dff1ff;background:#102238} .danger{border-color:#633;color:#fca5a5}
+  #app{position:fixed;inset:0;display:grid;grid-template-rows:31px 1fr 24px;grid-template-columns:39px 260px 1fr 336px;background:#070b10}
+  #top{grid-column:1/5;grid-row:1;border-bottom:1px solid var(--line);background:#0d1117;display:flex;align-items:center;gap:8px;padding:0 8px;white-space:nowrap}
+  .brand{font-weight:700;letter-spacing:.12em;color:#e6edf3;margin-right:8px}.brand span{color:var(--cyan)}
+  .pill{height:18px;display:inline-flex;align-items:center;border:1px solid var(--line);padding:0 6px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.pill.ok{color:#8ff0a4;border-color:#285a34}.pill.warn{color:#ffd479;border-color:#6a5520}.pill.bad{color:#ff8b8b;border-color:#6d3030}
+  #railL{grid-column:1;grid-row:2;border-right:1px solid var(--line);background:#0d1117;display:flex;flex-direction:column;align-items:center;padding-top:6px;gap:5px}
+  .icon{width:27px;height:27px;border:1px solid var(--line);display:grid;place-items:center;color:#8b949e;background:#111820;cursor:pointer}.icon.on{border-color:var(--hot);color:#dff1ff;background:#11233a}.icon:hover{border-color:#3d4652;color:#e6edf3}
+  #left{grid-column:2;grid-row:2;border-right:1px solid var(--line);background:#0f151c;overflow:auto}
+  #view{grid-column:3;grid-row:2;position:relative;background:#02050a;overflow:hidden}
+  #gl{position:absolute;inset:0;width:100%;height:100%}
+  #right{grid-column:4;grid-row:2;border-left:1px solid var(--line);background:#0f151c;overflow:auto}
+  #bottom{grid-column:1/5;grid-row:3;border-top:1px solid var(--line);background:#0d1117;display:grid;grid-template-columns:repeat(12,1fr);font-size:10px;color:#8b949e}.metric{border-right:1px solid var(--line2);display:flex;align-items:center;padding:0 8px;gap:5px}.metric b{color:#c9d1d9;font-weight:500}.metric .v{color:#58a6ff;margin-left:auto}
+  .dockHead{height:28px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 9px;color:#e6edf3;text-transform:uppercase;letter-spacing:.12em;font-size:10px;background:#111820}.section{border-bottom:1px solid var(--line2);padding:9px}.section h3{margin:0 0 8px;color:#8b949e;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}.row{display:grid;grid-template-columns:104px 1fr 44px;gap:8px;align-items:center;height:24px}.row label{color:#8b949e;font-size:10px}.row .val{color:#58a6ff;text-align:right}.row input[type=range]{width:100%;appearance:none;background:transparent}.row input[type=range]::-webkit-slider-runnable-track{height:2px;background:#30363d}.row input[type=range]::-webkit-slider-thumb{appearance:none;width:9px;height:9px;background:#58a6ff;border-radius:0;margin-top:-3px}
+  .gridBtns{display:grid;grid-template-columns:1fr 1fr;gap:6px}.fieldBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}.fieldBtns button{height:23px;padding:0 4px;font-size:9px}.readout{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:10px;line-height:1.6}.readout span:nth-child(odd){color:#8b949e}.readout span:nth-child(even){color:#c9d1d9;text-align:right}.code{background:#0b1016;border:1px solid var(--line);padding:7px;color:#7ee787;line-height:1.45;white-space:pre-wrap}
+  #fieldCanvas{width:100%;height:auto;border:1px solid var(--line);image-rendering:pixelated;background:#03070b}.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;color:#6e7681;font-size:9px;margin-top:6px}.legend b{color:#c9d1d9;font-weight:500}.note{color:#6e7681;font-size:10px;line-height:1.5}.crosshair{position:absolute;left:50%;top:50%;width:11px;height:11px;margin:-5px 0 0 -5px;border-left:1px solid rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.3);pointer-events:none;opacity:.3}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">AQUA<span>3D</span> PHASE 7 SWE + REFERENCE VISUALS</div>
+    <span class="pill ok" id="kernelPill">OCCUPANCY SWE + FSS</span>
+    <span class="pill" id="modePill">SINGLE HTML: PHASE 7 SOLVER / REFERENCE WATER VISUAL TRANSPLANT</span>
+    <div style="flex:1"></div>
+    <button id="btnPause">Pause</button>
+    <button id="btnStep">Step</button>
+    <button id="btnReset" class="danger">Reset</button>
+  </div>
+  <div id="railL">
+    <div class="icon on" title="Run">▶</div><div class="icon" title="Fields">∿</div><div class="icon" title="Object">●</div><div class="icon" title="Tests">T</div><div class="icon" title="Debug">#</div>
+  </div>
+  <aside id="left">
+    <div class="dockHead">Scenario Runner</div>
+    <div class="section"><h3>Canonical Tests</h3><div class="gridBtns">
+      <button id="testStill">Still</button><button id="testImpulse">Impulse</button>
+      <button id="testSideSlow">Side Slow</button><button id="testSideFast" class="on">Side Fast</button>
+      <button id="testDrop">Drop</button><button id="testLift">Lift / Void</button>
+    </div></div>
+    <div class="section"><h3>Sphere Authority</h3>
+      <div class="row"><label>Radius</label><input id="sphereR" type="range" min="0.35" max="1.2" step="0.01" value="0.68"><span class="val" id="sphereRV"></span></div>
+      <div class="row"><label>Mass</label><input id="sphereMass" type="range" min="0.05" max="3" step="0.01" value="0.55"><span class="val" id="sphereMassV"></span></div>
+      <div class="row"><label>Depth Y</label><input id="sphereY" type="range" min="-0.8" max="1.5" step="0.01" value="0.12"><span class="val" id="sphereYV"></span></div>
+      <div class="note">Drag the sphere in the 3D viewport. Wheel over scene changes camera distance. Shift+wheel changes sphere Y.</div>
+    </div>
+    <div class="section"><h3>Solver Constants</h3>
+      <div class="row"><label>Wave Speed</label><input id="waveSpeed" type="range" min="0.35" max="2.4" step="0.01" value="1.0"><span class="val" id="waveSpeedV"></span></div>
+      <div class="row"><label>Momentum Damp</label><input id="damping" type="range" min="0.980" max="1.000" step="0.0005" value="0.995"><span class="val" id="dampingV"></span></div>
+      <div class="row"><label>Obstacle Push</label><input id="push" type="range" min="0" max="3" step="0.01" value="1.2"><span class="val" id="pushV"></span></div>
+      <div class="row"><label>Volume Source</label><input id="volumeGain" type="range" min="0" max="2" step="0.01" value="0.85"><span class="val" id="volumeGainV"></span></div>
+      <div class="row"><label>Wall Loss</label><input id="wallLoss" type="range" min="0.4" max="1" step="0.01" value="0.82"><span class="val" id="wallLossV"></span></div>
+    </div>
+    <div class="section"><h3>Surface Render</h3>
+      <div class="gridBtns" id="renderModes">
+        <button data-render="sdf" class="on">SDF Contact</button><button data-render="clip">Clip</button>
+        <button data-render="shell">Sheet Shell</button><button data-render="raw">Raw HF</button>
+      </div>
+      <div class="row"><label>Mesh Quality</label><select id="meshQuality"><option value="112">Base</option><option value="168" selected>Fine</option><option value="224">Ultra</option></select><span class="val" id="meshQualityV">168</span></div>
+      <div class="row"><label>Water Look</label><select id="waterMaterial"><option value="aqua" selected>Clear Aqua</option><option value="legacy">Original Style</option><option value="deep">Deep Pool</option><option value="diagnostic">Diagnostic Cyan</option><option value="normal">Normal Debug</option></select><span class="val" id="waterMaterialV">aqua</span></div>
+      <div class="row"><label>Render Smooth</label><input id="renderSmooth" type="range" min="0" max="2" step="0.01" value="1.15"><span class="val" id="renderSmoothV"></span></div>
+      <div class="row"><label>Solid Guard</label><input id="solidGuard" type="range" min="0" max="2" step="0.01" value="1.05"><span class="val" id="solidGuardV"></span></div>
+      <div class="gridBtns"><button id="antiGridToggle" class="on">Anti-Grid ON</button><button id="resetRenderFilters">Reset Filters</button></div>
+      <div class="row"><label>Release</label><input id="releaseGain" type="range" min="0" max="2" step="0.01" value="1.0"><span class="val" id="releaseGainV"></span></div>
+      <div class="note">SDF Contact uses the sphere equation to vary the water/object boundary with height, avoiding the cylinder-footprint artifact. Sheet Shell is an experimental pseudo-wrap visualization.</div>
+    </div>
+    <div class="section"><h3>Folded Surface Sheet — Phase 2</h3>
+      <div class="gridBtns" id="sheetModeBtns"><button id="sheetToggle" class="on">Sheet ON</button><button id="sheetReset">Reset Sheet</button></div>
+      <div class="row"><label>Sheet Gain</label><input id="sheetGain" type="range" min="0" max="2" step="0.01" value="1.0"><span class="val" id="sheetGainV"></span></div>
+      <div class="row"><label>Sheet Pressure</label><input id="sheetPressure" type="range" min="0" max="2.5" step="0.01" value="0.85"><span class="val" id="sheetPressureV"></span></div>
+      <div class="row"><label>Shell Lift</label><input id="sheetLift" type="range" min="0" max="0.35" step="0.005" value="0.075"><span class="val" id="sheetLiftV"></span></div>
+      <div class="note">Phase 2 treats the top surface as a mass-carrying sheet with inertia: thickness/director/fold/proximity pressure are state fields, not render-only decoration.</div>
+    </div>
+    <div class="section"><h3>Release Collapse — Phase 3</h3>
+      <div class="row"><label>Collapse Gain</label><input id="collapseGain" type="range" min="0" max="3" step="0.01" value="1.15"><span class="val" id="collapseGainV"></span></div>
+      <div class="row"><label>Trap Gain</label><input id="trapGain" type="range" min="0" max="3" step="0.01" value="1.0"><span class="val" id="trapGainV"></span></div>
+      <div class="row"><label>Detach</label><input id="detachGain" type="range" min="0" max="2" step="0.01" value="0.85"><span class="val" id="detachGainV"></span></div>
+      <div class="note">Phase 3 converts negative sigmaDot into cavity collapse: the sphere opening new capacity makes the sheet detach, fall inward, and rebound through SWE instead of sticking to the sphere skin.</div>
+    </div>
+    <div class="section"><h3>Sheet Failure Export — Phase 4</h3>
+      <div class="row"><label>Risk Gain</label><input id="riskGain" type="range" min="0" max="3" step="0.01" value="1.05"><span class="val" id="riskGainV"></span></div>
+      <div class="row"><label>Threshold</label><input id="convertThreshold" type="range" min="0.25" max="0.95" step="0.01" value="0.66"><span class="val" id="convertThresholdV"></span></div>
+      <div class="row"><label>Leak</label><input id="exportLeak" type="range" min="0.80" max="0.995" step="0.001" value="0.940"><span class="val" id="exportLeakV"></span></div>
+      <div class="note">Phase 4 computes failed-sheet volume, ejection energy, and candidate area: the exact cells that can become JIT sheet-MPM in Phase 5.</div>
+    </div>
+    <div class="section"><h3>JIT Sheet-MPM Spawn — Phase 5</h3>
+      <div class="gridBtns"><button id="jitToggle" class="on">JIT ON</button><button id="clearParticles">Clear Particles</button></div>
+      <div class="row"><label>Spawn Gain</label><input id="jitSpawnGain" type="range" min="0" max="3" step="0.01" value="1.15"><span class="val" id="jitSpawnGainV"></span></div>
+      <div class="row"><label>Particle Life</label><input id="particleLife" type="range" min="0.25" max="4" step="0.01" value="1.35"><span class="val" id="particleLifeV"></span></div>
+      <div class="row"><label>Gravity</label><input id="particleGravity" type="range" min="0" max="16" step="0.1" value="8.0"><span class="val" id="particleGravityV"></span></div>
+      <div class="row"><label>Back Coupling</label><input id="particleFeedback" type="range" min="0" max="2" step="0.01" value="0.65"><span class="val" id="particleFeedbackV"></span></div>
+      <div class="note">Phase 5 emits temporary separated water only from failed-sheet reservoirs. These particles are not decorative spray: they carry exported sheet volume/velocity and re-couple into the SWE field on re-entry.</div>
+    </div>
+    <div class="section"><h3>Object Runup Film — Phase 6</h3>
+      <div class="gridBtns"><button id="filmToggle" class="on">FILM ON</button><button id="clearFilm">Clear Film</button></div>
+      <div class="row"><label>Film Visual</label><select id="filmVisual"><option value="off" selected>Field Only</option><option value="soft">Soft Wetness</option><option value="debug">Debug Points</option></select><span class="val" id="filmVisualV">off</span></div>
+      <div class="row"><label>Deposit</label><input id="filmDeposit" type="range" min="0" max="6" step="0.01" value="2.20"><span class="val" id="filmDepositV"></span></div>
+      <div class="row"><label>Drain</label><input id="filmDrain" type="range" min="0" max="5" step="0.01" value="1.45"><span class="val" id="filmDrainV"></span></div>
+      <div class="row"><label>Edge Loss</label><input id="filmEdgeLoss" type="range" min="0" max="4" step="0.01" value="0.92"><span class="val" id="filmEdgeLossV"></span></div>
+      <div class="row"><label>Adhesion</label><input id="filmAdhesion" type="range" min="0" max="2" step="0.01" value="0.62"><span class="val" id="filmAdhesionV"></span></div>
+      <div class="row"><label>Drip Spawn</label><input id="filmDripGain" type="range" min="0" max="6" step="0.01" value="2.35"><span class="val" id="filmDripGainV"></span></div>
+      <div class="note">Phase 6 treats the sphere as a runup object: receding water deposits a wet attached film, the film drains down the SDF surface, edges evaporate/shrink, and the weighted lower film emits droplets back into the sheet-MPM path.</div>
+    </div>
+  </aside>
+  <main id="view"><canvas id="gl"></canvas><div class="crosshair"></div></main>
+  <aside id="right">
+    <div class="dockHead">Heightfield Inspector</div>
+    <div class="section"><h3>2D Field Monitor</h3>
+      <canvas id="fieldCanvas" width="256" height="256"></canvas>
+      <div class="fieldBtns">
+        <button data-field="height" class="on">height</button><button data-field="vx">vx</button><button data-field="vz">vz</button>
+        <button data-field="speed">speed</button><button data-field="m">depth m</button><button data-field="sigma">sigma</button>
+        <button data-field="sigdot">sigmaDot</button><button data-field="penetration">penetrate</button><button data-field="source">source</button>
+        <button data-field="fold">fold</button><button data-field="thickness">thick</button><button data-field="clearance">clear</button>
+        <button data-field="pressure">pressure</button><button data-field="risk">MPM risk</button><button data-field="dirY">dirY</button>
+        <button data-field="trap">trap</button><button data-field="release">release</button><button data-field="collapse">collapse</button>
+        <button data-field="failvol">fail vol</button><button data-field="jitmass">JIT vol</button><button data-field="eject">eject</button>
+        <button data-field="particles">particles</button><button data-field="film">film</button><button data-field="runup">runup</button><button data-field="drain">drain</button><button data-field="drip">drip</button>
+      </div>
+      <div class="legend"><span><b>+X</b> right</span><span><b>+Z</b> up</span><span id="rangeLbl">range auto</span><span id="fieldLbl">height</span></div>
+    </div>
+    <div class="section"><h3>Hydro State</h3><div class="readout" id="hydroRead"></div></div>
+    <div class="section"><h3>Design Contract</h3><div class="code">sphere is not a force blob
+sigma is moving solid capacity
+m = eta - b - sigma
+sigmaDot creates entry/release energy
+sheet has mass/inertia/fold/proximity
+underside clearance creates local pressure
+negative sigmaDot opens cavity volume
+release collapse breaks sphere sticking
+failed sheet volume spawns temporary JIT particles
+particles recouple to SWE on re-entry
+sphere is a runup shoreline object
+attached film has thickness/drainage
+film visual can be field-only to avoid sphere dot grid
+solid core guard prevents hidden water noise
+anti-grid render/solver filter kills cell imprint
+water material can be toggled for look tests
+low weighted film becomes drip spawn
+vx/vz prove lateral flow
+2D panel is diagnostic only</div></div>
+  </aside>
+  <footer id="bottom">
+    <div class="metric"><b>FPS</b><span class="v" id="fps">--</span></div><div class="metric"><b>CFL</b><span class="v" id="cfl">--</span></div><div class="metric"><b>MAX ETA</b><span class="v" id="maxEta">--</span></div><div class="metric"><b>MAX V</b><span class="v" id="maxV">--</span></div>
+    <div class="metric"><b>MASS Δ</b><span class="v" id="massD">--</span></div><div class="metric"><b>OCC VOL</b><span class="v" id="occVol">--</span></div><div class="metric"><b>SCENE</b><span class="v" id="sceneName">sidefast</span></div><div class="metric"><b>FIELD</b><span class="v" id="fieldName">height</span></div>
+    <div class="metric"><b>GRID</b><span class="v">112²</span></div><div class="metric"><b>MODE</b><span class="v">3D</span></div><div class="metric"><b>JIT P</b><span class="v" id="particleCount">0</span></div><div class="metric"><b>RENDER</b><span class="v">FILTER</span></div>
+  </footer>
+</div>
+<script>
+'use strict';
+const N=112, SZ=12, DX=SZ/N, H=1.0, G=9.81, SUB=3;
+const eta=new Float32Array(N*N), vx=new Float32Array(N*N), vz=new Float32Array(N*N), occ=new Float32Array(N*N), prevOcc=new Float32Array(N*N), src=new Float32Array(N*N), energy=new Float32Array(N*N);
+const sigma=new Float32Array(N*N), prevSigma=new Float32Array(N*N), sigmaDot=new Float32Array(N*N), liquidM=new Float32Array(N*N), penetration=new Float32Array(N*N);
+const sheetThickness=new Float32Array(N*N), sheetFold=new Float32Array(N*N), undersideClearance=new Float32Array(N*N), sheetPressure=new Float32Array(N*N), mpmRisk=new Float32Array(N*N);
+const trappedVolume=new Float32Array(N*N), releaseFlow=new Float32Array(N*N), collapseField=new Float32Array(N*N);
+const failedSheetVolume=new Float32Array(N*N), jitMpmVolume=new Float32Array(N*N), ejectionEnergy=new Float32Array(N*N), particleDensity=new Float32Array(N*N);
+const runupField=new Float32Array(N*N), drainField=new Float32Array(N*N), filmProjection=new Float32Array(N*N), filmDropField=new Float32Array(N*N);
+const FW=72, FH=36;
+const sphereFilm=new Float32Array(FW*FH), sphereFilmNext=new Float32Array(FW*FH), sphereFilmDrain=new Float32Array(FW*FH), sphereFilmDrip=new Float32Array(FW*FH);
+const dirX=new Float32Array(N*N), dirY=new Float32Array(N*N), dirZ=new Float32Array(N*N);
+const tmpEta=new Float32Array(N*N), tmpVx=new Float32Array(N*N), tmpVz=new Float32Array(N*N);
+const idx=(x,z)=>z*N+x;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{x=clamp((x-a)/(b-a),0,1);return x*x*(3-2*x)};
+let params={radius:.68,mass:.55,y:.12,waveSpeed:1,damping:.995,push:1.2,volumeGain:.85,wallLoss:.82,renderMode:'sdf',meshQuality:168,waterMaterial:'aqua',renderSmooth:1.15,solidGuard:1.05,antiGridEnabled:true,releaseGain:1.0,sheetEnabled:true,sheetGain:1.0,sheetPressure:0.85,sheetLift:0.075,collapseGain:1.15,trapGain:1.0,detachGain:0.85,riskGain:1.05,convertThreshold:0.66,exportLeak:0.94,jitEnabled:true,jitSpawnGain:1.15,particleLife:1.35,particleGravity:8.0,particleFeedback:0.65,filmEnabled:true,filmVisual:'off',filmDeposit:2.20,filmDrain:1.45,filmEdgeLoss:0.92,filmAdhesion:0.62,filmDripGain:2.35};
+let sphere={x:-2.7,z:0,px:-2.7,pz:0,y:.12,py:.12,vx:0,vz:0,vy:0,auto:'sidefast',t:0};
+let paused=false, fieldMode='height', cam={yaw:.72,pitch:.75,dist:14};
+let metrics={fps:0,cfl:0,maxEta:0,maxV:0,massD:0,occVol:0,sigmaDot:0,penetration:0,stick:0,overtop:0,fold:0,pressure:0,risk:0,clearance:0,trap:0,release:0,collapse:0,failVol:0,jitVol:0,eject:0,candidateArea:0,particles:0,emitted:0,particleDensity:0,filmMax:0,filmMass:0,runup:0,drain:0,drip:0};
+const MAX_PARTICLES=2400;
+const particles=[];
+const particleVerts=new Float32Array(MAX_PARTICLES*4);
+const filmVerts=new Float32Array(FW*FH*4);
+let spawnCarry=0, filmDripCarry=0;
+function hash01(n){const x=Math.sin(n*127.1+311.7)*43758.5453123;return x-Math.floor(x);}
+
+function reset(){eta.fill(0);vx.fill(0);vz.fill(0);occ.fill(0);prevOcc.fill(0);src.fill(0);energy.fill(0);sigma.fill(0);prevSigma.fill(0);sigmaDot.fill(0);liquidM.fill(H);penetration.fill(0);trappedVolume.fill(0);releaseFlow.fill(0);collapseField.fill(0);particleDensity.fill(0);runupField.fill(0);drainField.fill(0);filmProjection.fill(0);filmDropField.fill(0);clearFilm();particles.length=0;spawnCarry=0;filmDripCarry=0;resetSheet();sphere.x=-2.7;sphere.z=0;sphere.px=sphere.x;sphere.pz=sphere.z;sphere.y=params.y;sphere.py=sphere.y;sphere.t=0;}
+function resetSheet(){sheetThickness.fill(0.035);sheetFold.fill(0);undersideClearance.fill(9);sheetPressure.fill(0);mpmRisk.fill(0);trappedVolume.fill(0);releaseFlow.fill(0);collapseField.fill(0);failedSheetVolume.fill(0);jitMpmVolume.fill(0);ejectionEnergy.fill(0);particleDensity.fill(0);runupField.fill(0);drainField.fill(0);filmProjection.fill(0);filmDropField.fill(0);dirX.fill(0);dirY.fill(1);dirZ.fill(0);metrics.fold=metrics.pressure=metrics.risk=metrics.trap=metrics.release=metrics.collapse=0;metrics.failVol=metrics.jitVol=metrics.eject=metrics.candidateArea=0;metrics.clearance=9;}
+function setScene(s){sphere.auto=s;document.getElementById('sceneName').textContent=s;reset();if(s==='impulse'){for(let z=0;z<N;z++)for(let x=0;x<N;x++){let wx=(x+.5)/N*SZ-SZ/2,wz=(z+.5)/N*SZ-SZ/2;let d=Math.hypot(wx,wz);eta[idx(x,z)]=Math.exp(-d*d/.12)*.42;}}}
+function updateAuto(dt){sphere.t+=dt;sphere.px=sphere.x;sphere.pz=sphere.z;sphere.py=sphere.y;let t=sphere.t;
+  if(sphere.auto==='still'){sphere.x=0;sphere.z=0;sphere.y=params.y;}
+  else if(sphere.auto==='sideslow'){sphere.x=Math.sin(t*.75)*3.0;sphere.z=Math.sin(t*.33)*.55;sphere.y=params.y;}
+  else if(sphere.auto==='sidefast'){sphere.x=Math.sin(t*1.55)*3.6;sphere.z=Math.sin(t*.47)*.65;sphere.y=params.y;}
+  else if(sphere.auto==='drop'){sphere.x=0;sphere.z=0;sphere.y=1.15-Math.min(t*1.15,1.7)+Math.sin(t*2.6)*.06;}
+  else if(sphere.auto==='lift'){sphere.x=0;sphere.z=0;sphere.y=-.25+smooth(1.2,4.0,t)*1.55;}
+  sphere.vx=(sphere.x-sphere.px)/dt;sphere.vz=(sphere.z-sphere.pz)/dt;sphere.vy=(sphere.y-sphere.py)/dt;}
+function solidAtCell(wx,wz,cx,cz,cy,r){
+  const dx=wx-cx,dz=wz-cz,d2=dx*dx+dz*dz,r2=r*r;
+  if(d2>=r2)return 0;
+  const hh=Math.sqrt(r2-d2), low=cy-hh, high=cy+hh;
+  // Read the current free surface at the cell separately in computeObstacle.
+  return {low,high,rad:Math.sqrt(d2)};
+}
+
+function filmIdx(u,v){u=(u%FW+FW)%FW;v=clamp(v,0,FH-1)|0;return v*FW+u;}
+function normalToFilmUV(nx,ny,nz){
+  const u=((Math.atan2(nz,nx)/(Math.PI*2)+1.0)%1.0)*FW;
+  const v=(Math.acos(clamp(ny,-1,1))/Math.PI)*FH;
+  return [Math.floor(u)%FW,clamp(Math.floor(v),0,FH-1)];
+}
+function filmNormal(u,v){
+  const phi=((u+.5)/FW)*Math.PI*2, th=((v+.5)/FH)*Math.PI;
+  const st=Math.sin(th);return [Math.cos(phi)*st,Math.cos(th),Math.sin(phi)*st];
+}
+function addFilmNormal(nx,ny,nz,amount){
+  if(!params.filmEnabled || amount<=0)return;
+  const uv=normalToFilmUV(nx,ny,nz);const u0=uv[0],v0=uv[1];
+  for(let dv=-1;dv<=1;dv++)for(let du=-1;du<=1;du++){
+    const w=(du===0&&dv===0)?1.0:0.36;
+    const ii=filmIdx(u0+du,v0+dv);
+    sphereFilm[ii]=clamp(sphereFilm[ii]+amount*w,0,0.42);
+  }
+}
+function clearFilm(){sphereFilm.fill(0);sphereFilmNext.fill(0);sphereFilmDrain.fill(0);sphereFilmDrip.fill(0);runupField.fill(0);drainField.fill(0);filmProjection.fill(0);filmDropField.fill(0);metrics.filmMax=metrics.filmMass=metrics.runup=metrics.drain=metrics.drip=0;}
+function computeObjectRunupFilm(dt){
+  runupField.fill(0);filmProjection.fill(0);
+  if(!params.filmEnabled)return;
+  let maxRun=0;
+  const r=params.radius;
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z), wx=(x+.5)/N*SZ-SZ/2, wz=(z+.5)/N*SZ-SZ/2;
+    const dx=wx-sphere.x,dz=wz-sphere.z,d2=dx*dx+dz*dz;
+    if(d2>r*r*1.45)continue;
+    const hit=solidAtCell(wx,wz,sphere.x,sphere.z,sphere.y,r);
+    if(!hit)continue;
+    const water=eta[i], radial=Math.sqrt(d2)+1e-6;
+    const band=Math.min(Math.abs(water-hit.low),Math.abs(water-hit.high));
+    const contact=clamp(occ[i]*0.80 + (1-smooth(0.02,0.30,band))*0.65 + sheetPressure[i]*0.11 + releaseFlow[i]*0.035,0,1.8);
+    if(contact<=0.01)continue;
+    const relSpeed=Math.hypot(vx[i]-sphere.vx*0.18,vz[i]-sphere.vz*0.18);
+    const deposit=(contact*(0.018+relSpeed*0.010+Math.max(0,-sigmaDot[i])*0.00075+Math.max(0,sigmaDot[i])*0.00035))*params.filmDeposit*dt;
+    if(deposit<=0)continue;
+    let ny=clamp((water-sphere.y)/Math.max(r,1e-4),-.96,.96);
+    const circle=Math.sqrt(Math.max(0,1-ny*ny));
+    const nx=dx/radial*circle,nz=dz/radial*circle;
+    addFilmNormal(nx,ny,nz,deposit);
+    runupField[i]=deposit/Math.max(dt,1e-5);
+    maxRun=Math.max(maxRun,runupField[i]);
+  }
+  metrics.runup=maxRun;
+}
+function updateObjectFilm(dt){
+  drainField.fill(0);filmDropField.fill(0);sphereFilmNext.fill(0);sphereFilmDrain.fill(0);sphereFilmDrip.fill(0);
+  if(!params.filmEnabled){metrics.filmMax=metrics.filmMass=metrics.drain=metrics.drip=0;return;}
+  let maxFilm=0,total=0,maxDrain=0,maxDrip=0;
+  for(let v=0;v<FH;v++)for(let u=0;u<FW;u++){
+    const i=filmIdx(u,v), f=sphereFilm[i];
+    if(f<=1e-5)continue;
+    const n=filmNormal(u,v), ny=n[1], downhill=clamp(1-ny*ny,0,1);
+    const drain=clamp(f*params.filmDrain*dt*(0.18+downhill*1.55),0,f*0.82);
+    const stay=(f-drain)*Math.exp(-params.filmEdgeLoss*dt*(0.18+clamp(0.018/(f+0.002),0,1.2)));
+    sphereFilmNext[i]+=stay;
+    const targetV=Math.min(FH-1,v+1);
+    const side=(hash01(i*13.17+performance.now()*0.0007)-0.5);
+    const targetU=u+(side>0?1:-1);
+    sphereFilmNext[filmIdx(targetU,targetV)]+=drain*0.82;
+    sphereFilmNext[filmIdx(u,targetV)]+=drain*0.18;
+    sphereFilmDrain[i]=drain/Math.max(dt,1e-5);
+    maxDrain=Math.max(maxDrain,sphereFilmDrain[i]);
+  }
+  for(let v=0;v<FH;v++)for(let u=0;u<FW;u++){
+    const i=filmIdx(u,v), n=filmNormal(u,v), bottom=clamp((-n[1]-0.18)/0.82,0,1);
+    const f=sphereFilmNext[i];
+    if(f<=0)continue;
+    const excess=Math.max(0,f-(0.020+params.filmAdhesion*0.028));
+    const drip=excess*bottom*params.filmDripGain*dt;
+    if(drip>0){sphereFilmNext[i]=Math.max(0,f-drip);sphereFilmDrip[i]=drip/Math.max(dt,1e-5);spawnFilmDrip(n,drip,u,v);maxDrip=Math.max(maxDrip,sphereFilmDrip[i]);}
+  }
+  sphereFilm.set(sphereFilmNext);
+  for(let v=0;v<FH;v++)for(let u=0;u<FW;u++){const i=filmIdx(u,v),f=sphereFilm[i];maxFilm=Math.max(maxFilm,f);total+=f;}
+  projectFilmToPool();
+  metrics.filmMax=maxFilm;metrics.filmMass=total/(FW*FH);metrics.drain=maxDrain;metrics.drip=maxDrip;
+}
+function spawnFilmDrip(n,drip,u,v){
+  if(!params.jitEnabled || particles.length>=MAX_PARTICLES)return;
+  filmDripCarry+=drip*260;
+  if(filmDripCarry<1)return;
+  const count=Math.min(10,Math.floor(filmDripCarry));filmDripCarry-=count;
+  for(let k=0;k<count && particles.length<MAX_PARTICLES;k++){
+    const jitterU=(hash01(u*19+v*7+k)-0.5)*0.06, jitterV=(hash01(u*3+v*31+k)-0.5)*0.04;
+    let nn=[n[0]+jitterU,n[1]+jitterV,n[2]-jitterU*.35];const nl=Math.hypot(nn[0],nn[1],nn[2])+1e-6;nn=nn.map(q=>q/nl);
+    const r=params.radius+0.035;
+    particles.push({
+      x:sphere.x+nn[0]*r,y:sphere.y+nn[1]*r,z:sphere.z+nn[2]*r,
+      vx:sphere.vx*.10+nn[0]*0.08,vy:-0.18+nn[1]*0.10,vz:sphere.vz*.10+nn[2]*0.08,
+      life:params.particleLife*(0.45+hash01(k+u*2.7)*0.45),age:0,vol:clamp(drip*1.7,0.003,0.024)
+    });
+  }
+}
+function projectFilmToPool(){
+  filmProjection.fill(0);
+  const r=params.radius;
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z), wx=(x+.5)/N*SZ-SZ/2,wz=(z+.5)/N*SZ-SZ/2;
+    const dx=wx-sphere.x,dz=wz-sphere.z,d2=dx*dx+dz*dz;
+    if(d2>=r*r)continue;
+    const ny=clamp((eta[i]-sphere.y)/Math.max(r,1e-5),-0.96,0.96), radial=Math.sqrt(d2)+1e-6, circle=Math.sqrt(Math.max(0,1-ny*ny));
+    const nx=dx/radial*circle,nz=dz/radial*circle;
+    const uv=normalToFilmUV(nx,ny,nz);filmProjection[i]=sphereFilm[filmIdx(uv[0],uv[1])];
+    drainField[i]=sphereFilmDrain[filmIdx(uv[0],uv[1])];filmDropField[i]=sphereFilmDrip[filmIdx(uv[0],uv[1])];
+  }
+}
+function computeObstacle(dt){let r=params.radius, area=DX*DX, vol=0, maxSigDot=0, maxPen=0, contactNow=0, contactPrev=0, overtop=0;src.fill(0);penetration.fill(0);
+  const mx=sphere.x-sphere.px, mz=sphere.z-sphere.pz, my=sphere.y-sphere.py;
+  const travel=Math.hypot(mx,mz,my);
+  // Swept occupancy: the object is a time-varying capacity field, not a point impulse.
+  // sigma is the solid height occupying each water column; sigmaDot is its rate.
+  const samples=Math.min(24,Math.max(2,Math.ceil(travel/(DX*.33))));
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+    const i=idx(x,z);prevOcc[i]=occ[i];prevSigma[i]=sigma[i];
+    const wx=(x+.5)/N*SZ-SZ/2,wz=(z+.5)/N*SZ-SZ/2;
+    const water=eta[i], bottom=-H;
+    let currentSigma=0, sweptSigma=0, pen=0, aboveMid=false;
+    for(let s=0;s<samples;s++){
+      const t=s/(samples-1);
+      const cx=lerp(sphere.px,sphere.x,t), cz=lerp(sphere.pz,sphere.z,t), cy=lerp(sphere.py,sphere.y,t);
+      const hit=solidAtCell(wx,wz,cx,cz,cy,r);
+      let sig=0;
+      if(hit){
+        // Column-integrated solid occupancy height within the active water column.
+        sig=Math.max(0,Math.min(hit.high,Math.max(water,bottom))-Math.max(hit.low,bottom));
+        // If the free surface lies inside the sphere SDF, record real penetration.
+        if(water>hit.low && water<hit.high) pen=Math.max(pen,Math.min(water-hit.low,hit.high-water));
+        if(water>cy && water<hit.high) aboveMid=true;
+      }
+      if(s===samples-1)currentSigma=sig;
+      sweptSigma=Math.max(sweptSigma,sig);
+    }
+    sigma[i]=currentSigma;
+    const denom=Math.max(.045,H+water);
+    occ[i]=clamp(currentSigma/denom,0,1);
+    liquidM[i]=Math.max(0.0,H+water-currentSigma);
+    const deltaSigma=currentSigma-prevSigma[i];
+    const transit=Math.max(0,sweptSigma-Math.max(currentSigma,prevSigma[i]));
+    sigmaDot[i]=deltaSigma/Math.max(dt,1e-5);
+    // Store sigma-change as the continuity source. Positive = solid enters/capacity shrinks.
+    // Transit adds swept-path wake energy without leaving fake occupancy behind.
+    src[i]=deltaSigma+transit*.62;
+    // Negative sigmaDot = opening void. Let water collapse instead of sticking to the object.
+    if(deltaSigma<0.0) src[i]+=deltaSigma*0.55*params.releaseGain;
+    penetration[i]=pen;
+    maxSigDot=Math.max(maxSigDot,Math.abs(sigmaDot[i]));
+    maxPen=Math.max(maxPen,pen);
+    vol+=currentSigma*area;
+    if(currentSigma>.002) contactNow+=area;
+    if(prevSigma[i]>.002) contactPrev+=area;
+    if(aboveMid) overtop+=area;
+  }
+  metrics.occVol=vol;metrics.sigmaDot=maxSigDot;metrics.penetration=maxPen;
+  metrics.stick=contactPrev>1e-6?contactNow/contactPrev:0;
+  metrics.overtop=overtop/(Math.PI*r*r+1e-6);
+}
+function computeSheetFields(dt){
+  if(!params.sheetEnabled){metrics.fold=0;metrics.pressure=0;metrics.risk=0;metrics.clearance=9;return;}
+  let maxFold=0,maxPressure=0,maxRisk=0,minClear=9;
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z);
+    const wx=(x+.5)/N*SZ-SZ/2,wz=(z+.5)/N*SZ-SZ/2;
+    const gx=(eta[idx(x+1,z)]-eta[idx(x-1,z)])/(2*DX), gz=(eta[idx(x,z+1)]-eta[idx(x,z-1)])/(2*DX);
+    let nx=-gx,ny=1,nz=-gz; let nl=Math.hypot(nx,ny,nz)+1e-6; nx/=nl; ny/=nl; nz/=nl;
+    const dx=wx-sphere.x,dz=wz-sphere.z,d2=dx*dx+dz*dz,r=params.radius;
+    let clear=9,solidProx=0,sphereNormalY=1,wrap=0;
+    if(d2<r*r){
+      const cap=Math.sqrt(Math.max(0,r*r-d2));
+      const lower=sphere.y-cap, upper=sphere.y+cap;
+      const distToSkin=Math.min(Math.abs(eta[i]-lower),Math.abs(upper-eta[i]));
+      clear=distToSkin;
+      solidProx=1-smooth(0.02,0.34,distToSkin);
+      sphereNormalY=(eta[i]>sphere.y)?cap/r:-cap/r;
+      wrap=solidProx*(1-Math.abs(sphereNormalY));
+    }else{
+      const radial=Math.sqrt(d2);
+      const rim=1-smooth(r*1.0,r*1.45,radial);
+      clear=0.42+Math.max(0,radial-r);
+      solidProx=rim*.35;
+    }
+    // Director is a persistent sheet orientation, not just the instantaneous height normal.
+    // It is biased by obstacle proximity so the surface can remember that it is bending
+    // around a curved solid instead of behaving as a flat scalar height sample.
+    dirX[i]=dirX[i]*0.88+nx*0.12; dirY[i]=dirY[i]*0.88+(ny*(1-wrap)+sphereNormalY*wrap)*0.12; dirZ[i]=dirZ[i]*0.88+nz*0.12;
+    let dnl=Math.hypot(dirX[i],dirY[i],dirZ[i])+1e-6;dirX[i]/=dnl;dirY[i]/=dnl;dirZ[i]/=dnl;
+    const slope=Math.hypot(gx,gz), speed=Math.hypot(vx[i],vz[i]);
+    const thicknessTarget=clamp(0.035+occ[i]*0.42+Math.abs(src[i])*1.15+speed*.045+Math.abs(eta[i])*.12,0.025,1.25);
+    sheetThickness[i]=clamp(sheetThickness[i]*0.955+thicknessTarget*0.045 + Math.max(0,-sigmaDot[i])*dt*.010*params.releaseGain,0.02,1.45);
+    const overturn=clamp((1-dirY[i])*.95,0,1);
+    const foldTarget=clamp((slope*.45+solidProx*.70+overturn*.65+penetration[i]*1.75+Math.abs(sigmaDot[i])*.010)*params.sheetGain,0,1.35);
+    sheetFold[i]=sheetFold[i]*0.92+foldTarget*0.08;
+    undersideClearance[i]=Math.min(underSideClamp(clear), liquidM[i]+0.02);
+    const prox=1-smooth(0.025,0.32,undersideClearance[i]);
+    const trap=clamp((sheetThickness[i]-liquidM[i]*.18)*prox,0,1.4);
+    sheetPressure[i]=clamp(sheetPressure[i]*0.90 + (sheetFold[i]*prox*sheetThickness[i]*params.sheetPressure + trap*.75 + Math.max(0,-sigmaDot[i])*.006*params.releaseGain)*0.10,0,2.5);
+    mpmRisk[i]=clamp(sheetFold[i]*0.42 + sheetPressure[i]*0.25 + penetration[i]*1.2 + Math.max(0,-sigmaDot[i])*.006 + speed*.035,0,1);
+    maxFold=Math.max(maxFold,sheetFold[i]);maxPressure=Math.max(maxPressure,sheetPressure[i]);maxRisk=Math.max(maxRisk,mpmRisk[i]);minClear=Math.min(minClear,undersideClearance[i]);
+  }
+  metrics.fold=maxFold;metrics.pressure=maxPressure;metrics.risk=maxRisk;metrics.clearance=minClear;
+}
+function computeReleaseCollapse(dt){
+  if(!params.sheetEnabled){releaseFlow.fill(0);collapseField.fill(0);metrics.trap=metrics.release=metrics.collapse=0;return;}
+  let maxTrap=0,maxRelease=0,maxCollapse=0;
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z);
+    // Negative sigmaDot means the solid vacated part of the water column: capacity opened.
+    // The folded sheet should detach and collapse into that void, not remain glued to the sphere.
+    const opening=Math.max(0,-sigmaDot[i]);
+    const close=1-smooth(0.035,0.36,undersideClearance[i]);
+    const folded=clamp(sheetFold[i],0,1.5);
+    const pressure=clamp(sheetPressure[i],0,2.5);
+    const mass=clamp(sheetThickness[i],0.02,1.45);
+    const shallow=1-smooth(0.06,0.42,liquidM[i]);
+    const trapTarget=clamp((folded*0.35 + pressure*0.22 + close*0.28 + shallow*0.18)*mass*params.trapGain + Math.max(0,sigmaDot[i])*0.0018,0,2.2);
+    // Store trapped/releasable sheet volume with inertia. It leaks slowly unless a release event opens a cavity.
+    trappedVolume[i]=clamp(trappedVolume[i]*0.965 + trapTarget*0.035 - opening*dt*0.018*params.detachGain,0,2.2);
+    const release=clamp(opening*0.010*params.releaseGain*(0.25+trappedVolume[i]*0.55+pressure*0.28+folded*0.22),0,3.0);
+    releaseFlow[i]=release;
+    const collapse=clamp(release*(0.65+close*0.65+mass*0.35)*params.collapseGain,0,3.5);
+    collapseField[i]=collapse;
+    // Detach term: release events actively relax adhesive sheet pressure/fold around the object.
+    const detach=clamp(opening*dt*0.20*params.detachGain,0,0.45);
+    if(detach>0){sheetPressure[i]*=(1-detach);sheetFold[i]*=(1-detach*0.7);}
+    mpmRisk[i]=clamp(mpmRisk[i]+collapse*0.035+trappedVolume[i]*0.025,0,1);
+    maxTrap=Math.max(maxTrap,trappedVolume[i]);
+    maxRelease=Math.max(maxRelease,releaseFlow[i]);
+    maxCollapse=Math.max(maxCollapse,collapseField[i]);
+  }
+  metrics.trap=maxTrap;metrics.release=maxRelease;metrics.collapse=maxCollapse;
+}
+function computeMpmExporter(dt){
+  if(!params.sheetEnabled){failedSheetVolume.fill(0);jitMpmVolume.fill(0);ejectionEnergy.fill(0);metrics.failVol=metrics.jitVol=metrics.eject=metrics.candidateArea=0;return;}
+  let maxFail=0,maxJit=0,maxEject=0,area=0;
+  const cellArea=DX*DX, threshold=params.convertThreshold;
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z);
+    const prox=1-smooth(0.025,0.34,undersideClearance[i]);
+    const riskOver=clamp((mpmRisk[i]-threshold)/Math.max(1e-3,1-threshold),0,1);
+    const opening=Math.max(0,-sigmaDot[i]);
+    const neck=clamp(sheetFold[i]*0.25 + prox*0.25 + sheetPressure[i]*0.18 + collapseField[i]*0.14 + trappedVolume[i]*0.16 + opening*0.0015,0,2.2);
+    const fail=clamp(riskOver*neck*params.riskGain,0,2.5);
+    failedSheetVolume[i]=clamp(fail*(sheetThickness[i]*0.55+trappedVolume[i]*0.45)*cellArea,0,0.09);
+    // Persistent candidate volume. It decays like a temporary spawn reservoir, but no particles are emitted yet.
+    jitMpmVolume[i]=Math.max(jitMpmVolume[i]*params.exportLeak, failedSheetVolume[i]);
+    const speed=Math.hypot(vx[i],vz[i]);
+    ejectionEnergy[i]=clamp((collapseField[i]*0.38 + releaseFlow[i]*0.22 + speed*0.08 + opening*0.0018 + sheetPressure[i]*0.12)*riskOver,0,3.0);
+    if(jitMpmVolume[i]>.0008)area+=cellArea;
+    maxFail=Math.max(maxFail,failedSheetVolume[i]);maxJit=Math.max(maxJit,jitMpmVolume[i]);maxEject=Math.max(maxEject,ejectionEnergy[i]);
+  }
+  metrics.failVol=maxFail;metrics.jitVol=maxJit;metrics.eject=maxEject;metrics.candidateArea=area;
+}
+function emitSheetParticles(dt){
+  metrics.emitted=0;
+  if(!params.jitEnabled || !params.sheetEnabled)return;
+  // Export only from failed-sheet reservoir cells. This is the first reduced JIT sheet-MPM path:
+  // volume leaves the 2.5D sheet into temporary separated parcels, then later re-enters SWE.
+  let want=0;
+  for(let i=0;i<N*N;i+=3)want+=Math.max(0,jitMpmVolume[i]-0.0009)*ejectionEnergy[i];
+  spawnCarry+=want*params.jitSpawnGain*dt*820;
+  let count=Math.min(80,Math.floor(spawnCarry));
+  spawnCarry-=count;
+  for(let n=0;n<count && particles.length<MAX_PARTICLES;n++){
+    let best=-1,bv=0;
+    const seed=(metrics.fps+performance.now()*0.001+n*17.0);
+    for(let k=0;k<18;k++){
+      const ii=Math.floor(hash01(seed+k*13.17)*N*N)%(N*N);
+      const v=jitMpmVolume[ii]*(0.3+ejectionEnergy[ii])*Math.max(0,mpmRisk[ii]-params.convertThreshold*.82);
+      if(v>bv){bv=v;best=ii;}
+    }
+    if(best<0 || bv<=0.0002)break;
+    const z=Math.floor(best/N),x=best-z*N;
+    const wx=(x+.5)/N*SZ-SZ/2 + (hash01(seed+91)-0.5)*DX*.7;
+    const wz=(z+.5)/N*SZ-SZ/2 + (hash01(seed+57)-0.5)*DX*.7;
+    const i=best, e=clamp(ejectionEnergy[i],0,3), vol=clamp(jitMpmVolume[i]*4.2,0.004,0.035);
+    const radial=Math.hypot(wx-sphere.x,wz-sphere.z)+1e-6;
+    const nx=(wx-sphere.x)/radial,nz=(wz-sphere.z)/radial;
+    const side=(hash01(seed+33)-0.5);
+    const lift=0.35+e*0.62+releaseFlow[i]*0.12+collapseField[i]*0.08;
+    particles.push({
+      x:wx,y:sampleField(eta,wx,wz)+0.06+sheetThickness[i]*0.10,z:wz,
+      vx:vx[i]*0.65+nx*e*0.52-nz*side*0.65+sphere.vx*0.10,
+      vy:lift,
+      vz:vz[i]*0.65+nz*e*0.52+nx*side*0.65+sphere.vz*0.10,
+      life:params.particleLife*(0.65+hash01(seed+7)*0.75),age:0,vol
+    });
+    jitMpmVolume[i]*=0.72;
+    failedSheetVolume[i]*=0.80;
+    metrics.emitted++;
+  }
+}
+function advanceSheetParticles(dt){
+  particleDensity.fill(0);
+  let maxD=0;
+  for(let p=particles.length-1;p>=0;p--){
+    const q=particles[p];
+    q.age+=dt; q.vy-=params.particleGravity*dt;
+    q.vx*=0.997; q.vz*=0.997; q.x+=q.vx*dt; q.y+=q.vy*dt; q.z+=q.vz*dt;
+    let dead=q.age>q.life || Math.abs(q.x)>SZ*.57 || Math.abs(q.z)>SZ*.57 || q.y<-1.15;
+    const xi=clamp(Math.floor((q.x/SZ+.5)*N),1,N-2), zi=clamp(Math.floor((q.z/SZ+.5)*N),1,N-2), ii=idx(xi,zi);
+    const surf=eta[ii];
+    if(!dead && q.y<=surf+0.015 && q.vy<0){
+      const fb=params.particleFeedback*q.vol;
+      eta[ii]=clamp(eta[ii]+fb*0.95,-.85,.85);
+      vx[ii]=clamp(vx[ii]+q.vx*fb*0.55,-4,4);
+      vz[ii]=clamp(vz[ii]+q.vz*fb*0.55,-4,4);
+      energy[ii]+=fb*8.0;
+      dead=true;
+    }
+    if(dead){particles.splice(p,1);continue;}
+    const d=q.vol*(1-q.age/q.life);
+    particleDensity[ii]+=d;maxD=Math.max(maxD,particleDensity[ii]);
+  }
+  metrics.particles=particles.length;metrics.particleDensity=maxD;
+}
+
+function underSideClamp(v){return Number.isFinite(v)?clamp(v,0,9):9;}
+function applySolidCoreGuard(dt){
+  const guard=clamp(params.solidGuard,0,2);
+  if(guard<=0)return;
+  tmpEta.set(eta);tmpVx.set(vx);tmpVz.set(vz);
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z);
+    const blocked=clamp((occ[i]-0.52)/0.42,0,1);
+    const pen=clamp(penetration[i]*2.2,0,1);
+    const thin=1-smooth(0.012,0.075,liquidM[i]);
+    const w=clamp((blocked*.75+pen*.55+thin*.45)*guard,0,1);
+    if(w<=0.001)continue;
+    let sum=0,cnt=0,svx=0,svz=0;
+    for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dz===0)continue;
+      const j=idx(x+dx,z+dz);
+      const open=1-clamp((occ[j]-0.45)/0.45,0,1);
+      if(open>0.05){sum+=eta[j]*open;svx+=vx[j]*open;svz+=vz[j]*open;cnt+=open;}
+    }
+    const avg=cnt>1e-5?sum/cnt:0;
+    tmpEta[i]=lerp(eta[i],avg,0.34*w);
+    tmpVx[i]=lerp(vx[i],cnt>1e-5?svx/cnt:0,0.62*w);
+    tmpVz[i]=lerp(vz[i],cnt>1e-5?svz/cnt:0,0.62*w);
+    sheetPressure[i]*=(1-0.42*w);sheetFold[i]*=(1-0.24*w);energy[i]*=(1-0.50*w);
+  }
+  eta.set(tmpEta);vx.set(tmpVx);vz.set(tmpVz);
+}
+function antiGridPass(dt){
+  if(!params.antiGridEnabled)return;
+  const k=clamp(0.025+params.renderSmooth*0.018,0,0.075);
+  tmpEta.set(eta);tmpVx.set(vx);tmpVz.set(vz);
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){
+    const i=idx(x,z);
+    const open=1-clamp((occ[i]-0.38)/0.50,0,1);
+    const safe=clamp(liquidM[i]/0.16,0,1);
+    const w=k*open*(0.45+0.55*safe);
+    if(w<=0.0001)continue;
+    const eAvg=(eta[idx(x-1,z)]+eta[idx(x+1,z)]+eta[idx(x,z-1)]+eta[idx(x,z+1)])*0.25;
+    const vxAvg=(vx[idx(x-1,z)]+vx[idx(x+1,z)]+vx[idx(x,z-1)]+vx[idx(x,z+1)])*0.25;
+    const vzAvg=(vz[idx(x-1,z)]+vz[idx(x+1,z)]+vz[idx(x,z-1)]+vz[idx(x,z+1)])*0.25;
+    tmpEta[i]=eta[i]+(eAvg-eta[i])*w;
+    tmpVx[i]=vx[i]+(vxAvg-vx[i])*w*.65;
+    tmpVz[i]=vz[i]+(vzAvg-vz[i])*w*.65;
+  }
+  eta.set(tmpEta);vx.set(tmpVx);vz.set(tmpVz);
+}
+function step(dt){let subdt=dt/SUB;for(let ss=0;ss<SUB;ss++){computeObstacle(subdt);computeSheetFields(subdt);computeReleaseCollapse(subdt);computeMpmExporter(subdt);computeObjectRunupFilm(subdt);updateObjectFilm(subdt);emitSheetParticles(subdt);
+  // inject obstacle volume and boundary momentum first
+  let maxV=0,maxE=0,total=0;for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){let i=idx(x,z);let wx=(x+.5)/N*SZ-SZ/2,wz=(z+.5)/N*SZ-SZ/2;let dx=wx-sphere.x,dz=wz-sphere.z;let d=Math.hypot(dx,dz)+1e-6;let ndx=dx/d, ndz=dz/d;let ring=Math.exp(-Math.max(0,d-params.radius)*Math.max(0,d-params.radius)/(params.radius*.42));let volumeImpulse=src[i]*params.volumeGain;eta[i]+=volumeImpulse*.38;
+    // Moving solid boundary: front compression/rear suction + side shoulder flow.
+    // src transit from computeObstacle is included, so fast dragged spheres leave
+    // a swept wake instead of tunneling through the water sheet.
+    let rel=sphere.vx*ndx+sphere.vz*ndz;let tangent=(-sphere.vx*ndz+sphere.vz*ndx);let contact=Math.max(smooth(params.radius*1.28,params.radius*.45,d),clamp(Math.abs(src[i])*1.8,0,1));
+    vx[i]+=ndx*Math.max(0,rel)*contact*params.push*subdt*.95; vz[i]+=ndz*Math.max(0,rel)*contact*params.push*subdt*.95;
+    vx[i]+=ndx*Math.min(0,rel)*contact*params.push*subdt*.34; vz[i]+=ndz*Math.min(0,rel)*contact*params.push*subdt*.34;
+    vx[i]+=-ndz*tangent*contact*params.push*subdt*.18; vz[i]+=ndx*tangent*contact*params.push*subdt*.18;
+    if(src[i]>.001){vx[i]+=sphere.vx*src[i]*params.push*subdt*.18; vz[i]+=sphere.vz*src[i]*params.push*subdt*.18;}
+    // void collapse when object leaves water rapidly
+    if(src[i]<-.002){eta[i]+=src[i]*0.10*params.releaseGain; vx[i]+=-ndx*(-src[i])*params.push*.22*params.releaseGain; vz[i]+=-ndz*(-src[i])*params.push*.22*params.releaseGain;}
+    // Phase 3: release/cavity collapse from negative sigmaDot.  This is the first
+    // explicit trapped-volume response: capacity opens behind/lifting sphere, sheet mass
+    // detaches, drops into the void, and draws lateral flow inward before SWE rebounds.
+    if(params.sheetEnabled){const col=collapseField[i];if(col>.0001){eta[i]-=col*subdt*.090;vx[i]+=-ndx*col*params.push*subdt*.92;vz[i]+=-ndz*col*params.push*subdt*.92;}}
+    // Phase 2: folded surface-sheet pressure.  This is a reduced self-shallow-shore
+    // relation: when a bent sheet's underside is close to a solid/itself, it stores
+    // pressure and squeezes flow laterally instead of gluing to the sphere.
+    if(params.sheetEnabled){const sp=sheetPressure[i];eta[i]+=sp*subdt*.018;vx[i]+=ndx*sp*params.push*subdt*.34;vz[i]+=ndz*sp*params.push*subdt*.34;}
+  }
+  // pressure gradient -> velocity.  Use eta as the free surface but gate acceleration by
+  // available liquid depth m so nearly blocked columns do not behave like infinite water.
+  const c=params.waveSpeed;for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){let i=idx(x,z);let mGate=clamp(liquidM[i]/H,0.05,1.6);let gx=(eta[idx(x+1,z)]-eta[idx(x-1,z)])/(2*DX);let gz=(eta[idx(x,z+1)]-eta[idx(x,z-1)])/(2*DX);tmpVx[i]=(vx[i]-G*c*c*gx*subdt*mGate)*params.damping;tmpVz[i]=(vz[i]-G*c*c*gz*subdt*mGate)*params.damping;}
+  // boundary damping/reflection
+  for(let x=0;x<N;x++){let a=idx(x,0),b=idx(x,N-1);tmpVz[a]=Math.abs(tmpVz[a])*params.wallLoss;tmpVz[b]=-Math.abs(tmpVz[b])*params.wallLoss;tmpVx[a]*=.75;tmpVx[b]*=.75;}
+  for(let z=0;z<N;z++){let a=idx(0,z),b=idx(N-1,z);tmpVx[a]=Math.abs(tmpVx[a])*params.wallLoss;tmpVx[b]=-Math.abs(tmpVx[b])*params.wallLoss;tmpVz[a]*=.75;tmpVz[b]*=.75;}
+  // continuity -> height.  Flux is m*u, not just u; this is the first explicit
+  // occupancy-SWE correction: m = eta - b - sigma.
+  for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++){let i=idx(x,z);let mxp=liquidM[idx(x+1,z)]*tmpVx[idx(x+1,z)], mxm=liquidM[idx(x-1,z)]*tmpVx[idx(x-1,z)];let mzp=liquidM[idx(x,z+1)]*tmpVz[idx(x,z+1)], mzm=liquidM[idx(x,z-1)]*tmpVz[idx(x,z-1)];let div=(mxp-mxm+mzp-mzm)/(2*DX);tmpEta[i]=(eta[i]-div*subdt)*.9996;}
+  // copy + cap only catastrophic values; recompute available depth after the update.
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){let i=idx(x,z);eta[i]=clamp(tmpEta[i],-.85,.85);vx[i]=clamp(tmpVx[i],-4.0,4.0);vz[i]=clamp(tmpVz[i],-4.0,4.0);liquidM[i]=Math.max(0,H+eta[i]-sigma[i]);if(liquidM[i]<.012){vx[i]*=.35;vz[i]*=.35;}}
+  applySolidCoreGuard(subdt);antiGridPass(subdt);
+  maxV=0;total=0;maxE=0;
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){let i=idx(x,z);liquidM[i]=Math.max(0,H+eta[i]-sigma[i]);let sp=Math.hypot(vx[i],vz[i]);energy[i]=Math.abs(eta[i])*.65+sp*.25+Math.abs(sigmaDot[i])*.045+penetration[i]*1.5+sheetPressure[i]*.22+mpmRisk[i]*.35+trappedVolume[i]*.18+releaseFlow[i]*.18+collapseField[i]*.20+jitMpmVolume[i]*4.5+ejectionEnergy[i]*.18+filmProjection[i]*1.8+runupField[i]*0.05+filmDropField[i]*0.08;maxV=Math.max(maxV,sp);maxE=Math.max(maxE,energy[i]);total+=eta[i];}
+  metrics.maxV=maxV;metrics.maxEta=Math.max(...sampleAbs(eta,400));metrics.massD=total/(N*N);metrics.cfl=maxV*subdt/DX;
+  }
+  advanceSheetParticles(dt);
+}
+function sampleAbs(a,step){let out=[];for(let i=0;i<a.length;i+=Math.max(1,Math.floor(a.length/step)))out.push(Math.abs(a[i]));return out;}
+// WebGL2 render
+const canvas=document.getElementById('gl'), gl=canvas.getContext('webgl2',{antialias:true,alpha:false});if(!gl){alert('WebGL2 required');}
+function shader(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s;}
+function prog(vs,fs){let p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw gl.getProgramInfoLog(p);return p;}
+const waterP=prog(`#version 300 es
+in vec3 aPos;
+in vec3 aNorm;
+in float aOcc;
+uniform mat4 uMVP;
+uniform mat4 uM;
+out vec3 vN;
+out vec3 vW;
+out float vY;
+out float vOcc;
+void main(){
+  vN=normalize(mat3(uM)*aNorm);
+  vW=(uM*vec4(aPos,1.0)).xyz;
+  vY=aPos.y;
+  vOcc=aOcc;
+  gl_Position=uMVP*vec4(aPos,1.0);
+}`,
+`#version 300 es
+precision highp float;
+in vec3 vN;
+in vec3 vW;
+in float vY;
+in float vOcc;
+uniform int uMaterial;
+uniform float uTime;
+uniform vec3 uEye;
+uniform vec3 uLight;
+uniform vec3 uSphere;
+uniform float uRadius;
+out vec4 o;
+const float IOR_AIR = 1.0;
+const float IOR_WATER = 1.333;
+const float FLOOR_Y = -1.0;
+const float HALF_POOL = 6.0;
+
+float saturate(float x){return clamp(x,0.0,1.0);} 
+float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);} 
+vec3 skyColor(vec3 rd){
+  float h=saturate(rd.y*0.5+0.5);
+  vec3 zen=vec3(0.30,0.55,0.82);
+  vec3 hor=vec3(0.78,0.90,1.00);
+  vec3 low=vec3(0.030,0.060,0.085);
+  return mix(low,mix(hor,zen,pow(h,0.75)),smoothstep(-0.10,0.55,rd.y));
+}
+float tileLine(vec2 p){
+  vec2 g=abs(fract(p)-0.5);
+  float line=1.0-smoothstep(0.455,0.492,max(g.x,g.y));
+  return line;
+}
+vec3 tileColor(vec3 p, vec3 n){
+  vec2 uv = abs(n.y)>0.65 ? p.xz*0.82 : (abs(n.x)>abs(n.z)?p.zy:p.xy)*0.82;
+  float grout=tileLine(uv);
+  float board=mod(floor(uv.x)+floor(uv.y),2.0);
+  vec3 a=vec3(0.54,0.70,0.73), b=vec3(0.42,0.63,0.68);
+  vec3 c=mix(a,b,board*0.32+hash21(floor(uv))*0.20);
+  c=mix(c,vec3(0.22,0.35,0.39),grout*0.72);
+  return c;
+}
+float causticNet(vec2 p,float t){
+  p*=1.12;
+  float a=sin(p.x*8.7+p.y*2.9+t*0.0017);
+  float b=sin(p.x*-3.3+p.y*9.4+t*0.0013+1.7);
+  float c=sin(p.x*6.2-p.y*7.6+t*0.0011+3.1);
+  float q=abs(a+b+c)/3.0;
+  q=pow(saturate(1.0-q),8.0);
+  float q2=abs(sin(p.x*15.1+t*0.0021)*sin(p.y*13.7-t*0.0014));
+  return saturate(q*1.55+pow(q2,14.0)*0.55);
+}
+float sphereHit(vec3 ro, vec3 rd, vec3 c, float r){
+  vec3 oc=ro-c;
+  float b=dot(oc,rd);
+  float h=b*b-dot(oc,oc)+r*r;
+  if(h<0.0)return -1.0;
+  h=sqrt(h);
+  float t=-b-h;
+  if(t>0.001)return t;
+  t=-b+h;
+  return t>0.001?t:-1.0;
+}
+float boxHit(vec3 ro, vec3 rd, out vec3 n){
+  float best=1e9; n=vec3(0.0,1.0,0.0);
+  if(abs(rd.y)>1e-5){
+    float t=(FLOOR_Y-ro.y)/rd.y;
+    vec3 p=ro+rd*t;
+    if(t>0.001 && abs(p.x)<=HALF_POOL && abs(p.z)<=HALF_POOL){best=t;n=vec3(0.0,1.0,0.0);} 
+  }
+  if(abs(rd.x)>1e-5){
+    float sx=rd.x>0.0?HALF_POOL:-HALF_POOL;
+    float t=(sx-ro.x)/rd.x;
+    vec3 p=ro+rd*t;
+    if(t>0.001 && p.y>=FLOOR_Y && p.y<=1.25 && abs(p.z)<=HALF_POOL && t<best){best=t;n=vec3(-sign(rd.x),0.0,0.0);} 
+  }
+  if(abs(rd.z)>1e-5){
+    float sz=rd.z>0.0?HALF_POOL:-HALF_POOL;
+    float t=(sz-ro.z)/rd.z;
+    vec3 p=ro+rd*t;
+    if(t>0.001 && p.y>=FLOOR_Y && p.y<=1.25 && abs(p.x)<=HALF_POOL && t<best){best=t;n=vec3(0.0,0.0,-sign(rd.z));} 
+  }
+  return best<1e8?best:-1.0;
+}
+vec3 sphereShade(vec3 p, vec3 rd){
+  vec3 n=normalize(p-uSphere);
+  float nd=saturate(dot(n,uLight));
+  float rim=pow(1.0-saturate(dot(n,-rd)),3.0);
+  float spec=pow(saturate(dot(reflect(-uLight,n),-rd)),88.0);
+  return vec3(0.92,0.33,0.10)*(0.36+0.82*nd)+vec3(0.20,0.055,0.02)+spec*vec3(1.0,0.78,0.42)+rim*vec3(0.18,0.07,0.035);
+}
+vec3 poolShade(vec3 p, vec3 n, vec3 rd){
+  vec3 c=tileColor(p,n);
+  float waterDepth=max(0.0,vW.y-p.y);
+  float ca=causticNet(p.xz + n.xz*0.35, uTime);
+  float lambert=0.40+0.70*saturate(dot(n,uLight));
+  float sphereShadow=smoothstep(uRadius*1.55,uRadius*0.55,length(p.xz-uSphere.xz));
+  c*=lambert;
+  c+=ca*vec3(0.72,0.96,1.00)*(0.20+0.70*saturate(1.0-waterDepth*0.45))*sphereShadow;
+  c=mix(c,vec3(0.02,0.17,0.22),saturate(waterDepth*0.08));
+  return c;
+}
+vec3 traceBelow(vec3 ro, vec3 rd){
+  float ts=sphereHit(ro,rd,uSphere,uRadius);
+  vec3 bn;
+  float tb=boxHit(ro,rd,bn);
+  if(ts>0.0 && (tb<0.0 || ts<tb))return sphereShade(ro+rd*ts,rd);
+  if(tb>0.0)return poolShade(ro+rd*tb,bn,rd);
+  return skyColor(rd)*0.35+vec3(0.0,0.15,0.20);
+}
+void main(){
+  vec3 N=normalize(vN);
+  vec3 V=normalize(vW-uEye);
+  if(dot(N,-V)<0.0)N=-N;
+  if(uMaterial==4){o=vec4(N*0.5+0.5,1.0);return;}
+  vec3 R=reflect(V,N);
+  vec3 T=refract(V,N,IOR_AIR/IOR_WATER);
+  if(length(T)<0.01)T=normalize(vec3(V.x,-abs(V.y)-0.15,V.z));
+  float fres=mix(0.045,1.0,pow(1.0-saturate(dot(N,-V)),3.2));
+  vec3 reflected=skyColor(R);
+  vec3 refracted=traceBelow(vW-N*0.030,T);
+  float depthTint=saturate((vY+0.12)*0.65+0.32);
+  vec3 shallow=vec3(0.30,0.82,0.94);
+  vec3 deep=vec3(0.015,0.22,0.30);
+  vec3 tint=mix(deep,shallow,depthTint);
+  if(uMaterial==2)tint=mix(vec3(0.005,0.075,0.12),vec3(0.06,0.40,0.50),depthTint);
+  if(uMaterial==3)tint=mix(vec3(0.02,0.16,0.22),vec3(0.11,0.55,0.72),depthTint);
+  if(uMaterial==1)tint=mix(vec3(0.015,0.22,0.28),vec3(0.16,0.75,0.95),depthTint);
+  vec3 col=mix(refracted*tint*1.12,reflected,fres);
+  float nd=saturate(dot(N,uLight));
+  vec3 H=normalize(uLight-V);
+  float spec=pow(saturate(dot(N,H)),180.0)*(1.1+fres*2.2);
+  float crest=saturate(vY*1.7+0.38);
+  float ca=causticNet(vW.xz,uTime)*0.055;
+  col+=spec*vec3(1.0,0.96,0.86);
+  col+=ca*vec3(0.45,0.94,1.0)*(0.3+0.7*nd);
+  col=mix(col,vec3(0.012,0.030,0.040),smoothstep(0.12,0.88,vOcc));
+  col=mix(col,tint,0.10+crest*0.08);
+  o=vec4(pow(max(col,vec3(0.0)),vec3(0.92)),1.0);
+}`);
+const poolP=prog(`#version 300 es
+in vec3 aPos;
+in vec3 aNorm;
+uniform mat4 uMVP;
+uniform mat4 uM;
+out vec3 vW;
+out vec3 vN;
+void main(){
+  vW=(uM*vec4(aPos,1.0)).xyz;
+  vN=normalize(mat3(uM)*aNorm);
+  gl_Position=uMVP*vec4(aPos,1.0);
+}`,
+`#version 300 es
+precision highp float;
+in vec3 vW;
+in vec3 vN;
+uniform float uTime;
+uniform vec3 uLight;
+uniform vec3 uSphere;
+uniform float uRadius;
+out vec4 o;
+float saturate(float x){return clamp(x,0.0,1.0);} 
+float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);} 
+float tileLine(vec2 p){vec2 g=abs(fract(p)-0.5);return 1.0-smoothstep(0.455,0.492,max(g.x,g.y));}
+vec3 tileColor(vec3 p, vec3 n){
+  vec2 uv=abs(n.y)>0.65?p.xz*0.82:(abs(n.x)>abs(n.z)?p.zy:p.xy)*0.82;
+  float grout=tileLine(uv);
+  float board=mod(floor(uv.x)+floor(uv.y),2.0);
+  vec3 c=mix(vec3(0.54,0.70,0.73),vec3(0.42,0.63,0.68),board*0.32+hash21(floor(uv))*0.18);
+  return mix(c,vec3(0.22,0.35,0.39),grout*0.72);
+}
+float causticNet(vec2 p,float t){
+  p*=1.12;
+  float a=sin(p.x*8.7+p.y*2.9+t*0.0017);
+  float b=sin(p.x*-3.3+p.y*9.4+t*0.0013+1.7);
+  float c=sin(p.x*6.2-p.y*7.6+t*0.0011+3.1);
+  float q=abs(a+b+c)/3.0;
+  q=pow(saturate(1.0-q),8.0);
+  float q2=abs(sin(p.x*15.1+t*0.0021)*sin(p.y*13.7-t*0.0014));
+  return saturate(q*1.50+pow(q2,14.0)*0.55);
+}
+void main(){
+  vec3 n=normalize(vN);
+  vec3 c=tileColor(vW,n);
+  float lam=0.32+0.72*saturate(dot(n,uLight));
+  float ca=causticNet(vW.xz+n.xz*0.40,uTime);
+  float depth=max(0.0,-vW.y);
+  float shadow=smoothstep(uRadius*1.70,uRadius*0.55,length(vW.xz-uSphere.xz));
+  c*=lam;
+  c+=ca*vec3(0.70,0.96,1.00)*(0.12+0.62*saturate(1.0-depth*0.36))*shadow;
+  c=mix(c,vec3(0.015,0.15,0.20),saturate(depth*0.12));
+  o=vec4(c,1.0);
+}`);
+const sphereP=prog(`#version 300 es
+in vec3 aPos;
+in vec3 aNorm;
+uniform mat4 uMVP;
+uniform mat4 uM;
+out vec3 vN;
+out vec3 vW;
+void main(){
+  vN=normalize(mat3(uM)*aNorm);
+  vW=(uM*vec4(aPos,1.0)).xyz;
+  gl_Position=uMVP*vec4(aPos,1.0);
+}`,
+`#version 300 es
+precision highp float;
+in vec3 vN;
+in vec3 vW;
+uniform vec3 uEye;
+uniform vec3 uLight;
+out vec4 o;
+vec3 skyColor(vec3 rd){float h=clamp(rd.y*0.5+0.5,0.0,1.0);return mix(vec3(0.03,0.06,0.08),mix(vec3(0.80,0.91,1.0),vec3(0.28,0.52,0.82),pow(h,0.75)),smoothstep(-0.1,0.55,rd.y));}
+void main(){
+  vec3 N=normalize(vN);
+  vec3 V=normalize(vW-uEye);
+  if(dot(N,-V)<0.0)N=-N;
+  float nd=max(dot(N,uLight),0.0);
+  vec3 R=reflect(V,N);
+  float rim=pow(1.0-clamp(dot(N,-V),0.0,1.0),3.0);
+  float spec=pow(max(dot(reflect(-uLight,N),-V),0.0),120.0);
+  vec3 base=vec3(0.92,0.33,0.10)*(0.34+0.82*nd)+vec3(0.18,0.045,0.015);
+  vec3 env=skyColor(R);
+  o=vec4(base+env*0.16*rim+spec*vec3(1.0,0.78,0.42),1.0);
+}`);
+const lineP=prog(`#version 300 es
+in vec3 aPos;uniform mat4 uMVP;void main(){gl_Position=uMVP*vec4(aPos,1.0);}`,
+`#version 300 es
+precision highp float;uniform vec3 uColor;out vec4 o;void main(){o=vec4(uColor,1.0);}`);
+const particleP=prog(`#version 300 es
+in vec4 aData;uniform mat4 uMVP;out float vLife;void main(){vLife=aData.w;gl_Position=uMVP*vec4(aData.xyz,1.0);gl_PointSize=3.0+8.0*aData.w;}`,
+`#version 300 es
+precision highp float;in float vLife;out vec4 o;void main(){vec2 q=gl_PointCoord*2.0-1.0;float d=dot(q,q);if(d>1.0)discard;vec3 col=mix(vec3(.18,.62,.82),vec3(.85,.96,1.0),vLife);o=vec4(col,0.72*(1.0-d));}`);
+const vaoP=gl.createVertexArray(),vboP=gl.createBuffer();gl.bindVertexArray(vaoP);gl.bindBuffer(gl.ARRAY_BUFFER,vboP);gl.bufferData(gl.ARRAY_BUFFER,particleVerts.byteLength,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,16,0);gl.bindVertexArray(null);
+const vaoFilm=gl.createVertexArray(),vboFilm=gl.createBuffer();gl.bindVertexArray(vaoFilm);gl.bindBuffer(gl.ARRAY_BUFFER,vboFilm);gl.bufferData(gl.ARRAY_BUFFER,filmVerts.byteLength,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,16,0);gl.bindVertexArray(null);
+function updateParticleBuffer(){
+  const n=Math.min(MAX_PARTICLES,particles.length);
+  for(let i=0;i<n;i++){const p=particles[i],o=i*4,life=clamp(1-p.age/Math.max(1e-4,p.life),0,1);particleVerts[o]=p.x;particleVerts[o+1]=p.y;particleVerts[o+2]=p.z;particleVerts[o+3]=life;}
+  gl.bindBuffer(gl.ARRAY_BUFFER,vboP);gl.bufferSubData(gl.ARRAY_BUFFER,0,particleVerts.subarray(0,n*4));return n;
+}
+function updateFilmBuffer(){
+  let n=0;
+  if(!params.filmEnabled || params.filmVisual==='off')return 0;
+  const debug=params.filmVisual==='debug';
+  const stride=debug?1:2, threshold=debug?0.006:0.018;
+  for(let v=0;v<FH;v+=stride)for(let u=0;u<FW;u+=stride){
+    const i=filmIdx(u,v),f=sphereFilm[i];
+    if(f<threshold || n>=FW*FH)continue;
+    const q=filmNormal(u,v),r=params.radius+0.020+clamp(f*(debug?0.12:0.045),0,debug?.045:.018),o=n*4;
+    filmVerts[o]=sphere.x+q[0]*r;filmVerts[o+1]=sphere.y+q[1]*r;filmVerts[o+2]=sphere.z+q[2]*r;filmVerts[o+3]=debug?clamp(f*10,0,1):clamp(f*3.0,0,.30);n++;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,vboFilm);gl.bufferSubData(gl.ARRAY_BUFFER,0,filmVerts.subarray(0,n*4));return n;
+}
+let RN=params.meshQuality|0, waterVerts, waterIdx, vaoW=gl.createVertexArray(), vboW=gl.createBuffer(), iboW=gl.createBuffer();
+function buildWaterMesh(res){
+  RN=res|0;
+  waterVerts=new Float32Array(RN*RN*7);
+  let inds=[];
+  for(let z=0;z<RN-1;z++)for(let x=0;x<RN-1;x++){let a=z*RN+x,b=a+1,c=a+RN,d=c+1;inds.push(a,c,b,b,c,d);}
+  waterIdx=new Uint32Array(inds);
+  gl.bindVertexArray(vaoW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,vboW); gl.bufferData(gl.ARRAY_BUFFER,waterVerts.byteLength,gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,iboW); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,waterIdx,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,28,12);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,1,gl.FLOAT,false,28,24);
+  gl.bindVertexArray(null);
+}
+function sampleField(a,wx,wz){
+  const u=clamp((wx/SZ+.5)*N-.5,0,N-1.001), v=clamp((wz/SZ+.5)*N-.5,0,N-1.001);
+  const x0=Math.floor(u),z0=Math.floor(v),x1=Math.min(N-1,x0+1),z1=Math.min(N-1,z0+1),tx=u-x0,tz=v-z0;
+  const a00=a[idx(x0,z0)],a10=a[idx(x1,z0)],a01=a[idx(x0,z1)],a11=a[idx(x1,z1)];
+  return lerp(lerp(a00,a10,tx),lerp(a01,a11,tx),tz);
+}
+function sampleFieldSoft(a,wx,wz){
+  const s=clamp(params.renderSmooth,0,2);
+  if(s<=0.001)return sampleField(a,wx,wz);
+  const off=DX*(0.42+0.36*s);
+  return (sampleField(a,wx,wz)*4.0+
+    sampleField(a,wx-off,wz)*2.0+sampleField(a,wx+off,wz)*2.0+sampleField(a,wx,wz-off)*2.0+sampleField(a,wx,wz+off)*2.0+
+    sampleField(a,wx-off,wz-off)+sampleField(a,wx+off,wz-off)+sampleField(a,wx-off,wz+off)+sampleField(a,wx+off,wz+off))/16.0;
+}
+function sampleRenderEta(wx,wz){return sampleFieldSoft(eta,wx,wz);}
+function contactDisplay(wx,wz,freeEta,occSample){
+  const r=params.radius,dx=wx-sphere.x,dz=wz-sphere.z,d2=dx*dx+dz*dz;
+  const shP=params.sheetEnabled?sampleField(sheetPressure,wx,wz):0, shF=params.sheetEnabled?sampleField(sheetFold,wx,wz):0, shT=params.sheetEnabled?sampleField(sheetThickness,wx,wz):0;
+  let display=freeEta, occRender=occSample, risk=0;
+  if(d2<r*r){
+    const radial=Math.sqrt(d2), cap=Math.sqrt(r*r-d2), lower=sphere.y-cap, upper=sphere.y+cap;
+    const insideSolid = freeEta > lower-.012 && freeEta < upper+.012;
+    if(params.renderMode==='raw'){
+      // diagnostic: show the mathematical heightfield even if it intersects the ball.
+    }else if(params.renderMode==='clip'){
+      // conservative old mode: always hide surface under the lower cap while in footprint.
+      const clipMask=smooth(r*.98,r*.70,radial);
+      display=display*(1-clipMask)+(lower-.018)*clipMask;
+      occRender=Math.max(occRender,clipMask);
+    }else if(params.renderMode==='shell'){
+      // pseudo folded-sheet preview: if free surface is inside solid, slide it to the nearest
+      // physically valid sphere side instead of treating the sphere as a vertical cylinder.
+      if(insideSolid){
+        const mid=(lower+upper)*.5;
+        const toUpper=Math.abs(upper-freeEta), toLower=Math.abs(freeEta-lower);
+        display=(freeEta>mid || toUpper<toLower) ? upper+.012 : lower-.012;
+        risk=smooth(0.0,.25,Math.min(toUpper,toLower));
+      }
+      // show the extra sheet mass/inertia as a lifted shell only in this diagnostic mode
+      display+=shF*shT*params.sheetLift;
+      occRender=Math.max(occRender,insideSolid?0.65:occSample,shF*.55);
+    }else{
+      // SDF contact: the valid water boundary depends on the actual sphere equation.
+      // Water is only suppressed where the free surface lies between lower and upper cap.
+      // If the free surface rises above the local upper cap, it is allowed to cover the
+      // submerged sphere; if it is below lower cap, it remains below.  This removes the
+      // cylinder-footprint failure and lets water collapse/fill around the curved object.
+      if(insideSolid){
+        const band=Math.min(Math.abs(freeEta-lower),Math.abs(upper-freeEta));
+        // During upward release, do not let the render skin stick to the upper cap.
+        // Only sustained/overtopped water should render above the sphere.
+        const releaseBias=clamp(sphere.vy*.75*params.releaseGain,0,1);
+        const preferUpper=(freeEta>sphere.y+.04 && upper-freeEta < freeEta-lower && releaseBias<.45);
+        display=preferUpper ? upper+.008 : lower-.014;
+        risk=1-smooth(.0,r*.45,band);
+        occRender=Math.max(occRender,0.45+0.45*risk);
+      }
+    }
+  }else if(Math.sqrt(d2)<r*1.25 && params.renderMode!=='raw'){
+    const radial=Math.sqrt(d2),rim=smooth(r*1.25,r,radial);
+    const detach=clamp(1-Math.max(0,sphere.vy)*0.65*params.releaseGain,0,1);
+    display+=0.016*rim*detach*clamp((r*.9-Math.abs(display-sphere.y))/(r*.9),0,1);
+  }
+  // SDF contact keeps geometry honest; sheet pressure adds only a small physical meniscus.
+  if(params.sheetEnabled && params.renderMode!=='raw')display+=shP*.018;
+  occRender=Math.max(occRender,shF*.22,mpmRiskSample(wx,wz)*.18,jitMpmSample(wx,wz)*8.0);
+  return {display,occRender,risk};
+}
+function mpmRiskSample(wx,wz){return params.sheetEnabled?sampleField(mpmRisk,wx,wz):0;}
+function jitMpmSample(wx,wz){return params.sheetEnabled?sampleField(jitMpmVolume,wx,wz):0;}
+
+const poolGeom=(()=>{
+  const hp=SZ/2, y0=-H, y1=1.25;
+  const verts=[];
+  function tri(a,b,c,n){verts.push(...a,...n,...b,...n,...c,...n);} 
+  function quad(a,b,c,d,n){tri(a,b,c,n);tri(a,c,d,n);} 
+  quad([-hp,y0,-hp],[ hp,y0,-hp],[ hp,y0, hp],[-hp,y0, hp],[0,1,0]);
+  quad([-hp,y1,-hp],[-hp,y0,-hp],[-hp,y0, hp],[-hp,y1, hp],[1,0,0]);
+  quad([ hp,y1, hp],[ hp,y0, hp],[ hp,y0,-hp],[ hp,y1,-hp],[-1,0,0]);
+  quad([ hp,y1,-hp],[ hp,y0,-hp],[-hp,y0,-hp],[-hp,y1,-hp],[0,0,1]);
+  quad([-hp,y1, hp],[-hp,y0, hp],[ hp,y0, hp],[ hp,y1, hp],[0,0,-1]);
+  return new Float32Array(verts);
+})();
+const vaoPool=gl.createVertexArray(),vboPool=gl.createBuffer();
+gl.bindVertexArray(vaoPool);
+gl.bindBuffer(gl.ARRAY_BUFFER,vboPool);gl.bufferData(gl.ARRAY_BUFFER,poolGeom,gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
+gl.bindVertexArray(null);
+const poolVertexCount=poolGeom.length/6;
+
+buildWaterMesh(RN);
+function sphereMesh(seg=28,ring=16){let v=[],ind=[];for(let y=0;y<=ring;y++){let th=y/ring*Math.PI;for(let x=0;x<=seg;x++){let ph=x/seg*Math.PI*2;let sx=Math.sin(th)*Math.cos(ph),sy=Math.cos(th),sz=Math.sin(th)*Math.sin(ph);v.push(sx,sy,sz,sx,sy,sz);}}for(let y=0;y<ring;y++)for(let x=0;x<seg;x++){let a=y*(seg+1)+x,b=a+1,c=a+seg+1,d=c+1;ind.push(a,c,b,b,c,d);}return {v:new Float32Array(v),i:new Uint32Array(ind)};}const sm=sphereMesh();const vaoS=gl.createVertexArray(),vboS=gl.createBuffer(),iboS=gl.createBuffer();gl.bindVertexArray(vaoS);gl.bindBuffer(gl.ARRAY_BUFFER,vboS);gl.bufferData(gl.ARRAY_BUFFER,sm.v,gl.STATIC_DRAW);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,iboS);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,sm.i,gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);gl.bindVertexArray(null);
+function m4(){return new Float32Array(16)}function ident(o){o.set([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);return o}function mul(o,a,b){let r=m4();for(let c=0;c<4;c++)for(let r0=0;r0<4;r0++)r[c*4+r0]=a[0*4+r0]*b[c*4+0]+a[1*4+r0]*b[c*4+1]+a[2*4+r0]*b[c*4+2]+a[3*4+r0]*b[c*4+3];o.set(r);return o}function persp(o,f,asp,n,fa){let t=1/Math.tan(f/2);o.set([t/asp,0,0,0,0,t,0,0,0,0,(fa+n)/(n-fa),-1,0,0,2*fa*n/(n-fa),0]);return o}function look(o,eye,ctr,up){let zx=eye[0]-ctr[0],zy=eye[1]-ctr[1],zz=eye[2]-ctr[2];let zl=Math.hypot(zx,zy,zz);zx/=zl;zy/=zl;zz/=zl;let xx=up[1]*zz-up[2]*zy,xy=up[2]*zx-up[0]*zz,xz=up[0]*zy-up[1]*zx;let xl=Math.hypot(xx,xy,xz);xx/=xl;xy/=xl;xz/=xl;let yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;o.set([xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*eye[0]+xy*eye[1]+xz*eye[2]),-(yx*eye[0]+yy*eye[1]+yz*eye[2]),-(zx*eye[0]+zy*eye[1]+zz*eye[2]),1]);return o}function transScale(o,x,y,z,s){o.set([s,0,0,0,0,s,0,0,0,0,s,0,x,y,z,1]);return o}
+function materialId(name){return name==='legacy'?3:name==='deep'?2:name==='diagnostic'?1:name==='normal'?4:0;}
+function updateMesh(){
+  for(let z=0;z<RN;z++)for(let x=0;x<RN;x++){
+    const vi=z*RN+x,o=vi*7,wx=(x/(RN-1)-.5)*SZ,wz=(z/(RN-1)-.5)*SZ;
+    const h=sampleRenderEta(wx,wz), occS=sampleField(occ,wx,wz);
+    const c=contactDisplay(wx,wz,h,occS);
+    const eps=SZ/(RN-1);
+    const hx=sampleRenderEta(wx+eps,wz)-sampleRenderEta(wx-eps,wz);
+    const hz=sampleRenderEta(wx,wz+eps)-sampleRenderEta(wx,wz-eps);
+    let nx=-hx/(2*eps),ny=1,nz=-hz/(2*eps),nl=Math.hypot(nx,ny,nz);
+    if(params.sheetEnabled){const f=clamp(sampleField(sheetFold,wx,wz)*.45,0,.55);const dxs=sampleField(dirX,wx,wz),dys=sampleField(dirY,wx,wz),dzs=sampleField(dirZ,wx,wz);nx=nx*(1-f)+dxs*f;ny=ny*(1-f)+dys*f;nz=nz*(1-f)+dzs*f;nl=Math.hypot(nx,ny,nz);}
+    // SDF contact adds a local normal bias near the sphere so the contact edge reads round,
+    // not stair-stepped.  It is visual only; the solver remains cell based.
+    const dx=wx-sphere.x,dz=wz-sphere.z,rr=params.radius;
+    if(params.renderMode!=='raw' && dx*dx+dz*dz<rr*rr){
+      const d=Math.sqrt(dx*dx+dz*dz)+1e-6;
+      const cap=Math.sqrt(Math.max(0,rr*rr-d*d));
+      const sx=dx/Math.max(cap,.08), sz=dz/Math.max(cap,.08);
+      const w=clamp(c.occRender*.55,0,0.55);
+      nx=nx*(1-w)+sx*w; nz=nz*(1-w)+sz*w; nl=Math.hypot(nx,ny,nz);
+    }
+    waterVerts[o]=wx;waterVerts[o+1]=c.display;waterVerts[o+2]=wz;
+    waterVerts[o+3]=nx/nl;waterVerts[o+4]=ny/nl;waterVerts[o+5]=nz/nl;waterVerts[o+6]=c.occRender;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,vboW);gl.bufferSubData(gl.ARRAY_BUFFER,0,waterVerts);
+}
+function render(){let w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.clearColor(.018,.045,.070,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  let asp=w/h,P=m4(),V=m4(),M=ident(m4()),PV=m4(),MVP=m4();persp(P,Math.PI/4,asp,.05,100);let eye=[Math.sin(cam.yaw)*cam.dist,Math.sin(cam.pitch)*cam.dist*.58,Math.cos(cam.yaw)*cam.dist];look(V,eye,[0,0,0],[0,1,0]);mul(PV,P,V);
+  const light=[0.42,0.82,0.28];
+  // Reference-style pool receiver first: floor/walls with procedural tiles + caustics.
+  gl.useProgram(poolP);mul(MVP,PV,M);
+  gl.uniformMatrix4fv(gl.getUniformLocation(poolP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(poolP,'uM'),false,M);
+  gl.uniform1f(gl.getUniformLocation(poolP,'uTime'),performance.now());
+  gl.uniform3f(gl.getUniformLocation(poolP,'uLight'),light[0],light[1],light[2]);
+  gl.uniform3f(gl.getUniformLocation(poolP,'uSphere'),sphere.x,sphere.y,sphere.z);
+  gl.uniform1f(gl.getUniformLocation(poolP,'uRadius'),params.radius);
+  gl.bindVertexArray(vaoPool);gl.drawArrays(gl.TRIANGLES,0,poolVertexCount);
+  // Phase 7 solver water mesh, shaded through the reference-style ray/caustic visual shell.
+  updateMesh();gl.useProgram(waterP);mul(MVP,PV,M);
+  gl.uniformMatrix4fv(gl.getUniformLocation(waterP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(waterP,'uM'),false,M);
+  gl.uniform1i(gl.getUniformLocation(waterP,'uMaterial'),materialId(params.waterMaterial));
+  gl.uniform1f(gl.getUniformLocation(waterP,'uTime'),performance.now());
+  gl.uniform3f(gl.getUniformLocation(waterP,'uEye'),eye[0],eye[1],eye[2]);
+  gl.uniform3f(gl.getUniformLocation(waterP,'uLight'),light[0],light[1],light[2]);
+  gl.uniform3f(gl.getUniformLocation(waterP,'uSphere'),sphere.x,sphere.y,sphere.z);
+  gl.uniform1f(gl.getUniformLocation(waterP,'uRadius'),params.radius);
+  gl.bindVertexArray(vaoW);gl.drawElements(gl.TRIANGLES,waterIdx.length,gl.UNSIGNED_INT,0);
+  let MS=m4();transScale(MS,sphere.x,sphere.y,sphere.z,params.radius);mul(MVP,PV,MS);gl.useProgram(sphereP);
+  gl.uniformMatrix4fv(gl.getUniformLocation(sphereP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(sphereP,'uM'),false,MS);
+  gl.uniform3f(gl.getUniformLocation(sphereP,'uEye'),eye[0],eye[1],eye[2]);gl.uniform3f(gl.getUniformLocation(sphereP,'uLight'),light[0],light[1],light[2]);
+  gl.bindVertexArray(vaoS);gl.drawElements(gl.TRIANGLES,sm.i.length,gl.UNSIGNED_INT,0);
+  const fn=updateFilmBuffer();if(fn>0){gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.useProgram(particleP);gl.uniformMatrix4fv(gl.getUniformLocation(particleP,'uMVP'),false,PV);gl.bindVertexArray(vaoFilm);gl.drawArrays(gl.POINTS,0,fn);gl.disable(gl.BLEND);}
+  const pn=updateParticleBuffer();if(pn>0){gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.useProgram(particleP);gl.uniformMatrix4fv(gl.getUniformLocation(particleP,'uMVP'),false,PV);gl.bindVertexArray(vaoP);gl.drawArrays(gl.POINTS,0,pn);gl.disable(gl.BLEND);}
+  gl.bindVertexArray(null);
+}
+const fcan=document.getElementById('fieldCanvas'),fctx=fcan.getContext('2d'),img=fctx.createImageData(N,N);
+function fieldValue(mode,i){
+  if(mode==='speed')return Math.hypot(vx[i],vz[i]);
+  if(mode==='vx')return vx[i]; if(mode==='vz')return vz[i]; if(mode==='m')return liquidM[i];
+  if(mode==='sigma')return sigma[i]; if(mode==='sigdot')return sigmaDot[i]; if(mode==='penetration')return penetration[i]; if(mode==='source')return src[i];
+  if(mode==='fold')return sheetFold[i]; if(mode==='thickness')return sheetThickness[i]; if(mode==='clearance')return undersideClearance[i];
+  if(mode==='pressure')return sheetPressure[i]; if(mode==='risk')return mpmRisk[i]; if(mode==='dirY')return dirY[i];
+  if(mode==='trap')return trappedVolume[i]; if(mode==='release')return releaseFlow[i]; if(mode==='collapse')return collapseField[i];
+  if(mode==='failvol')return failedSheetVolume[i]; if(mode==='jitmass')return jitMpmVolume[i]; if(mode==='eject')return ejectionEnergy[i]; if(mode==='particles')return particleDensity[i];
+  if(mode==='film')return filmProjection[i]; if(mode==='runup')return runupField[i]; if(mode==='drain')return drainField[i]; if(mode==='drip')return filmDropField[i];
+  return eta[i];
+}
+function signedField(mode){return mode==='height'||mode==='vx'||mode==='vz'||mode==='source'||mode==='sigdot'||mode==='dirY';}
+function drawField(){let max=.0001;for(let i=0;i<N*N;i++){let v=fieldValue(fieldMode,i);max=Math.max(max,Math.abs(v));}
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){let i=idx(x,z),o=((N-1-z)*N+x)*4;let v=fieldValue(fieldMode,i);let p=signedField(fieldMode)?(.5+.5*v/max):v/max;if(fieldMode==='m')p=liquidM[i]/Math.max(H,.001);if(fieldMode==='clearance')p=1-clamp(v/.55,0,1);p=clamp(p,0,1);let r=0,g=0,b=0;
+    if(signedField(fieldMode)){r=255*p;b=255*(1-p);g=80*Math.sin(p*Math.PI);}else if(fieldMode==='sigma'||fieldMode==='penetration'||fieldMode==='fold'){r=220*p;g=90*p;b=30*p}else if(fieldMode==='m'){r=40*p;g=160*p;b=255*p}else if(fieldMode==='pressure'||fieldMode==='risk'||fieldMode==='trap'||fieldMode==='release'||fieldMode==='collapse'||fieldMode==='failvol'||fieldMode==='jitmass'||fieldMode==='eject'||fieldMode==='particles'||fieldMode==='film'||fieldMode==='runup'||fieldMode==='drain'||fieldMode==='drip'){r=255*p;g=170*Math.pow(p,.7);b=30*(1-p)}else if(fieldMode==='clearance'){r=80+170*p;g=60*p;b=255*(1-p)}else{r=30*p;g=210*p;b=255*p}
+    img.data[o]=r;img.data[o+1]=g;img.data[o+2]=b;img.data[o+3]=255;}
+  fctx.putImageData(img,0,0);document.getElementById('rangeLbl').textContent='range '+max.toFixed(3);
+}
+function minMax(a){let mn=1e9,mx=-1e9;for(let i=0;i<a.length;i+=19){mn=Math.min(mn,a[i]);mx=Math.max(mx,a[i]);}return [mn.toFixed(2),mx.toFixed(2)];}
+function updateUI(){for(const [id,key] of [['sphereR','radius'],['sphereMass','mass'],['sphereY','y'],['waveSpeed','waveSpeed'],['damping','damping'],['push','push'],['volumeGain','volumeGain'],['wallLoss','wallLoss'],['renderSmooth','renderSmooth'],['solidGuard','solidGuard'],['releaseGain','releaseGain'],['sheetGain','sheetGain'],['sheetPressure','sheetPressure'],['sheetLift','sheetLift'],['collapseGain','collapseGain'],['trapGain','trapGain'],['detachGain','detachGain'],['riskGain','riskGain'],['convertThreshold','convertThreshold'],['exportLeak','exportLeak'],['jitSpawnGain','jitSpawnGain'],['particleLife','particleLife'],['particleGravity','particleGravity'],['particleFeedback','particleFeedback'],['filmDeposit','filmDeposit'],['filmDrain','filmDrain'],['filmEdgeLoss','filmEdgeLoss'],['filmAdhesion','filmAdhesion'],['filmDripGain','filmDripGain']]){params[key]=parseFloat(document.getElementById(id).value);document.getElementById(id+'V').textContent=params[key].toFixed(key==='damping'?4:2);}const q=parseInt(document.getElementById('meshQuality').value,10);if(q!==params.meshQuality){params.meshQuality=q;buildWaterMesh(q);}document.getElementById('meshQualityV').textContent=String(params.meshQuality);params.waterMaterial=document.getElementById('waterMaterial').value;document.getElementById('waterMaterialV').textContent=params.waterMaterial;params.filmVisual=document.getElementById('filmVisual').value;document.getElementById('filmVisualV').textContent=params.filmVisual;if(sphere.auto==='still'||sphere.auto==='sideslow'||sphere.auto==='sidefast')sphere.y=params.y;document.getElementById('fps').textContent=metrics.fps.toFixed(0);document.getElementById('cfl').textContent=metrics.cfl.toFixed(3);document.getElementById('maxEta').textContent=metrics.maxEta.toFixed(3);document.getElementById('maxV').textContent=metrics.maxV.toFixed(3);document.getElementById('massD').textContent=metrics.massD.toFixed(4);document.getElementById('occVol').textContent=metrics.occVol.toFixed(2);let Fr=Math.hypot(sphere.vx,sphere.vz)/Math.sqrt(G*Math.max(.05,params.radius*2));let sub=clamp((0-(sphere.y-params.radius))/(2*params.radius),0,1);document.getElementById('particleCount').textContent=String(metrics.particles);document.getElementById('hydroRead').innerHTML=[['sphere xz',sphere.x.toFixed(2)+', '+sphere.z.toFixed(2)],['sphere y',sphere.y.toFixed(2)],['speed',Math.hypot(sphere.vx,sphere.vz).toFixed(2)],['submerged',sub.toFixed(2)],['Froude',Fr.toFixed(2)],['occ volume',metrics.occVol.toFixed(2)],['sigmaDot max',metrics.sigmaDot.toFixed(2)],['penetration',metrics.penetration.toFixed(3)],['stick ratio',metrics.stick.toFixed(2)],['overtop fill',metrics.overtop.toFixed(2)],['m min/max',minMax(liquidM).join(' / ')],['sheet fold',metrics.fold.toFixed(2)],['sheet pressure',metrics.pressure.toFixed(2)],['MPM risk',metrics.risk.toFixed(2)],['clearance',metrics.clearance.toFixed(3)],['trap',metrics.trap.toFixed(2)],['release',metrics.release.toFixed(2)],['collapse',metrics.collapse.toFixed(2)],['fail vol',metrics.failVol.toFixed(4)],['JIT volume',metrics.jitVol.toFixed(4)],['eject',metrics.eject.toFixed(2)],['candidate area',metrics.candidateArea.toFixed(2)],['particles',String(metrics.particles)],['emitted/frame',String(metrics.emitted)],['particle dens',metrics.particleDensity.toFixed(4)],['film max',metrics.filmMax.toFixed(4)],['film mass',metrics.filmMass.toFixed(4)],['runup',metrics.runup.toFixed(3)],['film drain',metrics.drain.toFixed(3)],['film drip',metrics.drip.toFixed(3)],['film',params.filmEnabled?'on':'off'],['film visual',params.filmVisual],['anti-grid',params.antiGridEnabled?'on':'off'],['water look',params.waterMaterial],['JIT spawn',params.jitEnabled?'on':'off'],['sheet',params.sheetEnabled?'on':'off'],['field',fieldMode],['render',params.renderMode],['mesh',String(params.meshQuality)]].map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');}
+let last=performance.now(),frames=0,ft=0;function loop(now){let dt=Math.min(.033,(now-last)/1000);last=now;updateUI();if(!paused){updateAuto(dt);step(dt);}render();drawField();frames++;ft+=dt;if(ft>.5){metrics.fps=frames/ft;frames=0;ft=0;}requestAnimationFrame(loop);}requestAnimationFrame(loop);
+for(const id of ['testStill','testImpulse','testSideSlow','testSideFast','testDrop','testLift'])document.getElementById(id).onclick=()=>{document.querySelectorAll('.gridBtns button').forEach(b=>b.classList.remove('on'));document.getElementById(id).classList.add('on');setScene(id.replace('test','').toLowerCase());};document.getElementById('btnPause').onclick=()=>paused=!paused;document.getElementById('btnStep').onclick=()=>{updateAuto(1/60);step(1/60);render();drawField();};document.getElementById('btnReset').onclick=reset;document.querySelectorAll('[data-field]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-field]').forEach(x=>x.classList.remove('on'));b.classList.add('on');fieldMode=b.dataset.field;document.getElementById('fieldName').textContent=fieldMode;document.getElementById('fieldLbl').textContent=fieldMode;});document.querySelectorAll('[data-render]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-render]').forEach(x=>x.classList.remove('on'));b.classList.add('on');params.renderMode=b.dataset.render;});
+document.getElementById('jitToggle').onclick=()=>{params.jitEnabled=!params.jitEnabled;document.getElementById('jitToggle').classList.toggle('on',params.jitEnabled);document.getElementById('jitToggle').textContent=params.jitEnabled?'JIT ON':'JIT OFF';};
+document.getElementById('clearParticles').onclick=()=>{particles.length=0;particleDensity.fill(0);metrics.particles=0;};
+document.getElementById('filmToggle').onclick=()=>{params.filmEnabled=!params.filmEnabled;document.getElementById('filmToggle').classList.toggle('on',params.filmEnabled);document.getElementById('filmToggle').textContent=params.filmEnabled?'FILM ON':'FILM OFF';};
+document.getElementById('clearFilm').onclick=clearFilm;
+document.getElementById('antiGridToggle').onclick=()=>{params.antiGridEnabled=!params.antiGridEnabled;document.getElementById('antiGridToggle').classList.toggle('on',params.antiGridEnabled);document.getElementById('antiGridToggle').textContent=params.antiGridEnabled?'Anti-Grid ON':'Anti-Grid OFF';};
+document.getElementById('resetRenderFilters').onclick=()=>{params.renderSmooth=1.15;params.solidGuard=1.05;document.getElementById('renderSmooth').value=params.renderSmooth;document.getElementById('solidGuard').value=params.solidGuard;params.waterMaterial='aqua';document.getElementById('waterMaterial').value='aqua';params.filmVisual='off';document.getElementById('filmVisual').value='off';params.antiGridEnabled=true;document.getElementById('antiGridToggle').classList.add('on');document.getElementById('antiGridToggle').textContent='Anti-Grid ON';};
+document.getElementById('sheetToggle').onclick=()=>{params.sheetEnabled=!params.sheetEnabled;document.getElementById('sheetToggle').classList.toggle('on',params.sheetEnabled);document.getElementById('sheetToggle').textContent=params.sheetEnabled?'Sheet ON':'Sheet OFF';};
+document.getElementById('sheetReset').onclick=resetSheet;
+let dragging=false,lastX=0,lastY=0,dragSphere=false;canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;dragSphere=e.button===0;canvas.setPointerCapture(e.pointerId);sphere.auto='manual';document.getElementById('sceneName').textContent='manual';});canvas.addEventListener('pointermove',e=>{if(!dragging)return;let dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;if(dragSphere){sphere.px=sphere.x;sphere.pz=sphere.z;sphere.x=clamp(sphere.x+dx*.018,-5.2,5.2);sphere.z=clamp(sphere.z+dy*.018,-5.2,5.2);sphere.vx=(sphere.x-sphere.px)*60;sphere.vz=(sphere.z-sphere.pz)*60;}else{cam.yaw+=dx*.006;cam.pitch=clamp(cam.pitch+dy*.004,.18,1.35);}});canvas.addEventListener('pointerup',e=>{dragging=false;});canvas.addEventListener('wheel',e=>{e.preventDefault();if(e.shiftKey){params.y=clamp(params.y-e.deltaY*.002,-.8,1.5);sphere.y=params.y;document.getElementById('sphereY').value=params.y;}else cam.dist=clamp(cam.dist+e.deltaY*.01,7,24);},{passive:false});
+reset();if(location.hash.includes('qa'))setScene('sidefast');
+</script>
+</body>
+</html>
