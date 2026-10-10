@@ -270,7 +270,9 @@ export class SplashModule implements EngineModule {
     // R1 and V2 preserve their original graph behavior and MPM is untouched.
     this.ligaments.maxDegree = this.renderer.surfaceMeshV3 ? 5 : Infinity;
     this.ligaments.update(this.mpm.particles, dt);
-    this.renderer.upload(this.mpm.particles, engine.settings.spray.render === 'fluid' ? this.ligaments : null);
+    this.renderer.upload(this.mpm.particles,
+      engine.settings.spray.render === 'fluid' ? this.ligaments : null,
+      this.mpm.materialCrown);
   }
 
   /** Reaction of the splash on bodies (grid units → N), as the pool's sphere feedback. */
