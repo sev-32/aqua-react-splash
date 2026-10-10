@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/ocean-source-checkpoint.yml'
       - 'docs/consolidation/WATER_SEMANTIC_CONSTITUTION.md'
+      - 'docs/champions/donors/**'
+      - 'docs/consolidation/CHAMPION_RECOVERY_PASS01.md'
+      - 'scripts/ci-champion-pool-ocean.mjs'
       - 'docs/consolidation/WATER_SEMANTIC_CONTRACTS.json'
       - 'docs/consolidation/CHAMPION_REGISTRY.json'
       - 'scripts/champion-audit.mjs'
@@ -47,6 +50,7 @@ jobs:
             scripts/
             docs/consolidation/*.md
             docs/consolidation/*.json
+            docs/champions/donors/
             README.md
             package.json
             package-lock.json
