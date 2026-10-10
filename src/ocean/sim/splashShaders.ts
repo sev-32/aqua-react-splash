@@ -447,3 +447,63 @@ void main(){
   if (invalidMaterial) discard;
   o = vec4(col, alpha);
 }`;
+
+
+/**
+ * V3 topology-based film surface. This is a genuine GPU triangle raster:
+ * the MPM bond graph creates sheet triangles/ribbons in 3D (splashMesh.ts).
+ * A fragment samples optical path from the volume/area carried by its
+ * triangle, not from a repeated opaque sphere impostor.
+ */
+export const SPLASH_MESH_VS = /* glsl */ `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPosition;
+layout(location=1) in float aThickness;
+layout(location=2) in float aAeration;
+uniform mat4 uViewProj;
+uniform vec3 uCam;
+out vec3 vMeshRel;
+out float vMeshThickness;
+out float vMeshAeration;
+void main(){
+  vMeshRel=aPosition-uCam;
+  vMeshThickness=max(aThickness,0.0);
+  vMeshAeration=clamp(aAeration,0.0,1.0);
+  gl_Position=uViewProj*vec4(vMeshRel,1.0);
+}`;
+
+export const SPLASH_MESH_DEPTH_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec3 vMeshRel;
+in float vMeshThickness;
+in float vMeshAeration;
+layout(location=0) out vec4 oDepth;
+${OCCLUDE_GLSL}
+void main(){
+  float dist=length(vMeshRel);
+  if (!isnan(dist) && !isinf(dist) && !occluded(dist)) {
+    oDepth=vec4(max(dist-min(0.5*vMeshThickness,0.08),0.001),0.0,0.0,1.0);
+  } else discard;
+}`;
+
+export const SPLASH_MESH_THICK_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec3 vMeshRel;
+in float vMeshThickness;
+in float vMeshAeration;
+layout(location=0) out vec4 o;
+${OCCLUDE_GLSL}
+void main(){
+  float dist=length(vMeshRel);
+  if (!isnan(dist) && !isinf(dist) && !occluded(dist)) {
+    vec3 dx=dFdx(vMeshRel),dy=dFdy(vMeshRel);
+    vec3 n=cross(dx,dy);
+    float nlen=length(n);
+    float incidence=nlen>1e-9 ? abs(dot(n/nlen, vMeshRel/max(dist,1e-6))) : 1.0;
+    // Thin-film projected optical path. The cap prevents an infinite grazing
+    // path at silhouettes without making the surface opaque white foam.
+    float t=vMeshThickness/max(incidence,0.20);
+    if (isnan(t) || isinf(t)) discard;
+    o=vec4(t,t*vMeshAeration,1.0,1.0);
+  } else discard;
+}`;
