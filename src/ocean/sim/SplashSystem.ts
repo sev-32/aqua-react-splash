@@ -50,7 +50,7 @@ export class SplashSystem {
   /** V3 uses explicit graph-derived surface triangles and filament ribbons.
    * V2 and V3 remain opt-in and the legacy renderer is preserved. */
   surfaceMeshV3 = false;
-  meshStats: Omit<SplashMesh, 'vertices'> | null = null;
+  meshStats: Omit<SplashMesh, 'vertices' | 'covered'> | null = null;
   readonly capacity: number;
   readonly H: number;
   private tex: WebGLTexture[];
@@ -153,7 +153,7 @@ export class SplashSystem {
       const graphCoherence = degree && degree[i] > 0 ? Math.min(1.0, 0.45 + 0.38*degree[i]) : 0;
       put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd,
         Pp.vol[i], Pp.life[i],
-        this.surfaceMeshV3 && degree && degree[i] > 0 ? -2.0 :
+        this.surfaceMeshV3 && mesh && mesh.covered[i] > 0 ? -2.0 :
           Math.max(0.05, Pp.neighbors[i] / 2, graphCoherence),
         Pp.seed[i]);
     }
