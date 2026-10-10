@@ -25,6 +25,22 @@
     {
       "path": "src/lib/mpmConnectivity.ts",
       "git_blob_sha1": "eba77d01b00ad5d51a1de70a659d3528f4dc9791"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/splash-mls-mpm.html",
+      "git_blob_sha1": "7fc9911cd15565a1440625c409895621909bb57c"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/OpusMagnusWater.html",
+      "git_blob_sha1": "d4ddf80da2c36b7196645a7a1eaea079fc276efc"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "git_blob_sha1": "d8b2b8cdc725f616ad2a744223761f6788eb6cf4"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
+      "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8"
     }
   ],
   "capabilities": [
@@ -83,6 +99,14 @@
       "status": "original pool shader preserved; ocean renderer optics independent",
       "current": "src/ocean/render/oceanShaders.ts",
       "acceptance": "water-splash reciprocal visibility, Fresnel, depth absorption, physically grounded reflection/refraction without alpha-only cheats"
+    },
+    {
+      "id": "recovered_gpu_mlsmpm_donor",
+      "champion": "unranked candidate; original water GPU compute and standalone Splash HTML",
+      "donor": "sev-32/wave-to-3d/src/reference/splash-mls-mpm.html + src/components/water/webgpu/*",
+      "status": "recovered byte-exact GitHub sources; runtime physics, scene and performance benchmarks NOT YET RUN",
+      "current": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "acceptance": "source extraction, independent WebGPU compile, stable particle coupling and particle budget measured against pool and ocean"
     }
   ],
   "explicit_known_debts": [
@@ -90,5 +114,39 @@
     "Current checkout lacks historical JIT R21 wetness-state source; do not claim recovered.",
     "Current checkout lacks referenced original BEST HTML and Particles4All vendor sources; filenames in reference map are not proof of mounted source.",
     "Static file checks cannot prove numerical accuracy or visual quality; real renderer comparisons remain required."
+  ],
+  "donor_recovery": [
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/reference/splash-mls-mpm.html",
+      "archived_path": "docs/champions/donors/wave-to-3d/splash-mls-mpm.html",
+      "git_blob_sha1": "7fc9911cd15565a1440625c409895621909bb57c",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/reference/OpusMagnusWater.html",
+      "archived_path": "docs/champions/donors/wave-to-3d/OpusMagnusWater.html",
+      "git_blob_sha1": "d4ddf80da2c36b7196645a7a1eaea079fc276efc",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/components/water/webgpu/WaterGPU.ts",
+      "archived_path": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "git_blob_sha1": "d8b2b8cdc725f616ad2a744223761f6788eb6cf4",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/components/water/webgpu/shaders.ts",
+      "archived_path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
+      "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    }
   ]
 }
