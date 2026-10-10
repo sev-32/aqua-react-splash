@@ -3,20 +3,17 @@ on:
   push:
     branches: [feature/causal-water-ledger-r1]
     paths:
-      - 'scripts/champion-audit.mjs'
-      - 'docs/consolidation/CHAMPION_REGISTRY.json'
-      - 'docs/consolidation/WATER_SEMANTIC_CONTRACTS.json'
-      - 'docs/consolidation/WATER_SEMANTIC_CONSTITUTION.md'
+      - 'src/**'
+      - 'docs/consolidation/**'
+      - 'scripts/**'
       - '.github/workflows/ocean-champion-semantic-gate.yml'
-      - 'src/components/SplashParticles.tsx'
-      - 'src/shaders/waterShaders.ts'
-      - 'src/components/PoolEnvironment.tsx'
-      - 'src/hooks/useMlsMpm.ts'
-      - 'src/lib/mpmConnectivity.ts'
-      - 'src/ocean/render/bodiesRender.ts'
-      - 'src/ocean/render/terrainRender.ts'
-      - 'src/ocean/render/oceanShaders.ts'
-      - 'src/ocean/engine/OceanEngine.ts'
+  pull_request:
+    branches: [claude/affectionate-edison-15ya9p]
+    paths:
+      - 'src/**'
+      - 'docs/consolidation/**'
+      - 'scripts/**'
+      - '.github/workflows/ocean-champion-semantic-gate.yml'
   workflow_dispatch:
 jobs:
   semantic-regression:
