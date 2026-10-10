@@ -68,8 +68,8 @@ V3.1: CI `38050879358`, 12 PNGs, 1600×900, no GL/JS errors.
 The normal/covariance and width gates suppress most rigid triangular shards.
 Crown: 141 triangle faces, 123 ribbons, 247 represented / 2374 live
 particles (10.4%), max surface optical thickness 0.309m.
-It remains insufficiently connected; only 0.199%? No: do NOT infer
-rendered water coverage from particle count without area calibration.
+It remains insufficiently connected; do NOT infer rendered surface area
+or visual quality from particle counts alone.
 
 V3.2: CI `38051236254`, artifact `11669329052`, 12 PNGs and full
 receipts, no GL or JS errors. The *same* global bond budget of 4000 was
@@ -82,7 +82,7 @@ Legacy R1/V2 graph rules stay unchanged. Tests and production build passed.
 | Reconstructed particles | 225 | 195 | 247 | 1080 | 824 | 1546 | 333 | 845 |
 | Triangle faces | 303 | 95 | 141 | 431 | 1490 | 733 | 1045 | 111 |
 | Strand ribbons | 21 | 56 | 123 | 380 | 347 | 397 | 27 | 586 |
-| Assigned water volume (m³) | 0.??? | 0.095369 | 0.??? | 0.289041 | 0.??? | 0.046550 | 0.??? | 0.016975 |
+| Assigned water volume (m³) | 0.161389 | 0.095369 | 0.131895 | 0.289041 | 0.031205 | 0.046550 | 0.005580 | 0.016975 |
 
 V3.1 exact connected carrier volumes and V3.2 comparative metrics are stored
 in each workflow's `receipts.json`. Do not infer visual area from them.
