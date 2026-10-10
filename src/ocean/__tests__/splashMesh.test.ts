@@ -18,6 +18,20 @@ function fixture(points: number[][], bonds: [number,number][]) {
   return {P,g};
 }
 
+function integratedSurfaceVolume(vertices: Float32Array) {
+  let total=0;
+  // Every three vertices are one real non-overlapping raster triangle;
+  // each stores the same physical thickness along its local surface.
+  for(let i=0;i<vertices.length;i+=15){
+    const d1=[vertices[i+5]-vertices[i],vertices[i+6]-vertices[i+1],vertices[i+7]-vertices[i+2]];
+    const d2=[vertices[i+10]-vertices[i],vertices[i+11]-vertices[i+1],vertices[i+12]-vertices[i+2]];
+    const cx=d1[1]*d2[2]-d1[2]*d2[1];
+    const cy=d1[2]*d2[0]-d1[0]*d2[2];
+    const cz=d1[0]*d2[1]-d1[1]*d2[0];
+    total+=0.5*Math.hypot(cx,cy,cz)*vertices[i+3];
+  }
+  return total;
+}
 describe('topology-based water-air interface reconstruction',()=>{
   it('reconstructs one valid triangular film with exactly partitioned particle volume',()=>{
     const {P,g}=fixture([[0,0,0],[0.3,0,0],[0.15,0.25,0]],[[0,1],[0,2],[1,2]]);
@@ -26,6 +40,8 @@ describe('topology-based water-air interface reconstruction',()=>{
     expect(m.vertexCount).toBe(3);
     expect(m.connectedParticles).toBe(3);
     expect(m.allocatedVolume).toBeCloseTo(m.carrierVolume,12);
+    // Not only bookkeeping: reconstructed actual face area × optical thickness.
+    expect(integratedSurfaceVolume(m.vertices)).toBeCloseTo(m.carrierVolume,6);
     for(let i=0;i<m.vertices.length;i++) expect(Number.isFinite(m.vertices[i])).toBe(true);
   });
   it('creates real strand ribbons for noncyclic bonds, with no extra water',()=>{
@@ -34,6 +50,8 @@ describe('topology-based water-air interface reconstruction',()=>{
     expect(m.triangles).toBe(0);expect(m.ribbons).toBe(2);
     expect(m.vertexCount).toBe(12);
     expect(m.allocatedVolume).toBeCloseTo(m.carrierVolume,12);
+    // Not only bookkeeping: reconstructed actual face area × optical thickness.
+    expect(integratedSurfaceVolume(m.vertices)).toBeCloseTo(m.carrierVolume,6);
     expect(m.maxRibbonWidth).toBeGreaterThan(0);
     expect(m.maxRibbonWidth).toBeLessThanOrEqual(0.18);
   });
@@ -42,6 +60,8 @@ describe('topology-based water-air interface reconstruction',()=>{
     const m=reconstructSplashMesh(P,g);
     expect(m.triangles).toBe(1);expect(m.ribbons).toBe(1);
     expect(m.allocatedVolume).toBeCloseTo(m.carrierVolume,12);
+    // Not only bookkeeping: reconstructed actual face area × optical thickness.
+    expect(integratedSurfaceVolume(m.vertices)).toBeCloseTo(m.carrierVolume,6);
   });
   it('omits disconnected and retired particles from the physical interface',()=>{
     const {P,g}=fixture([[0,0,0],[0.2,0,0],[4,4,4]],[[0,1]]);
@@ -72,5 +92,7 @@ describe('topology-based water-air interface reconstruction',()=>{
     expect(m.triangles).toBe(0);
     expect(m.ribbons).toBe(3);
     expect(m.allocatedVolume).toBeCloseTo(m.carrierVolume,12);
+    // Not only bookkeeping: reconstructed actual face area × optical thickness.
+    expect(integratedSurfaceVolume(m.vertices)).toBeCloseTo(m.carrierVolume,6);
   });
 });
