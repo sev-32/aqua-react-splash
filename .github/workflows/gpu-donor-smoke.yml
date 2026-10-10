@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/gpu-donor-smoke.yml'
       - 'scripts/ci-gpu-donor-smoke.mjs'
+      - 'docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html'
   workflow_dispatch:
 jobs:
   donor-smoke:
@@ -25,6 +26,7 @@ jobs:
         run: |
           mkdir -p dist/donors
           cp docs/champions/donors/wave-to-3d/*.html dist/donors/
+          cp docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html dist/donors/
           nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/donor-preview.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/donors/splash-mls-mpm.html >/dev/null; then exit 0; fi
