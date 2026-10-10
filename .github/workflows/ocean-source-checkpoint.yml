@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/ocean-source-checkpoint.yml'
       - 'src/ocean/sim/splashShaders.ts'
+      - 'src/ocean/sim/SplashSystem.ts'
+      - 'src/components/ocean/OceanPanel.tsx'
+      - 'scripts/ci-splash-morphology-ab.mjs'
+      - 'docs/consolidation/SPLASH_MORPHOLOGY_R2.md'
       - 'scripts/causal-ledger-capture.mjs'
       - 'scripts/ci-ocean-closeups.mjs'
       - 'scripts/ci-shore-ready.mjs'
