@@ -276,7 +276,9 @@ export class SplashSystem {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       const ssfrDebug = (globalThis as unknown as { __THALASSA_SSFR_DEBUG__?: number }).__THALASSA_SSFR_DEBUG__ ?? 0;
-      this.pShade.use().set('uDebugMode', ssfrDebug).tex('uDepth', fl.depth.texture).tex('uThick', fl.thick.texture).tex('uScene', fl.scene.texture)
+      this.pShade.use().set('uDebugMode', ssfrDebug)
+        .set('uMorphology', this.morphologyV2 ? 1 : 0).set('uViewProj', f.viewProj)
+        .tex('uDepth', fl.depth.texture).tex('uThick', fl.thick.texture).tex('uScene', fl.scene.texture)
         .tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uInvViewProj', f.invViewProj).set('uTexel', [1 / w, 1 / h])
         .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uAbsorb', f.absorb)
         .set('uScatter', f.scatter).set('uBackscatter', f.backscatter).set('uIor', f.ior)
