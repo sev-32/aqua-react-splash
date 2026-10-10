@@ -178,10 +178,14 @@ export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity
     // remaining volume changes optical thickness, not the silhouette size.
     const targetThickness=clamp(Math.cbrt(volume)/7,0.008,0.075);
     const width=clamp(volume/(e.length*targetThickness),0.008,0.045);
-    const thickness=volume/(e.length*width);
-    maxRibbonWidth=Math.max(maxRibbonWidth,width);
+    const strength=clamp(e.strength,0.2,1);
+    // The rendered ribbon width is modulated by bond strength. Its optical
+    // path must use that ACTUAL area; otherwise weaker bonds silently lose
+    // rendered volume even though their accounting receipt still closes.
+    const thickness=volume/(e.length*width*strength);
+    maxRibbonWidth=Math.max(maxRibbonWidth,width*strength);
     maxOpticalThickness=Math.max(maxOpticalThickness,thickness);
-    const a=pos(P,e.a),b=pos(P,e.b),half=width*0.5*clamp(e.strength,0.2,1);
+    const a=pos(P,e.a),b=pos(P,e.b),half=width*0.5*strength;
     const shift=ortho.map(x=>x*half);
     const p0=a.map((x,i)=>x-shift[i]),p1=a.map((x,i)=>x+shift[i]);
     const p2=b.map((x,i)=>x-shift[i]),p3=b.map((x,i)=>x+shift[i]);
