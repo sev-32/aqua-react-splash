@@ -42,6 +42,9 @@ void main(){
   vTau = 0.0; vS = 0.0;
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
+  if (uMorphology == 1 && M.z < -1.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return;
+  }
   bool spray = V.w <= 0.0012;
   float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
   float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
@@ -105,6 +108,13 @@ void main(){
   vSplat = vec2(1.0, 0.0);
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
+  // Graph-connected parcels in V3 are rendered by actual sheet polygons.
+  // They are deliberately NOT splatted again as sphere impostors.
+  if (uMorphology == 1 && M.z < -1.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    vData = vec4(0.0); vRel = vec3(0.0); return;
+  }
   // Atomized water (drops < 1.2 mm) is white water; clear water is the sheet.
   bool ligament = M.z < 0.0;
   bool spray = !ligament && V.w <= 0.0012;
