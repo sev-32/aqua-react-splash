@@ -37,8 +37,12 @@ try {
  await page.waitForTimeout(4000);
  await page.addStyleTag({content:'.vignette,.grain,aside,.fixed.z-20{display:none!important}'});
  await shot('preserved_pool','POOL_00_INITIAL');
- const btn=page.getByRole('button',{name:'Splash',exact:true});
- await btn.evaluate(button=>button.click());
+ await page.evaluate(()=>{
+   const btn=[...document.querySelectorAll('button')].find(
+      b=>b.textContent?.trim().toLowerCase()==='splash');
+   if(!btn)throw Error('original pool Splash button absent');
+   btn.click();
+ });
  await page.waitForTimeout(180);
  await shot('preserved_pool','POOL_01_SPLASH_EARLY');
  await page.waitForTimeout(320);
