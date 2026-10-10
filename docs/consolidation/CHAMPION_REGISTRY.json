@@ -41,6 +41,10 @@
     {
       "path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
       "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8"
+    },
+    {
+      "path": "public/mlsmpm-webgpu.html",
+      "git_blob_sha1": "50f6e10d817844d424c3a11a7715722dea32f7f7"
     }
   ],
   "capabilities": [
@@ -107,6 +111,14 @@
       "status": "recovered byte-exact GitHub sources; runtime physics, scene and performance benchmarks NOT YET RUN",
       "current": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
       "acceptance": "source extraction, independent WebGPU compile, stable particle coupling and particle budget measured against pool and ocean"
+    },
+    {
+      "id": "existing_standalone_gpu_mlsmpm",
+      "champion": "unranked on-repo standalone GPU MLS-MPM donor",
+      "donor": "public/mlsmpm-webgpu.html",
+      "status": "recoverable executable standalone source already in existing repository; visual/performance verification pending",
+      "current": "public/mlsmpm-webgpu.html",
+      "acceptance": "real browser WebGPU smoke, matching physical scene with fused pool/ocean, fluid stability and GPU budget"
     }
   ],
   "explicit_known_debts": [
