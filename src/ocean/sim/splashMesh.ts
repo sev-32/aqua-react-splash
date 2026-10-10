@@ -15,6 +15,9 @@ import type { SplashConnectivity } from './splashConnectivity';
 
 export interface SplashMesh {
   vertices: Float32Array;
+  /** Physics particles actually represented by this mesh; others remain
+   * in the existing V2 splat path so we never hide unsupported water. */
+  covered: Uint8Array;
   vertexCount: number;
   triangles: number;
   ribbons: number;
@@ -40,6 +43,50 @@ function delta(P: MpmParticles, a: number, b: number) {
 function pos(P: MpmParticles, i: number) {
   return [P.px[i], P.py[i], P.pz[i]];
 }
+
+/** Lowest-variance covariance axis estimates the local sheet normal.
+ * Dense 3D fluid clouds have no trustworthy thin-surface normal, and their
+ * arbitrary graph 3-cycles MUST NOT become giant reflective triangles.
+ */
+function localSheetNormal(P:MpmParticles, center:number, neighbors:number[], radius:number):number[]|null {
+  const A=[[0,0,0],[0,0,0],[0,0,0]];
+  let count=0;
+  for(const j of neighbors){
+    const d=delta(P,center,j), len=Math.hypot(...d);
+    if(len<1e-5 || len>radius)continue;
+    count++;
+    for(let x=0;x<3;x++)for(let y=0;y<3;y++)A[x][y]+=d[x]*d[y];
+  }
+  if(count<4)return null;
+  const U=[[1,0,0],[0,1,0],[0,0,1]];
+  for(let iter=0;iter<14;iter++){
+    let p=0,q=1,best=Math.abs(A[0][1]);
+    for(const [i,j] of [[0,2],[1,2]]){
+      const v=Math.abs(A[i][j]);if(v>best){p=i;q=j;best=v;}
+    }
+    if(best<1e-12)break;
+    const angle=0.5*Math.atan2(2*A[p][q],A[q][q]-A[p][p]);
+    const c=Math.cos(angle),sn=Math.sin(angle);
+    const app=A[p][p],aqq=A[q][q],apq=A[p][q];
+    A[p][p]=c*c*app-2*c*sn*apq+sn*sn*aqq;
+    A[q][q]=sn*sn*app+2*c*sn*apq+c*c*aqq;
+    A[p][q]=A[q][p]=0;
+    for(let k=0;k<3;k++)if(k!==p&&k!==q){
+      const kp=A[k][p],kq=A[k][q];
+      A[k][p]=A[p][k]=c*kp-sn*kq;
+      A[k][q]=A[q][k]=sn*kp+c*kq;
+    }
+    for(let k=0;k<3;k++){
+      const kp=U[k][p],kq=U[k][q];
+      U[k][p]=c*kp-sn*kq;U[k][q]=sn*kp+c*kq;
+    }
+  }
+  const idx=[0,1,2].sort((a,b)=>A[a][a]-A[b][b]);
+  const flatness=A[idx[0]][idx[0]]/Math.max(A[idx[1]][idx[1]],1e-9);
+  if(!(flatness>=0) || flatness>0.16 || A[idx[1]][idx[1]]<1e-6)return null;
+  return norm([U[0][idx[0]],U[1][idx[0]],U[2][idx[0]]]);
+}
+
 export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity, maxFaces = 7000): SplashMesh {
   const count = P.count;
   const connected = new Uint8Array(count);
@@ -60,6 +107,7 @@ export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity
     adjacency[a].push(c);adjacency[c].push(a);
     connected[a]=1;connected[c]=1;
   }
+  const normals=adjacency.map((nb,i)=>localSheetNormal(P,i,nb,graph.p.form*1.25));
   const faces:Face[]=[];
   // A real 3-cycle is a surface *candidate*, not an arbitrary metaball.
   // Prefer local, short, nondegenerate patches; allow at most two faces per edge.
@@ -72,21 +120,37 @@ export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity
       const d1=delta(P,a,b),d2=delta(P,a,c);
       const area=Math.hypot(...cross(d1,d2))*0.5;
       const maxLen=Math.max(ab.length,ac.length,bc.length);
-      if (!(area>5e-5) || maxLen>graph.p.break*1.1)continue;
-      // Reject very skinny triangles and poorly conditioned normals.
-      if (area/(maxLen*maxLen)<0.075)continue;
+      if (!(area>5e-5) || maxLen>graph.p.form*1.25)continue;
+      // Do not turn a dense 3D ball of samples into arbitrary triangular
+      // glass shards. Three-particle, low-degree cycles remain legitimate
+      // local surface primitives; crowded nodes need PCA sheet evidence.
+      const nrm=norm(cross(d1,d2));
+      const dense=Math.max(adjacency[a].length,adjacency[b].length,adjacency[c].length)>3;
+      if(dense){
+        const local=[normals[a],normals[b],normals[c]].filter((n):n is number[]=>n!==null);
+        if(local.length<2 || local.some(n=>Math.abs(n[0]*nrm[0]+n[1]*nrm[1]+n[2]*nrm[2])<0.8))continue;
+      }
+      if(area/(maxLen*maxLen)<0.12)continue;
+      // A very small triangle owning a large particle volume is NOT a
+      // thin sheet: it is an under-resolved volume, so leave it as spray.
+      if((P.vol[a]+P.vol[b]+P.vol[c])/(3*area)>0.14)continue;
       faces.push({a,b,c,area});
       ab.faces++;ac.faces++;bc.faces++;
     }
   }
-  const ribbons=edges.filter(e=>e.faces===0);
+  const ribbons=edges.filter(e=>e.faces===0 &&
+    e.length>=0.055 && e.length<=graph.p.form*1.45 &&
+    (adjacency[e.a].length<=3 || adjacency[e.b].length<=3));
   const multiplicity=new Uint16Array(count);
   for(const t of faces){multiplicity[t.a]++;multiplicity[t.b]++;multiplicity[t.c]++;}
   for(const e of ribbons){multiplicity[e.a]++;multiplicity[e.b]++;}
+  // Only the particles with an *accepted* interface primitive are meshed.
+  // Rejected 3D triangles and truncated graph regions stay in the original
+  // V2 fluid/mist pass. Never silently delete their physical water.
+  const covered=new Uint8Array(count);
   let carrierVolume=0,connectedParticles=0;
-  for(let i=0;i<count;i++)if(connected[i]){
-    connectedParticles++;
-    carrierVolume+=P.vol[i];
+  for(let i=0;i<count;i++)if(multiplicity[i]>0){
+    covered[i]=1;connectedParticles++;carrierVolume+=P.vol[i];
   }
   const share=(i:number)=> multiplicity[i]>0?P.vol[i]/multiplicity[i]:0;
   const verts:number[]=[];
@@ -113,7 +177,7 @@ export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity
     // Constrain projected strand width for large computational parcels; the
     // remaining volume changes optical thickness, not the silhouette size.
     const targetThickness=clamp(Math.cbrt(volume)/7,0.008,0.075);
-    const width=clamp(volume/(e.length*targetThickness),0.012,0.18);
+    const width=clamp(volume/(e.length*targetThickness),0.008,0.045);
     const thickness=volume/(e.length*width);
     maxRibbonWidth=Math.max(maxRibbonWidth,width);
     maxOpticalThickness=Math.max(maxOpticalThickness,thickness);
@@ -128,6 +192,7 @@ export function reconstructSplashMesh(P: MpmParticles, graph: SplashConnectivity
   }
   return {
     vertices:new Float32Array(verts),
+    covered,
     vertexCount:verts.length/5,
     triangles:faces.length,
     ribbons:ribbons.length,
