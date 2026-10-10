@@ -57,14 +57,26 @@
     {
       "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
       "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb"
+    },
+    {
+      "path": "docs/champions/donors/library/heightfieldBEST.html",
+      "git_blob_sha1": "e8349854772f6d422f04e7e9412c434711bfeba8"
+    },
+    {
+      "path": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "git_blob_sha1": "0f126b6476238aaae4b680762f09478fe09701b5"
+    },
+    {
+      "path": "docs/champions/donors/library/aqua_pool_track_a_phase6_object_runup_film.patch",
+      "git_blob_sha1": "4c1864cf00ff792214deb88a4f28ac3e718b9365"
     }
   ],
   "capabilities": [
     {
       "id": "heightfield_body_reaction",
       "champion": "heightfieldBEST",
-      "donor": "originals/heightfieldBEST.html",
-      "status": "historical donor cited; original donor source not present in this checkout",
+      "donor": "docs/champions/donors/library/heightfieldBEST.html",
+      "status": "ORIGINAL HEIGHTFIELDBEST SOURCE RECOVERED and hash-verified from Library; real reference run pending; current ocean integration unranked",
       "current": "src/ocean/sim/interactionShaders.ts",
       "acceptance": "swept body occupancy, volume displacement, self-generated bow pile-up and void collapse, speed/rotation controlled"
     },
@@ -139,6 +151,14 @@
       "status": "actual HTML+patch+prior audit recovered byte-identically; historical audit reports positive checks but independent runtime physics/render proof not yet complete",
       "current": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
       "acceptance": "render actual V5 then compare source-driven heightfield/MPM wet material, refracted depth, terrain caustic receiver, and no false shared-state divergence; do not promote without real match"
+    },
+    {
+      "id": "pool_phase6_sphere_surface_film",
+      "champion": "AQUA Pool Track A Phase 6 object runup and attached wet film",
+      "donor": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "status": "RECOVERED raw HTML and patch; contains sphereFilm, deposition, directional drainage, drip spawn and JIT coupling; runtime rendering and volumetric audit pending",
+      "current": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "acceptance": "body contact conforming to actual waterline, persistent attached wet film following sphere orientation, drained/drop mass conservation; matched wave/sphere tests vs current ocean center scalar"
     }
   ],
   "explicit_known_debts": [
@@ -203,6 +223,30 @@
       "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb",
       "sha256": "not recorded by historical audit",
       "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "heightfieldBEST.html",
+      "archived_path": "docs/champions/donors/library/heightfieldBEST.html",
+      "git_blob_sha1": "e8349854772f6d422f04e7e9412c434711bfeba8",
+      "sha256": "9f7cd487f07873d5314eb25b9b16f9fad8f854627d6c641a783d61d2a1be5180",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
+    },
+    {
+      "origin": "user Library",
+      "name": "pool_obstacle_phase6_runup_film.html",
+      "archived_path": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "git_blob_sha1": "0f126b6476238aaae4b680762f09478fe09701b5",
+      "sha256": "1d52fc0cae47f9adfea19a64640ff529ea1f2d77aa9fe4c655e126f798f6047c",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
+    },
+    {
+      "origin": "user Library",
+      "name": "aqua_pool_track_a_phase6_object_runup_film.patch",
+      "archived_path": "docs/champions/donors/library/aqua_pool_track_a_phase6_object_runup_film.patch",
+      "git_blob_sha1": "4c1864cf00ff792214deb88a4f28ac3e718b9365",
+      "sha256": "a23268801e8681b3ed1993638dafd61d18313869eb3183e4f25dd629feb29e29",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
     }
   ]
 }
