@@ -10,6 +10,7 @@ const names=[
   ['wave_to_3d_splash','/donors/splash-mls-mpm.html'],
   ['wave_to_3d_opus','/donors/OpusMagnusWater.html'],
   ['existing_thalassa_standalone','/mlsmpm-webgpu.html'],
+  ['library_hybridsplash_pool_ref_v5','/donors/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html'],
 ];
 const browser=await chromium.launch({headless:true,args:[
  '--no-sandbox','--use-angle=swiftshader',
