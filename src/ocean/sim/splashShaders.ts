@@ -297,7 +297,8 @@ uniform sampler2D uDepth, uThick, uScene, uEnv;
 uniform sampler2D uSeaPos;      // sea G-buffer (camera-relative position, a = valid): soft contact
 uniform int uHasSea;
 uniform int uDebugMode; // diagnostic probe only; default 0 never changes production pixels
-uniform mat4 uInvViewProj;
+uniform mat4 uInvViewProj, uViewProj;
+uniform int uMorphology;
 uniform vec2 uTexel;
 uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
 uniform float uEnvLevels, uIor;
@@ -385,15 +386,29 @@ void main(){
   // What lies behind the sheet (the sea, already shaded) seen through it, refracted: the
   // lateral shift of a ray through a water path L is ~L·(1 − 1/n), projected to the screen.
   vec2 off = N.xy*(1.0 - 1.0/uIor)*min(thick, 1.0)/max(z, 0.5)*0.9;
-  vec3 behind = texture(uScene, vUv + off).rgb;
-  // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
-  vec3 refl = skyOrSea(R, 1.5, texture(uScene, vUv).rgb);
-  vec3 H = normalize(V + uSunDir);
-  float a2 = 0.012;
-  float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
-  refl += sunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 trd = refract(-V, N, 1.0/uIor);
   if (dot(trd, trd) < 1e-6) trd = -N;
+  if (uMorphology == 1) {
+    // Project refracted and unrefracted rays through the SAME measured
+    // water path into the real camera basis. The legacy N.xy was in
+    // world coordinates, so rotating the camera changed refraction falsely.
+    float L = min(thick, 1.5);
+    vec4 refrHit = uViewProj*vec4(P + trd*L, 1.0);
+    vec4 straightHit = uViewProj*vec4(P - V*L, 1.0);
+    if (refrHit.w > 0.1 && straightHit.w > 0.1) {
+      off = clamp(0.5*(refrHit.xy/refrHit.w -
+                       straightHit.xy/straightHit.w), vec2(-0.08), vec2(0.08));
+    }
+  }
+  vec3 behind = texture(uScene, clamp(vUv + off, vec2(0.0), vec2(1.0))).rgb;
+  // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
+  // Coherent water has a smooth sky-reflecting interface, not the heavily
+  // preblurred appearance of an aerated spray cloud.
+  vec3 refl = skyOrSea(R, uMorphology == 1 ? 0.35 : 1.5, texture(uScene, vUv).rgb);
+  vec3 H = normalize(V + uSunDir);
+  float a2 = uMorphology == 1 ? 0.006 : 0.012;
+  float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
+  refl += sunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 Tc;
   // The thickness buffer is the water path along the view ray (volume-conserving splats).
   vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), sunE, Tc);
