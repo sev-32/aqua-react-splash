@@ -15,6 +15,7 @@ import type { SplashMesh } from './splashMesh';
 export interface MaterialNode { id:number; seed:number; theta:number; bornVolume:number }
 interface Ring { source:number; time:number; nodes:MaterialNode[] }
 interface Face { a:number;b:number;c:number;area:number }
+interface BirthFace { a:MaterialNode;b:MaterialNode;c:MaterialNode;time:number }
 const TAU=Math.PI*2;
 const positive=(x:number)=>((x%TAU)+TAU)%TAU;
 const pos=(p:MpmParticles,i:number)=>[p.px[i],p.py[i],p.pz[i]];
@@ -25,6 +26,9 @@ function area(p:MpmParticles,a:number,b:number,c:number) {
 }
 export class MaterialCrownHistory {
  private rings:Ring[]=[];
+ /** Triangle ancestry is fixed once at the second ring's birth, never
+  * rematched between surviving nodes as parcels detach or disappear. */
+ private faces:BirthFace[]=[];
  private open:Ring|null=null;
  private emissionSerial=0;
  /** O(1) capped retention; all entries older than 2.5s can be retired.
@@ -39,13 +43,34 @@ export class MaterialCrownHistory {
  }
  end(){
    if(this.open && this.open.nodes.length>=4){
-     this.open.nodes.sort((a,b)=>a.theta-b.theta);
-     this.rings.push(this.open);
+     const ring=this.open;
+     ring.nodes.sort((a,b)=>a.theta-b.theta);
+     // Topology is born ONCE with the water. Rendering never reconnects
+     // unrelated particles when a tracked surface vertex has died.
+     const prior=[...this.rings].reverse().find(r=>r.source===ring.source);
+     if(prior && ring.time-prior.time<=0.24 && ring.time-prior.time>1e-6){
+       const A=prior.nodes,B=ring.nodes;
+       const count=Math.max(6,Math.min(72,Math.min(A.length,B.length)));
+       for(let k=0;k<count;k++){
+         const a0=A[Math.floor(k*A.length/count)],
+               a1=A[Math.floor(((k+1)%count)*A.length/count)],
+               b0=B[Math.floor(k*B.length/count)],
+               b1=B[Math.floor(((k+1)%count)*B.length/count)];
+         this.faces.push({a:a0,b:b0,c:a1,time:ring.time});
+         this.faces.push({a:a1,b:b0,c:b1,time:ring.time});
+       }
+     }
+     this.rings.push(ring);
    }
    this.open=null;
-   if(this.rings.length>90)this.rings.splice(0,this.rings.length-90);
+   if(this.rings.length>90){
+     this.rings.splice(0,this.rings.length-90);
+     const oldest=this.rings[0]?.time ?? Infinity;
+     this.faces=this.faces.filter(f=>f.time>=oldest);
+   }
+   if(this.faces.length>20000)this.faces.splice(0,this.faces.length-20000);
  }
- clear(){this.rings=[];this.open=null;this.emissionSerial=0;}
+ clear(){this.rings=[];this.faces=[];this.open=null;this.emissionSerial=0;}
  get recordedRings(){return this.rings.length;}
  get recordedEmissions(){return this.emissionSerial;}
  build(P:MpmParticles, maxFaces=8000):SplashMesh {
@@ -53,38 +78,20 @@ export class MaterialCrownHistory {
        !!(P.flags[node.id]&FLAG_ALIVE) && P.seed[node.id]===node.seed &&
        P.vol[node.id]>0;
    const faces:Face[]=[];
-   let prev:Ring|null=null;
-   const ordered=[...this.rings].sort((a,b)=>a.time-b.time);
-   // Each material strip is constrained to ONE source and two neighboring
-   // emission epochs; a later unrelated packet can never close a fake panel.
-   for(const ring of ordered){
-     if(!prev){prev=ring;continue;}
-     if(ring.source!==prev.source || ring.time-prev.time>0.24 || ring.time-prev.time<1e-6){
-       prev=ring;continue;
-     }
-     const A=prev.nodes.filter(valid),B=ring.nodes.filter(valid);
-     if(A.length<5||B.length<5){prev=ring;continue;}
-     const count=Math.max(6,Math.min(72,Math.min(A.length,B.length)));
-     for(let k=0;k<count && faces.length<maxFaces;k++){
-       const a0=A[Math.floor(k*A.length/count)].id,
-             a1=A[Math.floor(((k+1)%count)*A.length/count)].id,
-             b0=B[Math.floor(k*B.length/count)].id,
-             b1=B[Math.floor(((k+1)%count)*B.length/count)].id;
-       const add=(a:number,b:number,c:number)=>{
-         if(a===b||a===c||b===c)return;
-         const ab=Math.hypot(...edge(P,a,b)),ac=Math.hypot(...edge(P,a,c)),
-               bc=Math.hypot(...edge(P,b,c));
-         const max=Math.max(ab,ac,bc);
-         if(max>0.9 || max<0.025)return;
-         const ar=area(P,a,b,c);
-         if(!(ar>0.0025) || ar/(max*max)<0.035)return;
-         faces.push({a,b,c,area:ar});
-       };
-       add(a0,b0,a1);
-       add(a1,b0,b1);
-     }
-     prev=ring;
+   // Reject invalidated material ancestry but never rewire the surviving
+   // points into an unrelated patch. This is the key temporal guarantee.
+   for(const f of this.faces) {
      if(faces.length>=maxFaces)break;
+     if(!valid(f.a)||!valid(f.b)||!valid(f.c))continue;
+     const a=f.a.id,b=f.b.id,c=f.c.id;
+     if(a===b||a===c||b===c)continue;
+     const ab=Math.hypot(...edge(P,a,b)),ac=Math.hypot(...edge(P,a,c)),
+           bc=Math.hypot(...edge(P,b,c));
+     const max=Math.max(ab,ac,bc);
+     if(max>0.9 || max<0.025)continue;
+     const ar=area(P,a,b,c);
+     if(!(ar>0.0025) || ar/(max*max)<0.035)continue;
+     faces.push({a,b,c,area:ar});
    }
    // The computed film volume is a partition of the existing MPM parcels,
    // not duplicated by the number of incident triangles.
