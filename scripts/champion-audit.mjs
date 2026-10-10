@@ -63,7 +63,7 @@ if (nodes.length < 10 || (ontology.causal_relations ?? []).length < 10)
 const terrain = source('src/ocean/render/terrainRender.ts');
 const waterShader = source('src/ocean/render/oceanShaders.ts');
 const physicalCaustics = /float\s+caustics\s*\(/.test(terrain) &&
- /Hessian|hessian|determinant|det\s*\(/i.test(terrain) &&
+ /Hessian|hessian|determinant|\bdet\s*=|det\s*\(/i.test(terrain) &&
  /depth/.test(terrain) && /caustics\(/.test(terrain);
 observations.push({id:'terrain_caustics_mechanism',status:physicalCaustics?'source-preserved':'missing',evidence:'terrainRender.ts: local surface-curvature/depth caustic method'});
 if (!physicalCaustics) errors.push('terrain surface-derived caustic source mechanism missing/replaced');
