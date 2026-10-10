@@ -1,0 +1,94 @@
+{
+  "schema": "thalassa-champion-registry-v1",
+  "status": "research-and-regression-controlled, NOT a validated master build",
+  "protected_legacy_files": [
+    {
+      "path": "docs/consolidation/REFERENCE_MAP.md",
+      "git_blob_sha1": "025fc01f15b87f35e7de0a92fc0b91b3c2c60f62"
+    },
+    {
+      "path": "src/components/SplashParticles.tsx",
+      "git_blob_sha1": "39ba354da0dc189849f9c82ed0d753a28b547562"
+    },
+    {
+      "path": "src/shaders/waterShaders.ts",
+      "git_blob_sha1": "5c8e68ed48fe3e41f0e371c8790a64b03e5682f3"
+    },
+    {
+      "path": "src/components/PoolEnvironment.tsx",
+      "git_blob_sha1": "985a521e42eda29de75326f65a43bcbdea64b9aa"
+    },
+    {
+      "path": "src/hooks/useMlsMpm.ts",
+      "git_blob_sha1": "cd4e2344ed23304077f6385ba6634f8a58acae48"
+    },
+    {
+      "path": "src/lib/mpmConnectivity.ts",
+      "git_blob_sha1": "eba77d01b00ad5d51a1de70a659d3528f4dc9791"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "heightfield_body_reaction",
+      "champion": "heightfieldBEST",
+      "donor": "originals/heightfieldBEST.html",
+      "status": "historical donor cited; original donor source not present in this checkout",
+      "current": "src/ocean/sim/interactionShaders.ts",
+      "acceptance": "swept body occupancy, volume displacement, self-generated bow pile-up and void collapse, speed/rotation controlled"
+    },
+    {
+      "id": "wet_body_film",
+      "champion": "JIT Lab R21 metric body film and HeightfieldBEST updateObjectFilm",
+      "donor": "developer-lab/core/wetness-state.mjs",
+      "status": "historical donor cited; donor source not present in this checkout; current ocean shader uses a single centerline water height",
+      "current": "src/ocean/render/bodiesRender.ts",
+      "acceptance": "wave-local wetness, deposition/drainage/drips and zero disappearing film volume outside identified sinks"
+    },
+    {
+      "id": "jit_water_transfer",
+      "champion": "JIT M2/M3 finite events and return",
+      "donor": "developer-lab/core/coupling.mjs",
+      "status": "historical source cited; donor source not present in this checkout",
+      "current": "src/ocean/modules/splashModule.ts",
+      "acceptance": "volume and impulse budgets from source field through particles to receiver with no unaccounted return"
+    },
+    {
+      "id": "fluid_tendril_surface",
+      "champion": "Particles4All anisotropic SSFR plus fused original pool lineage",
+      "donor": "originals/Particles4All/src/ssfr*.js",
+      "status": "historical PBF donor cited but source not present in this checkout; original pool fused renderer preserved",
+      "current": "src/ocean/sim/SplashSystem.ts",
+      "acceptance": "actual connected sheets/tendrils; alpha/thickness/Fresnel; no giant spheres corresponding to subgrid fluid parcels"
+    },
+    {
+      "id": "caustics",
+      "champion": "POSEIDON/T4R receiver caustics",
+      "donor": "POSEIDON (external baseline)",
+      "status": "reference documented; exact champion source not present in current checkout",
+      "current": "src/hooks/useCaustics.ts",
+      "acceptance": "projected caustics derived from actual surface gradient/light direction/refraction/receiver depth; never replace with unrelated scrolling pattern"
+    },
+    {
+      "id": "fluid_body_contact",
+      "champion": "JIT Lab R21 shared surface contact",
+      "donor": "developer-lab/core/water-object-contact.mjs",
+      "status": "historical donor source not present in this checkout",
+      "current": "src/ocean/physics/bodies.ts",
+      "acceptance": "body contact, wetness, buoyancy and splash all sample consistent local waterline height, gradient, normal, velocity"
+    },
+    {
+      "id": "surface_optics",
+      "champion": "POSEIDON / original pool scene-aware rays",
+      "donor": "src/shaders/waterShaders.ts",
+      "status": "original pool shader preserved; ocean renderer optics independent",
+      "current": "src/ocean/render/oceanShaders.ts",
+      "acceptance": "water-splash reciprocal visibility, Fresnel, depth absorption, physically grounded reflection/refraction without alpha-only cheats"
+    }
+  ],
+  "explicit_known_debts": [
+    "Ocean sphere body shader uses uWaterline sampled once per object rather than per-fragment local wave height.",
+    "Current checkout lacks historical JIT R21 wetness-state source; do not claim recovered.",
+    "Current checkout lacks referenced original BEST HTML and Particles4All vendor sources; filenames in reference map are not proof of mounted source.",
+    "Static file checks cannot prove numerical accuracy or visual quality; real renderer comparisons remain required."
+  ]
+}
