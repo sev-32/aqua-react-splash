@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'docs/consolidation/**'
+      - 'docs/champions/donors/**'
       - 'scripts/**'
       - '.github/workflows/ocean-champion-semantic-gate.yml'
   pull_request:
@@ -12,6 +13,7 @@ on:
     paths:
       - 'src/**'
       - 'docs/consolidation/**'
+      - 'docs/champions/donors/**'
       - 'scripts/**'
       - '.github/workflows/ocean-champion-semantic-gate.yml'
   workflow_dispatch:
