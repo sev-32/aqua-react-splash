@@ -51,6 +51,21 @@ describe('topology-based water-air interface reconstruction',()=>{
     expect(m.vertexCount).toBe(0);
     expect(m.allocatedVolume).toBe(0);
   });
+  it('does not turn a dense nonplanar 3D particle cloud into arbitrary reflective faces',()=>{
+    // Four tetrahedral corners and one center are fully connected, but do
+    // not define an oriented, thin 2D water-air interface.
+    const points=[[0,0,0],[0.26,0,0],[0.13,0.22,0],
+      [0.13,0.07,0.22],[0.13,0.07,0.075]];
+    const bonds: [number,number][]=[];
+    for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++)bonds.push([i,j]);
+    const {P,g}=fixture(points,bonds);
+    const m=reconstructSplashMesh(P,g);
+    expect(m.triangles).toBe(0);
+    expect(m.ribbons).toBe(0);
+    expect(m.covered.every(v=>v===0)).toBe(true);
+    expect(m.carrierVolume).toBe(0);
+    expect(m.allocatedVolume).toBe(0);
+  });
   it('avoids degenerate zero-area water sheets',()=>{
     const {P,g}=fixture([[0,0,0],[0.1,0,0],[0.2,0,0]],[[0,1],[0,2],[1,2]]);
     const m=reconstructSplashMesh(P,g);
