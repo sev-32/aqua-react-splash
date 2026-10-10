@@ -22,6 +22,10 @@ export interface Bond { a: number; b: number; strength: number; distance: number
 export class SplashConnectivity {
   readonly bonds = new Map<number, Bond>();
   private buckets = new Map<number, number[]>();
+  /** Optional render-only per-particle degree bound. Default Infinity preserves
+   * the historical R1/V2 connectivity graph unchanged. V3 uses a finite
+   * bound so early dense particle clusters cannot consume all 4,000 bonds. */
+  maxDegree = Infinity;
 
   constructor(public p: LigamentParams) {}
 
@@ -50,20 +54,43 @@ export class SplashConnectivity {
       const rate = d > brk ? 2.4 / Math.max(0.08, memory) : 14;
       c.strength += (target - c.strength) * Math.min(1, dt * rate);
     }
+    const cap = Number.isFinite(this.maxDegree) ? Math.max(1, Math.floor(this.maxDegree)) : Infinity;
+    const degree = new Uint16Array(P.count);
+    if (Number.isFinite(cap)) {
+      // Prefer persistent strong, short connections. The original
+      // global-budget algorithm filled all bonds among earliest particles,
+      // leaving most of a large crown visually unconnected.
+      const order = [...this.bonds.entries()].sort((a,b)=>
+        (b[1].strength-a[1].strength) ||
+        (a[1].distance-b[1].distance));
+      for (const [key,e] of order) {
+        if (degree[e.a]>=cap || degree[e.b]>=cap) {
+          this.bonds.delete(key);
+          continue;
+        }
+        degree[e.a]++;degree[e.b]++;
+      }
+    } else {
+      for (const e of this.bonds.values()) {
+        degree[e.a]++;degree[e.b]++;
+      }
+    }
     if (this.bonds.size >= maxBonds) return;
     for (const [, ids] of this.buckets) {
       for (const a of ids) {
+        if (degree[a]>=cap)continue;
         const hx = Math.floor(P.px[a] / form), hy = Math.floor(P.py[a] / form), hz = Math.floor(P.pz[a] / form);
         for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) for (let oz = -1; oz <= 1; oz++) {
           const nb = this.buckets.get(((hx + ox + 4096) * 8192 + (hy + oy + 4096)) * 8192 + (hz + oz + 4096));
           if (!nb) continue;
           for (const b of nb) {
-            if (b <= a) continue;
+            if (b <= a || degree[a]>=cap || degree[b]>=cap) continue;
             const key = SplashConnectivity.key(a, b);
             if (this.bonds.has(key)) continue;
             const d = Math.hypot(P.px[a] - P.px[b], P.py[a] - P.py[b], P.pz[a] - P.pz[b]);
             if (d > form) continue;
             this.bonds.set(key, { a, b, strength: 1, distance: d, age: 0 });
+            degree[a]++;degree[b]++;
             if (this.bonds.size >= maxBonds) return;
           }
         }
