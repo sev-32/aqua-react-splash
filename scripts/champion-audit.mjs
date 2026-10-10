@@ -24,7 +24,7 @@ const errors = [], warnings = [], provenance = [], observations = [];
 
 if (registry.schema !== 'thalassa-champion-registry-v1') errors.push('unknown champion registry schema');
 if (ontology.schema !== 'thalassa-water-semantic-contracts-v1') errors.push('unknown ontology schema');
-const permitted = p => /^(src|docs|scripts)\//.test(p) && !p.split('/').includes('..');
+const permitted = p => /^(src|docs|scripts|public)\//.test(p) && !p.split('/').includes('..');
 for (const entry of registry.protected_legacy_files) {
   if (!permitted(entry.path)) { errors.push('unsafe donor path: '+entry.path); continue; }
   if (!exists(entry.path)) { errors.push('missing original source: '+entry.path); continue; }
