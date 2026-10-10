@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/splash-mesh-v3.yml'
       - 'src/ocean/sim/splashMesh.ts'
+      - 'src/ocean/sim/SplashSystem.ts'
+      - 'src/ocean/sim/splashShaders.ts'
+      - 'src/components/ocean/OceanPanel.tsx'
       - 'src/ocean/__tests__/splashMesh.test.ts'
       - 'scripts/ci-splash-mesh-v3.mjs'
   workflow_dispatch:
