@@ -4,6 +4,7 @@ import type { OceanEngine, EngineTelemetry } from '../../ocean';
 import { SEA_STATES, WATER_TYPES, DEBUG_VIEWS } from '../../ocean';
 import { CAMERA_PRESETS } from '../../ocean/engine/cameraPresets';
 import { oceanActions } from '../../ocean/engine/actions';
+import { SplashModule } from '../../ocean/modules/splashModule';
 import { WEATHER_PRESETS, applyWeatherMorph, weatherLabel } from '../../ocean/atmos/weather';
 
 /* ───────────────────────────── primitives ───────────────────────────── */
@@ -76,6 +77,7 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
   const [, force] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const s = engine.settings;
+  const splash = engine.modules.find((m): m is SplashModule => m instanceof SplashModule);
   const rerender = () => force((x) => x + 1);
   const sea = (patch: Partial<typeof s.sea>) => {
     // Taking the sea by hand releases it from the weather's wind.
@@ -183,6 +185,12 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 <Slider label="Damping" value={s.interaction.dispersionDamping} min={0} max={0.5} step={0.005} digits={3} onChange={(v) => { s.interaction.dispersionDamping = v; rerender(); }} />
                 <Toggle label="Splash" value={s.spray.enabled} onChange={(v) => { s.spray.enabled = v; rerender(); }} />
                 <Slider label="Splash gain" value={s.spray.gain} min={0} max={3} onChange={(v) => { s.spray.gain = v; rerender(); }} />
+                {splash && <Toggle label="Experimental clear-sheet / mist morphology V2" value={splash.renderer.morphologyV2}
+                  onChange={(v) => { splash.renderer.morphologyV2 = v; if (v) splash.renderer.surfaceMeshV3 = false; rerender(); }} />}
+                {splash && <Toggle label="Experimental V3 geometric water sheets and tendrils" value={splash.renderer.surfaceMeshV3}
+                  onChange={(v) => { splash.renderer.surfaceMeshV3 = v; if (v) { splash.renderer.morphologyV2 = false; splash.renderer.materialSheetV4 = false; } rerender(); }} />}
+                {splash && <Toggle label="Experimental V4 persistent material-water curtain" value={splash.renderer.materialSheetV4}
+                  onChange={(v) => { splash.renderer.materialSheetV4 = v; if (v) { splash.renderer.morphologyV2 = false; splash.renderer.surfaceMeshV3 = false; } rerender(); }} />}
               </Section>
 
               <Section title="Shore / shallow water">
@@ -266,7 +274,17 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                     {(() => {
                       const x = t as unknown as Record<string, number>;
                       return x.splashEmitted !== undefined ? (
-                        <Stat label="Splash water: air / home" value={`${(x.splashAirborne ?? 0).toFixed(2)} / ${(x.splashSettled ?? 0).toFixed(2)} of ${x.splashEmitted.toFixed(2)} m³`} />
+                        <>
+                          <Stat label="Splash water: air / home" value={`${(x.splashAirborne ?? 0).toFixed(2)} / ${(x.splashSettled ?? 0).toFixed(2)} of ${x.splashEmitted.toFixed(2)} m³`} />
+                          {x.splashSolverVolumeResidual !== undefined && (
+                            <>
+                              <Stat label="T4 volume closure error" value={`${x.splashSolverVolumeResidual.toExponential(2)} m³`} />
+                              <Stat label="Unrouted returned water" value={`${(x.splashUnroutedVolume ?? 0).toExponential(2)} m³`} />
+                              <Stat label="Open-boundary return (not T0)" value={`${(x.splashOpenBoundaryVolume ?? 0).toFixed(3)} m³`} />
+                              <Stat label="Invalid transfers" value={String(x.splashInvalidTransfers ?? 0)} />
+                            </>
+                          )}
+                        </>
                       ) : null;
                     })()}
                     <Stat label="Receipts" value={String(t.receipts)} />

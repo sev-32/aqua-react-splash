@@ -1,0 +1,78 @@
+name: THALASSA source-only checkpoint
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - '.github/workflows/ocean-source-checkpoint.yml'
+      - 'docs/consolidation/WATER_SEMANTIC_CONSTITUTION.md'
+      - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
+      - 'docs/consolidation/CHAMPION_RECOVERY_PASS01.md'
+      - 'docs/consolidation/CHAMPION_RECOVERY_PASS02.md'
+      - 'docs/consolidation/CHAMPION_RECOVERY_PASS03.md'
+      - 'scripts/ci-original-physics-champions.mjs'
+      - '.github/workflows/original-physics-champions.yml'
+      - 'scripts/ci-gpu-donor-smoke.mjs'
+      - '.github/workflows/gpu-donor-smoke.yml'
+      - 'scripts/ci-champion-pool-ocean.mjs'
+      - 'docs/consolidation/WATER_SEMANTIC_CONTRACTS.json'
+      - 'docs/consolidation/CHAMPION_REGISTRY.json'
+      - 'scripts/champion-audit.mjs'
+      - 'src/ocean/sim/splashShaders.ts'
+      - 'src/ocean/sim/SplashSystem.ts'
+      - 'src/components/ocean/OceanPanel.tsx'
+      - 'scripts/ci-splash-morphology-ab.mjs'
+      - 'docs/consolidation/SPLASH_MORPHOLOGY_R2.md'
+      - 'src/ocean/sim/splashMesh.ts'
+      - 'src/ocean/__tests__/splashMesh.test.ts'
+      - 'scripts/ci-splash-mesh-v3.mjs'
+      - 'docs/consolidation/SPLASH_SURFACE_V3.md'
+      - 'src/ocean/sim/splashConnectivity.ts'
+      - 'src/ocean/__tests__/splashConnectivityFairness.test.ts'
+      - 'docs/consolidation/SPLASH_SURFACE_V3_AUDIT.md'
+      - 'src/ocean/sim/materialCrown.ts'
+      - 'src/ocean/sim/oceanMpm.ts'
+      - 'src/ocean/modules/splashModule.ts'
+      - 'src/ocean/__tests__/materialCrown.test.ts'
+      - 'scripts/ci-material-crown-animation.mjs'
+      - 'docs/consolidation/SPLASH_MATERIAL_V4.md'
+      - '.github/workflows/material-crown-v4.yml'
+      - 'scripts/causal-ledger-capture.mjs'
+      - 'scripts/ci-ocean-closeups.mjs'
+      - 'scripts/ci-shore-ready.mjs'
+      - 'docs/consolidation/CAUSAL_R1_EVIDENCE_R2.md'
+  workflow_dispatch:
+jobs:
+  package-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: THALASSA-CAUSAL-R1-CODE-DOCS
+          path: |
+            src/
+            .github/workflows/
+            scripts/
+            docs/consolidation/*.md
+            docs/consolidation/*.json
+            docs/champions/donors/
+            public/mlsmpm-webgpu.html
+            README.md
+            package.json
+            package-lock.json
+            index.html
+            vite.config.ts
+            tsconfig.json
+            tsconfig.app.json
+            tsconfig.node.json
+            eslint.config.js
+            postcss.config.js
+            tailwind.config.ts
+            components.json
+            !**/*.png
+            !**/*.jpg
+            !**/*.webp
+          if-no-files-found: error
+          retention-days: 7

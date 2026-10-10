@@ -1,0 +1,500 @@
+{
+  "schema": "thalassa-water-semantic-contracts-v1",
+  "title": "Meaning of correct water in THALASSA",
+  "principle": "Choose best validated mechanism per phenomenon, not newest build, approximate picture, or generic default water shader.",
+  "authority": "The user's original intent plus historical champions; explicit measured evidence decides implementation details.",
+  "is_not_claiming": "This is a semantic specification, not evidence that the final system is already physically or visually solved.",
+  "phenomena": [
+    {
+      "id": "water_material",
+      "meaning": "Water is liquid mass in a continuous material, not a collection of white points or an animation texture.",
+      "mechanism": "Conserved liquid volume, momentum transport, pressure, gravity and interface stress; 2.5D and particles represent the same material at different resolutions.",
+      "visual_signature": "Motion redistributes a coherent volume; connected material remains connected until physically separated.",
+      "failure_mode": "Particle visual size or opacity substitutes for water volume; multiple solvers silently own the same water.",
+      "champion": {
+        "name": "JIT M2/M3 conservation law",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/modules/splashModule.ts"
+      ],
+      "acceptance": "Every transfer has explicit source/receiver identity and closed volume residual.",
+      "status": "experimental"
+    },
+    {
+      "id": "surface_interface",
+      "meaning": "A water surface is the moving boundary between water and air, not a light effect.",
+      "mechanism": "Position, topology, normal, material velocity and thickness must come from the current water state; topology may change only through represented separation.",
+      "visual_signature": "A coherent, continuous wet boundary where water remains connected; authentic silhouette and surface curvature.",
+      "failure_mode": "Individual coarse simulation parcels appear as isolated spheres; disconnected glass shards masquerade as a sheet.",
+      "champion": {
+        "name": "Original pool fused Marching Cubes + JIT M3 skin + Particles4All anisotropy",
+        "source_available": true
+      },
+      "implementation": [
+        "src/components/SplashParticles.tsx"
+      ],
+      "acceptance": "Compare traced sheet silhouette and connected-component continuity frame-to-frame; preserve best donor.",
+      "status": "unverified"
+    },
+    {
+      "id": "heightfield_dynamics",
+      "meaning": "Heightfields are a compact 2.5D representation of surface motion when one surface height describes a column.",
+      "mechanism": "Conservation/dispersion and obstacle occupancy produce pile-up, side flow, wake and collapse from actual pressure/flow response.",
+      "visual_signature": "Bow pile-up, realistic wave train, evolving stern depression and water following local object motion.",
+      "failure_mode": "Decorative wake textures attached to a moving object, arbitrary ripples or frozen shoreline overlays.",
+      "champion": {
+        "name": "heightfieldBEST and THALASSA T3 carpet",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/interactionShaders.ts"
+      ],
+      "acceptance": "Stationary/tow/sweep tests at matched speeds demonstrate generated wake and fluid displacement without overlay.",
+      "status": "baseline-present"
+    },
+    {
+      "id": "body_occupancy",
+      "meaning": "A hull excludes liquid volume and forces water to displace around its actual wetted shape.",
+      "mechanism": "Wetted body occupancy and swept trajectory constrain heightfield flow and exchange pressure and impulse.",
+      "visual_signature": "Water climbs the bow, divides around the body and fills its wake as it leaves.",
+      "failure_mode": "One global waterline or an analytic decorative wake standing in for contact.",
+      "champion": {
+        "name": "heightfieldBEST computeObstacle; THALASSA occupancy field",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/interactionShaders.ts"
+      ],
+      "acceptance": "Translation and rotation retain displacement and prevent body tunneling across cells.",
+      "status": "baseline-present"
+    },
+    {
+      "id": "body_water_contact",
+      "meaning": "Every point of a curved body can meet a different local wave height and normal.",
+      "mechanism": "One authoritative local surface query supplies immersion, gradient, normal, flow and contact for physics and optical wetness.",
+      "visual_signature": "Wet edge conforms to the actual raised/sunken wave around all sides of a sphere.",
+      "failure_mode": "One sampled height at body center creates an unrelated straight wet/dry stripe.",
+      "champion": {
+        "name": "JIT R21 shared water-object-contact, historical donor unmounted",
+        "source_available": false
+      },
+      "implementation": [
+        "src/ocean/render/bodiesRender.ts"
+      ],
+      "acceptance": "On a tilted asymmetric wave, per-fragment wet contact tracks the physical field and agrees with buoyancy.",
+      "status": "known-defect"
+    },
+    {
+      "id": "body_wet_film",
+      "meaning": "Wetness is water adhering to a surface over time, not merely 'below current water level'.",
+      "mechanism": "A film stores deposited liquid mass, drains with body orientation, drips, and evaporates or returns through documented sinks.",
+      "visual_signature": "Emerging sphere remains wet above waterline, with trailing trickles, darkening and direction-dependent gloss.",
+      "failure_mode": "A moving horizontal line instantaneously replaces actual wetness history.",
+      "champion": {
+        "name": "JIT Lab R21 metric wetness + heightfieldBEST updateObjectFilm, donor unmounted",
+        "source_available": false
+      },
+      "implementation": [
+        "src/ocean/render/bodiesRender.ts"
+      ],
+      "acceptance": "Wave-local deposition, coherent persistent film, drain/drip volume ledger and slow drying without arbitrary disappearance.",
+      "status": "known-defect"
+    },
+    {
+      "id": "jit_domain_transition",
+      "meaning": "3D fluid is spawned just in time where 2.5D becomes unable to represent folding or detached water.",
+      "mechanism": "Surface steepness, overturn, acceleration and body contact trigger finite events; source water is debited once and given proper velocity/impulse.",
+      "visual_signature": "Crest steepens into a sheet then tendrils and droplets, while the originating surface loses exactly the launched water.",
+      "failure_mode": "Random white splashes attached to a crest with no fluid debit, or unlimited emission at each frame.",
+      "champion": {
+        "name": "JIT M2/M3 finite event controller, donor unmounted",
+        "source_available": false
+      },
+      "implementation": [
+        "src/ocean/modules/splashModule.ts"
+      ],
+      "acceptance": "Under a controlled breaking event, source debit matches launch and return; event counts and geometry converge with timestep.",
+      "status": "experimental"
+    },
+    {
+      "id": "material_coherence",
+      "meaning": "A water sheet is a connected material surface with history until it tears.",
+      "mechanism": "Material coordinate/bond and deformation persist while water advects; tear changes topology rather than retroactively reconnecting arbitrary neighbors.",
+      "visual_signature": "Broad crown stretches to a thin curtain, then narrows into filaments before breakoff.",
+      "failure_mode": "Reconstructed arbitrary triangles, disconnected glass scratches or constant reseeding of connections.",
+      "champion": {
+        "name": "JIT M3 temporal ribbons; old pool implicit volume fusion",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/materialCrown.ts"
+      ],
+      "acceptance": "Track ancestry and surface topology over time; no rewire after retirement; demonstrate sustained curtain at real impact.",
+      "status": "experimental"
+    },
+    {
+      "id": "detached_3d_liquid",
+      "meaning": "Separated liquid needs a high-detail local 3D solver, not a trillions-of-particles ocean.",
+      "mechanism": "PBF or MLS-MPM integrates particles only in the disturbed local region; pressure and surface tension determine breakup and return.",
+      "visual_signature": "Individual physically sized droplets and coherent ligaments, with gravity, collision and surface tension.",
+      "failure_mode": "Computational parcel rendered as 10-cm opaque foam ball; 3D fluid applied across the entire sea.",
+      "champion": {
+        "name": "Particles4All GPU PBF + surface tension (historical donor unmounted)",
+        "source_available": false
+      },
+      "implementation": [
+        "src/ocean/sim/oceanMpm.ts"
+      ],
+      "acceptance": "Hardware profile, stable particle budget, physical collision, sphere splash and capillary breakup against donor.",
+      "status": "experimental"
+    },
+    {
+      "id": "liquid_return",
+      "meaning": "Detached liquid becomes part of its receiver water field again on contact.",
+      "mechanism": "Normalised footprint returns volume; momentum may excite radial wave with net impulse zero; dissipation accounted.",
+      "visual_signature": "Splash re-entry creates real local waves, ripples and turbulence with no vanishing pools.",
+      "failure_mode": "Particles disappear when they reach surface without wave feedback, or ledger only marks a boundary.",
+      "champion": {
+        "name": "JIT M3 returnParticle and AQUA canonical BFT",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/causalLedger.ts"
+      ],
+      "acceptance": "Emit→impact→receiver volume/impulse ledgers close and matched wave amplitude/energy are measured.",
+      "status": "experimental"
+    },
+    {
+      "id": "foam_aeration",
+      "meaning": "Foam is a population of entrained air bubbles in water, not the liquid itself.",
+      "mechanism": "Aeration follows turbulent breaking, air entrainment, buoyant rise, lifetime, accumulation and dissipation.",
+      "visual_signature": "Bright aerated patches appear only where water churns; coherent transparent liquid is still visible elsewhere.",
+      "failure_mode": "All fast liquid is recolored into flat opaque white pellets.",
+      "champion": {
+        "name": "Foam Foundry V4.3 historical donor unmounted",
+        "source_available": false
+      },
+      "implementation": [
+        "src/ocean/sim/splashShaders.ts"
+      ],
+      "acceptance": "Segment liquid vs entrained gas visual state; measured foam area, lifetime and scattering independent of carrier volume.",
+      "status": "known-defect"
+    },
+    {
+      "id": "fresnel",
+      "meaning": "Water reflects more light at grazing angles because the air-water interface changes optical impedance.",
+      "mechanism": "Viewing angle, actual geometric normal and physical refractive indices determine angular reflectance; use consistent dielectric polarization/Fresnel approximation.",
+      "visual_signature": "Facing water transmits much of the scene; glancing water becomes mirror-like with correct environmental colors.",
+      "failure_mode": "Fake brightness curve independent of surface normals, sky or index of refraction.",
+      "champion": {
+        "name": "POSEIDON optics and older pool ray-shading source",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/render/oceanShaders.ts"
+      ],
+      "acceptance": "Test fixed water normal and varying view angle against dielectric reference, with no painted rim.",
+      "status": "baseline-present"
+    },
+    {
+      "id": "refraction",
+      "meaning": "Refraction is the bending of rays as they cross an interface between air and water.",
+      "mechanism": "Snell's law applied to true interface normal and view ray, traced to the receiving scene/body/terrain; thickness/depth controls path.",
+      "visual_signature": "Background shifts consistently through a curved crown, with angle and thickness; underwater distortions track real surface.",
+      "failure_mode": "Arbitrary UV warp or nearly invisible alpha transparency mistaken for transmission.",
+      "champion": {
+        "name": "POSEIDON optics plus original pool ray-geometry shader",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/splashShaders.ts"
+      ],
+      "acceptance": "Refracted target displacement changes with shape and camera basis consistently; test against analytic sphere/sheet.",
+      "status": "experimental"
+    },
+    {
+      "id": "reflection",
+      "meaning": "Reflection is radiance from whatever a water-facing reflected ray encounters.",
+      "mechanism": "Physically based reflection from sky, terrain, bodies AND nearby spray/water, including compositing/visibility passes.",
+      "visual_signature": "Splash reflects neighboring sea and sky, and the ocean reflects the splash silhouette where visibility warrants.",
+      "failure_mode": "Splash rendered after water with no path back into ocean reflection, or environment color painted onto splash.",
+      "champion": {
+        "name": "POSEIDON scene-aware optics / original pool ray tracing",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/engine/OceanEngine.ts"
+      ],
+      "acceptance": "Explicit reciprocal visibility test with high-contrast object suspended over water, no incorrect self-reflection.",
+      "status": "known-defect"
+    },
+    {
+      "id": "optical_thickness",
+      "meaning": "Water color and visibility depend on the length light travels through liquid and its scattering/absorption.",
+      "mechanism": "Beer-Lambert absorption + participating media; geometric surface depth/thickness, not display-particle diameter, controls transmittance.",
+      "visual_signature": "Thin splash sheets remain transparent but defined by reflections; deep water absorbs strongly by wavelength.",
+      "failure_mode": "Overly transparent no-distortion glass or opaque foam replacing clear liquid.",
+      "champion": {
+        "name": "POOL fused surface + POSEIDON optical attenuation",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/SplashSystem.ts"
+      ],
+      "acceptance": "Transmittance vs known film thickness and camera angle agrees with calibrated absorption model.",
+      "status": "experimental"
+    },
+    {
+      "id": "caustics",
+      "meaning": "A caustic is a focusing or defocusing of transmitted light rays by curved moving water.",
+      "mechanism": "Surface slope/curvature, sun incidence, receiver depth and the refracted-ray mapping/Jacobian drive irradiance concentration.",
+      "visual_signature": "Bright networks move and deform causally with actual waves and depth on bottom/objects.",
+      "failure_mode": "A scrolling random pattern painted onto floor with no dependence on true wave surface or light.",
+      "champion": {
+        "name": "POSEIDON/T4R ray/curvature based receiver caustics",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/render/terrainRender.ts"
+      ],
+      "acceptance": "Freeze wave, rotate sun and vary depth; spatial caustic pattern must follow predicted ray mapping and vanish without relevant curvature.",
+      "status": "baseline-present"
+    },
+    {
+      "id": "shallow_water_terrain",
+      "meaning": "Land topography defines bottom boundaries, channel connections, run-up, overtopping and retreat.",
+      "mechanism": "Depth-averaged conservative flow, wet/dry front treatment, bed elevation, friction and boundary fluxes update volume in each terrain cell.",
+      "visual_signature": "Run-up wets beach, fluid crosses ditch or levee if overtopped, fills basin, retreats appropriately.",
+      "failure_mode": "Clipped water plane, disconnected decorative puddles or water climbing through solids.",
+      "champion": {
+        "name": "THALASSA T2 SWE + HybridSplash v43 nearshore donor",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/shoreShaders.ts"
+      ],
+      "acceptance": "Barrier overtopping/closed basin/wet-dry tests with volume residual, terrain variations and stable CFL stepping.",
+      "status": "baseline-present"
+    },
+    {
+      "id": "multiscale_lod",
+      "meaning": "The ocean can cover planetary scales only if local degrees of freedom appear where needed.",
+      "mechanism": "T0 far-field spectrum, T3 interaction, T2 shore and T4 detached fluid own complementary phenomena, coupled by conservative boundary transactions.",
+      "visual_signature": "Ocean has continuous motion from far field to contact/splash with no obvious seams or energy jumps.",
+      "failure_mode": "Each layer draws independent fake waves with unmatched phase or loses volume at LOD transitions.",
+      "champion": {
+        "name": "THALASSA hierarchy + JIT/R22 page conservation",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/engine/OceanEngine.ts"
+      ],
+      "acceptance": "World-matched handoff at tiers, action-reaction, shoreline seam continuity and real hardware profiling.",
+      "status": "experimental"
+    },
+    {
+      "id": "temporal_coherence",
+      "meaning": "Water at the next frame is the evolved state of the same physical field, not a rerolled appearance.",
+      "mechanism": "Numerical advection and persistent histories for surface, sheet topology, foam, body film and return events.",
+      "visual_signature": "Strands thin continuously; wave crests move, wet film ages, caustics follow waves and foam persists appropriately.",
+      "failure_mode": "Popping triangles or randomly resetting splash/caustics despite unchanged forcing.",
+      "champion": {
+        "name": "JIT temporal ribbons, HeightfieldBEST, THALASSA temporal states",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/sim/materialCrown.ts"
+      ],
+      "acceptance": "Run frame-by-frame time sequence with stable camera, topology events, conservation and flicker metrics.",
+      "status": "experimental"
+    },
+    {
+      "id": "game_integration",
+      "meaning": "Water must be a reusable world system receiving actual terrain and moving-body geometry.",
+      "mechanism": "Clean terrain input, query, resource budget, waterbody ownership, physics APIs and finite near-field regions.",
+      "visual_signature": "Any compliant game terrain creates plausible shore/basin interactions and bodies generate correct local effects.",
+      "failure_mode": "Demo-specific island and sphere hard-coded into physics with no general interface.",
+      "champion": {
+        "name": "THALASSA modular engine target, not a validated product",
+        "source_available": true
+      },
+      "implementation": [
+        "src/ocean/engine/modules.ts"
+      ],
+      "acceptance": "Swap independent terrain maps and compare identical mechanics; benchmark FPS/memory and deterministic queries.",
+      "status": "unverified"
+    }
+  ],
+  "causal_relations": [
+    {
+      "from": "water_material",
+      "to": "heightfield_dynamics",
+      "reason": "Heightfields evolve the same liquid mass where the free surface remains single-valued"
+    },
+    {
+      "from": "water_material",
+      "to": "detached_3d_liquid",
+      "reason": "Detached fluid representation carries real water mass outside the heightfield"
+    },
+    {
+      "from": "water_material",
+      "to": "liquid_return",
+      "reason": "Reentry must transfer water ownership and impulses back"
+    },
+    {
+      "from": "heightfield_dynamics",
+      "to": "body_occupancy",
+      "reason": "Displacement and blocked flow create a causal wake"
+    },
+    {
+      "from": "body_occupancy",
+      "to": "body_water_contact",
+      "reason": "Wetted body geometry defines local contact"
+    },
+    {
+      "from": "body_water_contact",
+      "to": "body_wet_film",
+      "reason": "Contact deposits a film that persists after exit"
+    },
+    {
+      "from": "body_water_contact",
+      "to": "jit_domain_transition",
+      "reason": "Violent contact can exceed heightfield representability"
+    },
+    {
+      "from": "heightfield_dynamics",
+      "to": "jit_domain_transition",
+      "reason": "Breaking crests launch only water that cannot remain in the heightfield"
+    },
+    {
+      "from": "jit_domain_transition",
+      "to": "material_coherence",
+      "reason": "Newly launched sheet preserves the original crest and event topology"
+    },
+    {
+      "from": "material_coherence",
+      "to": "surface_interface",
+      "reason": "Tracked sheets determine real air-water interface geometry"
+    },
+    {
+      "from": "material_coherence",
+      "to": "detached_3d_liquid",
+      "reason": "As topology breaks, ligaments and droplets become 3D liquid"
+    },
+    {
+      "from": "detached_3d_liquid",
+      "to": "liquid_return",
+      "reason": "Detached parcels eventually reenter the heightfield or shoreline"
+    },
+    {
+      "from": "detached_3d_liquid",
+      "to": "foam_aeration",
+      "reason": "Turbulent collapse entrains air but foam does not replace water volume"
+    },
+    {
+      "from": "surface_interface",
+      "to": "fresnel",
+      "reason": "A surface normal and optical index give angular reflectance"
+    },
+    {
+      "from": "surface_interface",
+      "to": "refraction",
+      "reason": "Surface geometry determines refracted view and light rays"
+    },
+    {
+      "from": "surface_interface",
+      "to": "optical_thickness",
+      "reason": "Actual film thickness affects absorption/transmission"
+    },
+    {
+      "from": "surface_interface",
+      "to": "reflection",
+      "reason": "Interface normals and scene visibility select reflected radiance"
+    },
+    {
+      "from": "surface_interface",
+      "to": "caustics",
+      "reason": "Wave shape and sun angle focus transmitted light onto receivers"
+    },
+    {
+      "from": "reflection",
+      "to": "caustics",
+      "reason": "Reflected and transmitted energy must be optically consistent"
+    },
+    {
+      "from": "refraction",
+      "to": "caustics",
+      "reason": "Refracted solar ray mapping creates intensity focus on receivers"
+    },
+    {
+      "from": "shallow_water_terrain",
+      "to": "body_water_contact",
+      "reason": "Local shoreline height and normal influence body immersion"
+    },
+    {
+      "from": "shallow_water_terrain",
+      "to": "game_integration",
+      "reason": "Actual terrain elevation and wet/dry state must be supplied to engine"
+    },
+    {
+      "from": "multiscale_lod",
+      "to": "jit_domain_transition",
+      "reason": "Simulation tiers require causal ownership and momentum transfer"
+    },
+    {
+      "from": "multiscale_lod",
+      "to": "heightfield_dynamics",
+      "reason": "Near-field height must remain coherent with far-field ocean waves"
+    },
+    {
+      "from": "temporal_coherence",
+      "to": "material_coherence",
+      "reason": "Material connections must evolve rather than be remade each frame"
+    },
+    {
+      "from": "temporal_coherence",
+      "to": "foam_aeration",
+      "reason": "Foam accumulation and decay depends on past entrainment"
+    },
+    {
+      "from": "temporal_coherence",
+      "to": "body_wet_film",
+      "reason": "Adhered film retains memory of prior contact"
+    },
+    {
+      "from": "optical_thickness",
+      "to": "refraction",
+      "reason": "Ray path through film determines what underlying scene remains visible"
+    },
+    {
+      "from": "refraction",
+      "to": "reflection",
+      "reason": "Same interface must support both transmitted and reflected radiance"
+    },
+    {
+      "from": "game_integration",
+      "to": "multiscale_lod",
+      "reason": "Computational resources are allocated by local need rather than ocean extent"
+    }
+  ],
+  "promotion_policy": {
+    "candidate_must": "Prove it matches or exceeds incumbent in the incumbent's defining mechanism AND matched real render/physical tests.",
+    "reject_when": [
+      "Uses unrelated scrolling image where existing mechanism derives the effect from water surface",
+      "Removes water-mass or momentum accounting",
+      "Makes connected water visually into giant computational particles",
+      "Replaces per-point surface contact with object-center scalar",
+      "Removes bidirectional optical scene visibility",
+      "Reduces previously demonstrated morphology or temporal coherence without bounded documented tradeoff"
+    ],
+    "comparison_conditions": [
+      "Same water state/seed",
+      "Same terrain/sphere/camera/light/exposure",
+      "Fixed frame times and multiple consecutive images",
+      "Report physics/visual metrics and GPU time",
+      "Keep source champions untouched and reproducible"
+    ],
+    "risk_policy": "Unverified evidence, donor source unavailable, or missing renderer proof => do not declare a new champion or silently replace current winner."
+  }
+}

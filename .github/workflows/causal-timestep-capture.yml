@@ -1,0 +1,45 @@
+name: Causal water timestep convergence captures
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - 'scripts/causal-ledger-capture.mjs'
+      - '.github/workflows/causal-timestep-capture.yml'
+  workflow_dispatch:
+jobs:
+  timestep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install real Chromium WebGL2 runner
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve compiled simulation
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/thalassa-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ocean >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/thalassa-preview.log
+          exit 1
+      - name: Record independent 30/60/120 Hz trajectories and PNGs
+        run: node scripts/causal-ledger-capture.mjs captures/timestep-r1/ledger.json
+        env:
+          THALASSA_URL: http://127.0.0.1:4173/ocean?capture=1&quality=capture&seed=20260925
+          CAUSAL_SECONDS: '1.2'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thalassa-causal-timestep-30-60-120
+          path: captures/timestep-r1/
+          retention-days: 7
+          if-no-files-found: warn

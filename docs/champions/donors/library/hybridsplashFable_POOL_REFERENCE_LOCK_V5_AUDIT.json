@@ -1,0 +1,52 @@
+{
+  "files": {
+    "source": "/mnt/data/hybridsplashFable_heightfield_material_unified(1).html",
+    "pool": "/mnt/data/water_monolith_app_METABALL_WORKING_RELATIVE_SCALE(1).html",
+    "output": "/mnt/data/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+    "patch": "/mnt/data/hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+    "zip": "/mnt/data/hybridsplashFable_POOL_REFERENCE_LOCK_V5_PACKAGE.zip"
+  },
+  "hashes": {
+    "source": "f17b255f70095c1d77bf45f1a4f6bd02b0b8a1befa6366f4c36c4d975c6cb9a3",
+    "pool": "bf71198377676ba9ba168dc6dc0465c2959a011b7454d3069b1745e0b1a76ea7",
+    "output": "ac4a33012f5c5d209d896d6ac1546b778855b2e6e0dffc043a4a1986a69c581c",
+    "patch": "f0d27e2419802b49b8baa0d847206b33010fdc6efaf4aeca3f9de9fb10a466c0",
+    "zip": "4d95bf12bc7548014e44ab4e8aabe5bb0ed1bd0365d7ac101309c660734f9f09"
+  },
+  "pool_anchors": {
+    "pool IOR_WATER 1.333": true,
+    "pool abovewaterColor": true,
+    "pool underwaterColor": true,
+    "pool above Fresnel": true,
+    "pool caustic receiver lookup": true,
+    "pool caustic area ratio": true,
+    "pool underwater receiver multiplier": true
+  },
+  "checks": {
+    "JS module syntax passes node --check": true,
+    "patch reconstructs output byte-identical": true,
+    "Fable heightfield constants preserved": true,
+    "Fable MPM constants preserved": true,
+    "single shared POOL_REF_MATERIAL source string exists": true,
+    "heightfield water includes shared material": true,
+    "MPM fluid calls same shared material": true,
+    "terrain receiver calls same receiver function": true,
+    "caustic pass bound to bathymetry receiver": true,
+    "pool caustic area equation present": true,
+    "sign-preserved caustic denominator present": true,
+    "V2/V3 invented absorption residue removed": true,
+    "water material has no ACES tonemap in pool path": true,
+    "fluid material has no ACES tonemap in pool path": true,
+    "splash default enabled": true
+  },
+  "node_message": "",
+  "patch_reconstruct_message": "byte-identical via patch -p0",
+  "diff_stat": "... hybridsplashFable_POOL_REFERENCE_LOCK_V5.html} | 463 ++++++++-------------\n 1 file changed, 175 insertions(+), 288 deletions(-)",
+  "diff_numstat": "175\t288\t/mnt/data/{hybridsplashFable_heightfield_material_unified(1).html => hybridsplashFable_POOL_REFERENCE_LOCK_V5.html}",
+  "rejected_v4_reasons": [
+    "duplicated heightfield/fluid material functions",
+    "abs(refractedLight.y) changed caustic projection sign",
+    "caustic receiver fixed to 2.0m instead of Fable bathymetry",
+    "ACES/tone mapping still inside claimed pool water path"
+  ]
+}
