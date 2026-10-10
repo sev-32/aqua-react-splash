@@ -51,6 +51,22 @@ describe('V4 material coordinate sheet emitted with water',()=>{
     expect(after.covered[0]).toBe(0);
     expect(P.flags[0]).toBe(FLAG_ALIVE);
   });
+  it('never rewires surviving birth nodes when an original panel vertex disappears',()=>{
+    const {P,h}=setup(16);
+    const before=h.build(P);
+    // Removing one birth vertex must remove its original incident faces.
+    // The other living particles must not become newly connected simply
+    // because their sorted angular indices have shifted.
+    P.flags[4]=0;
+    const after=h.build(P);
+    expect(after.vertexCount).toBeLessThan(before.vertexCount);
+    const oldXYZ=new Set<string>();
+    for(let i=0;i<before.vertices.length;i+=5)
+      oldXYZ.add(before.vertices[i].toFixed(5)+','+before.vertices[i+1].toFixed(5)+','+before.vertices[i+2].toFixed(5));
+    for(let i=0;i<after.vertices.length;i+=5)
+      expect(oldXYZ.has(after.vertices[i].toFixed(5)+','+after.vertices[i+1].toFixed(5)+','+after.vertices[i+2].toFixed(5))).toBe(true);
+    expect(after.allocatedVolume).toBeCloseTo(after.carrierVolume,10);
+  });
   it('refuses false sheet panels between unrelated source bodies',()=>{
     const {P,h}=setup(16);
     h.clear();
