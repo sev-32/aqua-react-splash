@@ -6,6 +6,7 @@ on:
       - 'src/**'
       - 'docs/consolidation/**'
       - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
       - 'scripts/**'
       - '.github/workflows/ocean-champion-semantic-gate.yml'
   pull_request:
@@ -14,6 +15,7 @@ on:
       - 'src/**'
       - 'docs/consolidation/**'
       - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
       - 'scripts/**'
       - '.github/workflows/ocean-champion-semantic-gate.yml'
   workflow_dispatch:
