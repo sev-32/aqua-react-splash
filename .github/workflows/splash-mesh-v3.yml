@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/splash-mesh-v3.yml'
       - 'src/ocean/sim/splashMesh.ts'
+      - 'src/ocean/sim/splashConnectivity.ts'
+      - 'src/ocean/modules/splashModule.ts'
+      - 'src/ocean/__tests__/splashConnectivityFairness.test.ts'
       - 'src/ocean/sim/SplashSystem.ts'
       - 'src/ocean/sim/splashShaders.ts'
       - 'src/components/ocean/OceanPanel.tsx'
@@ -25,7 +28,7 @@ jobs:
       - name: Verify interface builder and app
         run: |
           npm run typecheck
-          npx vitest run src/ocean/__tests__/splashMesh.test.ts src/ocean/__tests__/causalLedger.test.ts src/ocean/__tests__/mpm.test.ts
+          npx vitest run src/ocean/__tests__/splashMesh.test.ts src/ocean/__tests__/splashConnectivityFairness.test.ts src/ocean/__tests__/causalLedger.test.ts src/ocean/__tests__/mpm.test.ts
           npm run build
       - name: Install headless WebGL2 Chromium
         run: |
