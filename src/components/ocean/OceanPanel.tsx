@@ -4,6 +4,7 @@ import type { OceanEngine, EngineTelemetry } from '../../ocean';
 import { SEA_STATES, WATER_TYPES, DEBUG_VIEWS } from '../../ocean';
 import { CAMERA_PRESETS } from '../../ocean/engine/cameraPresets';
 import { oceanActions } from '../../ocean/engine/actions';
+import { SplashModule } from '../../ocean/modules/splashModule';
 import { WEATHER_PRESETS, applyWeatherMorph, weatherLabel } from '../../ocean/atmos/weather';
 
 /* ───────────────────────────── primitives ───────────────────────────── */
@@ -76,6 +77,7 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
   const [, force] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const s = engine.settings;
+  const splash = engine.modules.find((m): m is SplashModule => m instanceof SplashModule);
   const rerender = () => force((x) => x + 1);
   const sea = (patch: Partial<typeof s.sea>) => {
     // Taking the sea by hand releases it from the weather's wind.
@@ -183,6 +185,8 @@ export function OceanPanel({ engine, telemetry }: { engine: OceanEngine; telemet
                 <Slider label="Damping" value={s.interaction.dispersionDamping} min={0} max={0.5} step={0.005} digits={3} onChange={(v) => { s.interaction.dispersionDamping = v; rerender(); }} />
                 <Toggle label="Splash" value={s.spray.enabled} onChange={(v) => { s.spray.enabled = v; rerender(); }} />
                 <Slider label="Splash gain" value={s.spray.gain} min={0} max={3} onChange={(v) => { s.spray.gain = v; rerender(); }} />
+                {splash && <Toggle label="Experimental clear-sheet / mist morphology V2" value={splash.renderer.morphologyV2}
+                  onChange={(v) => { splash.renderer.morphologyV2 = v; rerender(); }} />}
               </Section>
 
               <Section title="Shore / shallow water">
