@@ -264,6 +264,10 @@ export class SplashModule implements EngineModule {
     }
 
     // 4. Ligaments + upload for drawing.
+    // V3-only: share its fixed bond budget across the crown instead of
+    // spending it on a few early dense particle neighborhoods.
+    // R1 and V2 preserve their original graph behavior and MPM is untouched.
+    this.ligaments.maxDegree = this.renderer.surfaceMeshV3 ? 5 : Infinity;
     this.ligaments.update(this.mpm.particles, dt);
     this.renderer.upload(this.mpm.particles, engine.settings.spray.render === 'fluid' ? this.ligaments : null);
   }
