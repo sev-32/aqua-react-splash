@@ -43,6 +43,9 @@ const W = 256;
 const OSM_N = 128;
 
 export class SplashSystem {
+  /** Opt-in experimental split of coherent films/ligaments from unresolved
+   * detached aerosol parcels. R1 reference renderer remains the default. */
+  morphologyV2 = false;
   readonly capacity: number;
   readonly H: number;
   private tex: WebGLTexture[];
@@ -107,17 +110,31 @@ export class SplashSystem {
     }
     if (bonds) {
       const { samples, thinPower } = bonds.p;
+      const morph = this.morphologyV2;
       for (const c of bonds.bonds.values()) {
         const stretch = Math.max(0, Math.min(1, (c.distance - bonds.p.form) / Math.max(1e-5, bonds.p.break - bonds.p.form)));
         const m = Math.max(1, Math.round(samples * (1 + stretch)));
         const va = Pp.vol[c.a], vb = Pp.vol[c.b];
+        const len = Math.max(c.distance, 1e-6), spacing = len / (m + 1);
+        const tangent: Vec3 = [
+          (Pp.px[c.b] - Pp.px[c.a]) / len,
+          (Pp.py[c.b] - Pp.py[c.a]) / len,
+          (Pp.pz[c.b] - Pp.pz[c.a]) / len,
+        ];
         for (let s = 1; s <= m; s++) {
           const t = s / (m + 1);
           const waist = Math.pow(Math.sin(Math.PI * t), thinPower) * (0.25 + 0.55 * c.strength);
           const lerp = (a: number, b: number) => a + (b - a) * t;
           put(lerp(Pp.px[c.a], Pp.px[c.b]), lerp(Pp.py[c.a], Pp.py[c.b]), lerp(Pp.pz[c.a], Pp.pz[c.b]),
-            lerp(Pp.vx[c.a], Pp.vx[c.b]), lerp(Pp.vy[c.a], Pp.vy[c.b]), lerp(Pp.vz[c.a], Pp.vz[c.b]),
-            3e-3, Math.min(va, vb) * waist * waist * waist, Math.min(Pp.life[c.a], Pp.life[c.b]), -1, 0.5);
+            morph ? tangent[0] : lerp(Pp.vx[c.a], Pp.vx[c.b]),
+            morph ? tangent[1] : lerp(Pp.vy[c.a], Pp.vy[c.b]),
+            morph ? tangent[2] : lerp(Pp.vz[c.a], Pp.vz[c.b]),
+            3e-3,
+            // These are render-only interpolants, NOT extra physical water.
+            // V2 avoids the legacy full-volume double optical counting.
+            Math.min(va, vb) * waist * waist * waist * (morph ? 0.22 : 1),
+            Math.min(Pp.life[c.a], Pp.life[c.b]), -1,
+            morph ? spacing : 0.5);
         }
       }
     }
@@ -181,9 +198,10 @@ export class SplashSystem {
     else p.tex('uOsm', this.osm.texture).set('uHasOsm', 0);
   }
 
-  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number) {
+  private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number, group = -1) {
     p.set('uW', W).set('uViewProj', f.viewProj).set('uCam', f.cam).set('uViewportH', f.viewportH).set('uProjY', f.projY)
-      .set('uSizeGain', sizeGain).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
+      .set('uSizeGain', sizeGain).set('uMorphology', this.morphologyV2 ? 1 : 0).set('uGroup', group)
+      .tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
   }
 
   private ensureFluid(w: number, h: number) {
@@ -226,7 +244,7 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendEquation(gl.MIN);
       const pd = this.pDepth.use();
-      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6);
+      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6, this.morphologyV2 ? 0 : -1);
       this.setOsm(pd, null);
       occ(pd);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -236,7 +254,7 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendFunc(gl.ONE, gl.ONE);
       const pt = this.pThick.use();
-      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6);
+      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6, this.morphologyV2 ? 0 : -1);
       this.setOsm(pt, null);
       pt.set('uThickGain', 1);
       occ(pt);
@@ -268,7 +286,7 @@ export class SplashSystem {
     }
     // Points mode: the whole splash as lit parcels. (The fluid mode is complete above: fine
     // spray is part of it.)
-    if (f.mode === 'fluid' && f.hdr.depth) {
+    if (f.mode === 'fluid' && f.hdr.depth && !this.morphologyV2) {
       // Fluid mode composites with premultiplied scene colour disabled but
       // previously returned while GL_BLEND was still on and depthMask(false).
       // Those leaked states affected subsequent sky/post passes; restore the
@@ -286,10 +304,12 @@ export class SplashSystem {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     const pp = this.pPoints.use();
     const fluid = f.mode === 'fluid';
-    this.setPointUniforms(pp, f, fluid ? 0.32 : 0.9);
+    this.setPointUniforms(pp, f,
+      fluid ? (this.morphologyV2 ? 1.1 : 0.32) : 0.9,
+      fluid && this.morphologyV2 ? 1 : -1);
     this.setOsm(pp, osm);
     pp.set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uFogDensity', f.fogDensity)
-      .set('uHaze', f.haze).set('uOpacity', fluid ? 0.3 : 0.75);
+      .set('uHaze', f.haze).set('uOpacity', fluid ? (this.morphologyV2 ? 0.9 : 0.3) : 0.75);
     gl.drawArrays(gl.POINTS, 0, count);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
