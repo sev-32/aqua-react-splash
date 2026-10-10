@@ -89,3 +89,22 @@ a fixed physical field before coupling any morphological changes back into physi
   experimental. Next steps must improve continuous surface reconstruction,
   physically correct geometric normals, and optical visibility without
   returning to volume-cubed opaque sphere impostors.
+
+## Second A/B: camera-projected refraction is insufficient alone
+- CI workflow `38010407951` completed successfully, 8 actual WebGL2
+  screenshots, zero browser/GL errors.
+- A V2-only before/after optical comparison with the first 8-frame A/B
+  shows material changes above 10 RGB levels in ~0.702% of pixels at
+  contact, 5.709% in the crown, 0.731% during breakup, and 3.6% in the
+  fast-tow scene. This is measurable but **does not produce a sufficiently
+  continuous, visible water curtain**.
+- Optical projection correction is useful for camera-coordinate consistency,
+  not a replacement for correct geometric surface normals and morphology.
+- Next experiment incorporates the **actual surviving connectivity bond graph**
+  into the rendering coherence estimate (instead of using only MPM grid
+  density) and reduces self-shadowing of *bonded* water flagged as fast spray.
+  Commits `cca1721d...` and `9fc8b3ec...`.
+- Maintain source-commit separation between the two optical tests and the
+  new graph-aware classification. The latter remains a candidate until real
+  WebGL2 captures are reviewed. Do not enable by default based on build
+  success or lower white-pixel counts alone.
