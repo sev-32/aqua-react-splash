@@ -1,0 +1,48 @@
+name: THALASSA historical heightfield and sphere-film proof
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - '.github/workflows/original-physics-champions.yml'
+      - 'scripts/ci-original-physics-champions.mjs'
+  workflow_dispatch:
+jobs:
+  historical-physics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify original donor hashes and app compilation
+        run: |
+          node scripts/champion-audit.mjs
+          npm run typecheck
+          npm run build
+      - name: Serve original heightfield/film laboratory HTML
+        run: |
+          mkdir -p dist/donors
+          cp docs/champions/donors/library/{heightfieldBEST,pool_obstacle_phase6_runup_film}.html dist/donors/
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/bench-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/donors/heightfieldBEST.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/bench-preview.log
+          exit 1
+      - name: Install browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Capture actual fast tow, sphere plunge and lift scenes in both reference labs
+        run: node scripts/ci-original-physics-champions.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thalassa-heightfield-best-and-aqua-film-12-true-renders
+          path: captures/historical-physics-champions/
+          retention-days: 14
+          if-no-files-found: warn
