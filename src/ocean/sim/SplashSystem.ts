@@ -12,9 +12,10 @@ import { Program, Target, Quad, FULLSCREEN_VS, createTexture, FMT, type GL } fro
 import type { Vec3 } from '../math/mat4';
 import { FLAG_ALIVE, FLAG_FOAM, type MpmParticles } from './oceanMpm';
 import type { SplashConnectivity } from './splashConnectivity';
+import { reconstructSplashMesh, type SplashMesh } from './splashMesh';
 import {
   SPLASH_POINT_VS, SPLASH_POINT_FS, FLUID_DEPTH_FS, FLUID_THICK_FS, FLUID_BLUR_FS, FLUID_SHADE_FS, FLUID_GBLUR_FS,
-  SPLASH_OSM_VS, SPLASH_OSM_FS,
+  SPLASH_OSM_VS, SPLASH_OSM_FS, SPLASH_MESH_VS, SPLASH_MESH_DEPTH_FS, SPLASH_MESH_THICK_FS,
 } from './splashShaders';
 
 export interface SplashDrawFrame {
@@ -46,6 +47,10 @@ export class SplashSystem {
   /** Opt-in experimental split of coherent films/ligaments from unresolved
    * detached aerosol parcels. R1 reference renderer remains the default. */
   morphologyV2 = false;
+  /** V3 uses explicit graph-derived surface triangles and filament ribbons.
+   * V2 and V3 remain opt-in and the legacy renderer is preserved. */
+  surfaceMeshV3 = false;
+  meshStats: Omit<SplashMesh, 'vertices'> | null = null;
   readonly capacity: number;
   readonly H: number;
   private tex: WebGLTexture[];
@@ -54,6 +59,11 @@ export class SplashSystem {
   private pPoints: Program; private pDepth: Program; private pThick: Program;
   private pBlur: Program; private pShade: Program; private pGBlur: Program;
   private vao: WebGLVertexArrayObject;
+  private meshVao: WebGLVertexArrayObject;
+  private meshBuffer: WebGLBuffer;
+  private pMeshDepth: Program;
+  private pMeshThick: Program;
+  private meshCount = 0;
   private fluid: { w: number; h: number; depth: Target; thick: Target; blur: Target; scene: Target } | null = null;
   private P: Float32Array; private V: Float32Array; private M: Float32Array;
   private pOsm: Program;
@@ -76,8 +86,19 @@ export class SplashSystem {
     this.pShade = new Program(gl, 'splash.fluidShade', FULLSCREEN_VS, FLUID_SHADE_FS);
     this.pGBlur = new Program(gl, 'splash.fluidGBlur', FULLSCREEN_VS, FLUID_GBLUR_FS);
     this.pOsm = new Program(gl, 'splash.osm', SPLASH_OSM_VS, SPLASH_OSM_FS);
+    this.pMeshDepth = new Program(gl, 'splash.meshDepth', SPLASH_MESH_VS, SPLASH_MESH_DEPTH_FS);
+    this.pMeshThick = new Program(gl, 'splash.meshThick', SPLASH_MESH_VS, SPLASH_MESH_THICK_FS);
     this.osm = new Target(gl, OSM_N, OSM_N, [createTexture(gl, OSM_N, OSM_N, { ...FMT.rgba16f(gl), filter: gl.LINEAR })]);
     this.vao = gl.createVertexArray()!;
+    this.meshVao = gl.createVertexArray()!;
+    this.meshBuffer = gl.createBuffer()!;
+    gl.bindVertexArray(this.meshVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.meshBuffer);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 20, 12);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 20, 16);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.bindVertexArray(null);
   }
 
   get live() {
@@ -94,7 +115,21 @@ export class SplashSystem {
     // are different measurements. A sparse, stretched filament may still
     // be connected when its 3D grid-neighbour estimate is small. Use the
     // graph only for rendering, never for the actual MPM force/mass solver.
-    const degree = this.morphologyV2 ? new Uint8Array(Pp.count) : null;
+    const morph = this.morphologyV2 || this.surfaceMeshV3;
+    const degree = morph ? new Uint8Array(Pp.count) : null;
+    const mesh = this.surfaceMeshV3 && bonds ? reconstructSplashMesh(Pp, bonds) : null;
+    this.meshCount = mesh?.vertexCount ?? 0;
+    this.meshStats = mesh ? {
+      vertexCount: mesh.vertexCount, triangles: mesh.triangles, ribbons: mesh.ribbons,
+      connectedParticles: mesh.connectedParticles, carrierVolume: mesh.carrierVolume,
+      allocatedVolume: mesh.allocatedVolume, maxOpticalThickness: mesh.maxOpticalThickness,
+      maxRibbonWidth: mesh.maxRibbonWidth,
+    } : null;
+    if (mesh) {
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.meshBuffer);
+      this.gl.bufferData(this.gl.ARRAY_BUFFER, mesh.vertices, this.gl.DYNAMIC_DRAW);
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+    }
     if (degree && bonds) for (const c of bonds.bonds.values()) {
       if (c.a < degree.length && degree[c.a] < 255) degree[c.a]++;
       if (c.b < degree.length && degree[c.b] < 255) degree[c.b]++;
@@ -117,9 +152,12 @@ export class SplashSystem {
       // drops shrink); kind < 0: ligament.
       const graphCoherence = degree && degree[i] > 0 ? Math.min(1.0, 0.45 + 0.38*degree[i]) : 0;
       put(Pp.px[i], Pp.py[i], Pp.pz[i], Pp.vx[i], Pp.vy[i], Pp.vz[i], rd,
-        Pp.vol[i], Pp.life[i], Math.max(0.05, Pp.neighbors[i] / 2, graphCoherence), Pp.seed[i]);
+        Pp.vol[i], Pp.life[i],
+        this.surfaceMeshV3 && degree && degree[i] > 0 ? -2.0 :
+          Math.max(0.05, Pp.neighbors[i] / 2, graphCoherence),
+        Pp.seed[i]);
     }
-    if (bonds) {
+    if (bonds && !this.surfaceMeshV3) {
       const { samples, thinPower } = bonds.p;
       const morph = this.morphologyV2;
       for (const c of bonds.bonds.values()) {
@@ -197,7 +235,7 @@ export class SplashSystem {
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
-    this.pOsm.use().set('uMorphology', this.morphologyV2 ? 1 : 0).set('uW', W).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2])
+    this.pOsm.use().set('uMorphology', (this.morphologyV2 || this.surfaceMeshV3) ? 1 : 0).set('uW', W).tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2])
       .set('uOsmC', c).set('uOsmU', u).set('uOsmV', v).set('uOsmD', d).set('uOsmExt', ext).set('uOsmSize', OSM_N);
     gl.drawArrays(gl.POINTS, 0, this.count);
     gl.disable(gl.BLEND);
@@ -211,7 +249,7 @@ export class SplashSystem {
 
   private setPointUniforms(p: Program, f: SplashDrawFrame, sizeGain: number, group = -1) {
     p.set('uW', W).set('uViewProj', f.viewProj).set('uCam', f.cam).set('uViewportH', f.viewportH).set('uProjY', f.projY)
-      .set('uSizeGain', sizeGain).set('uMorphology', this.morphologyV2 ? 1 : 0).set('uGroup', group)
+      .set('uSizeGain', sizeGain).set('uMorphology', (this.morphologyV2 || this.surfaceMeshV3) ? 1 : 0).set('uGroup', group)
       .tex('uP', this.tex[0]).tex('uV', this.tex[1]).tex('uM', this.tex[2]);
   }
 
@@ -231,6 +269,16 @@ export class SplashSystem {
     const count = this.count;
     gl.bindVertexArray(this.vao);
     const osm = this.drawOsm(f);
+    const useMesh = f.mode === 'fluid' && this.surfaceMeshV3 && this.meshCount > 0;
+    const drawMesh = (p: Program, occ: (p: Program)=>void) => {
+      if (!useMesh) return;
+      gl.disable(gl.CULL_FACE);
+      gl.bindVertexArray(this.meshVao);
+      p.use().set('uCam', f.cam).set('uViewProj', f.viewProj);
+      occ(p);
+      gl.drawArrays(gl.TRIANGLES, 0, this.meshCount);
+      gl.bindVertexArray(this.vao);
+    };
     if (f.mode === 'fluid' && f.hdr.depth) {
       // Full resolution: a crown is thin sheets and droplets, and half-res blocks read as
       // pixel art at splash scale. Occlusion by hand against the scene depth.
@@ -255,21 +303,23 @@ export class SplashSystem {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendEquation(gl.MIN);
       const pd = this.pDepth.use();
-      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6, this.morphologyV2 ? 0 : -1);
+      this.setPointUniforms(pd, { ...f, viewportH: h }, 1.6, (this.morphologyV2 || this.surfaceMeshV3) ? 0 : -1);
       this.setOsm(pd, null);
       occ(pd);
       gl.drawArrays(gl.POINTS, 0, count);
+      drawMesh(this.pMeshDepth, occ);
       gl.blendEquation(gl.FUNC_ADD);
       fl.thick.bind();
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendFunc(gl.ONE, gl.ONE);
       const pt = this.pThick.use();
-      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6, this.morphologyV2 ? 0 : -1);
+      this.setPointUniforms(pt, { ...f, viewportH: h }, 1.6, (this.morphologyV2 || this.surfaceMeshV3) ? 0 : -1);
       this.setOsm(pt, null);
       pt.set('uThickGain', 1);
       occ(pt);
       gl.drawArrays(gl.POINTS, 0, count);
+      drawMesh(this.pMeshThick, occ);
       gl.disable(gl.BLEND);
       // Bilateral depth smoothing (separable) → sheet surface; thickness smoothed too.
       const pb = this.pBlur.use();
@@ -288,7 +338,7 @@ export class SplashSystem {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       const ssfrDebug = (globalThis as unknown as { __THALASSA_SSFR_DEBUG__?: number }).__THALASSA_SSFR_DEBUG__ ?? 0;
       this.pShade.use().set('uDebugMode', ssfrDebug)
-        .set('uMorphology', this.morphologyV2 ? 1 : 0).set('uViewProj', f.viewProj)
+        .set('uMorphology', (this.morphologyV2 || this.surfaceMeshV3) ? 1 : 0).set('uViewProj', f.viewProj)
         .tex('uDepth', fl.depth.texture).tex('uThick', fl.thick.texture).tex('uScene', fl.scene.texture)
         .tex('uEnv', f.env).set('uEnvLevels', f.envLevels).set('uInvViewProj', f.invViewProj).set('uTexel', [1 / w, 1 / h])
         .set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uAbsorb', f.absorb)
@@ -299,7 +349,7 @@ export class SplashSystem {
     }
     // Points mode: the whole splash as lit parcels. (The fluid mode is complete above: fine
     // spray is part of it.)
-    if (f.mode === 'fluid' && f.hdr.depth && !this.morphologyV2) {
+    if (f.mode === 'fluid' && f.hdr.depth && !this.morphologyV2 && !this.surfaceMeshV3) {
       // Fluid mode composites with premultiplied scene colour disabled but
       // previously returned while GL_BLEND was still on and depthMask(false).
       // Those leaked states affected subsequent sky/post passes; restore the
@@ -318,11 +368,11 @@ export class SplashSystem {
     const pp = this.pPoints.use();
     const fluid = f.mode === 'fluid';
     this.setPointUniforms(pp, f,
-      fluid ? (this.morphologyV2 ? 1.1 : 0.32) : 0.9,
-      fluid && this.morphologyV2 ? 1 : -1);
+      fluid ? ((this.morphologyV2 || this.surfaceMeshV3) ? 1.1 : 0.32) : 0.9,
+      fluid && (this.morphologyV2 || this.surfaceMeshV3) ? 1 : -1);
     this.setOsm(pp, osm);
     pp.set('uSunDir', f.sunDir).set('uSunE', f.sunE).set('uSkyE', f.skyE).set('uFogDensity', f.fogDensity)
-      .set('uHaze', f.haze).set('uOpacity', fluid ? (this.morphologyV2 ? 0.9 : 0.3) : 0.75);
+      .set('uHaze', f.haze).set('uOpacity', fluid ? ((this.morphologyV2 || this.surfaceMeshV3) ? 0.9 : 0.3) : 0.75);
     gl.drawArrays(gl.POINTS, 0, count);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
@@ -333,8 +383,11 @@ export class SplashSystem {
     const gl = this.gl;
     this.tex.forEach((t) => gl.deleteTexture(t));
     if (this.fluid) for (const t of [this.fluid.depth, this.fluid.thick, this.fluid.blur, this.fluid.scene]) t.dispose();
-    [this.pPoints, this.pDepth, this.pThick, this.pBlur, this.pShade, this.pGBlur, this.pOsm].forEach((p) => p.dispose());
+    [this.pPoints, this.pDepth, this.pThick, this.pBlur, this.pShade, this.pGBlur, this.pOsm,
+      this.pMeshDepth, this.pMeshThick].forEach((p) => p.dispose());
     this.osm.dispose();
     gl.deleteVertexArray(this.vao);
+    gl.deleteVertexArray(this.meshVao);
+    gl.deleteBuffer(this.meshBuffer);
   }
 }
