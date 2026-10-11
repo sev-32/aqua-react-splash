@@ -1,0 +1,19 @@
+{
+  "schema": "waterpro.phase_manifest.v1.1",
+  "phase": "11",
+  "title": "Composer / Saved Water Systems",
+  "createdAt": "2026-06-16T00:23:29.401946Z",
+  "base": "hybridsplashFable_waterpro_phase10.html",
+  "output": "hybridsplashFable_waterpro_phase11.html",
+  "noPreviewLinkRequested": true,
+  "files": [
+    "hybridsplashFable_waterpro_phase11.html",
+    "hybridsplashFable_waterpro_phase11.patch",
+    "FABLE_WATERPRO_PHASE11_BUILD_NOTES.md",
+    "FABLE_WATERPRO_COMPOSER_MODULE_v1_1.json",
+    "FABLE_WATERPRO_PHASE11_MANIFEST.json"
+  ],
+  "validation": [
+    "node --check fable_waterpro_phase11_module.mjs"
+  ]
+}
