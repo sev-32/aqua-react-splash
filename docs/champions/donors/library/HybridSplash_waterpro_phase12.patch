@@ -1,0 +1,245 @@
+--- hybridsplashFable_waterpro_phase11.html
++++ hybridsplashFable_waterpro_phase12.html
+@@ -5509,7 +5509,159 @@
+     }
+ 
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++
++
++    // ---------- PHASE 12: validation / regression / receipts ----------
++    const wpValidationModule = {
++      id:'WATERPRO_VALIDATION_REGRESSION_RECEIPTS',
++      phase:'12',
++      status:'connected validation layer over live Fable/WaterPRO module packets',
++      bucket:'new-integration',
++      doctrine:'Validation is a first-class runtime artifact. A WaterPRO build is not only a visual scene; it must emit receipts proving which modules exist, which contracts are satisfied, which scenarios were applied, and which checks still require local visual/WebGPU proof.',
++      inputs:['wpBaselineAudit','wpAbiPacket','wpFableCorePacket','wpFftSourcePacket','wpSurfaceFilmPacket','wpSplashConversionPacket','wpBubbleProxyPacket','wpSemanticVolumePacket','wpTerrainIntentPacket','wpObjectInteractionPacket','wpComposerPacket'],
++      outputs:['validationReceipt','regressionSuite','phaseGate','visualProofTargets','riskRegister'],
++      futureRuntime:['GPU readback thumbnails','per-channel field statistics','scenario replay snapshots','visual diff baseline store','deterministic seed receipts','recipe migration validator','performance budget profiler']
++    };
++    const wpValidationState = {
++      activeSuite:'full-connected-stack',
++      lastRunAt:null,
++      lastReceipt:null,
++      history:[],
++      localVisualProof:false,
++      requireNoFails:true,
++      requireComposerRecipe:true,
++      requireExistingFableProtected:true
++    };
++    const wpValidationSuites = [
++      {id:'full-connected-stack', title:'Full connected stack', goal:'Verify that all phase modules are present and exported in one connected packet.', scenarios:['baseline','full','shoreline','composer']},
++      {id:'fable-core-regression', title:'Fable core regression', goal:'Protect curved shore, breaker bar, runup/wetness, impact feedback and river-mouth behavior.', scenarios:['curved-shore','breaker-bar','runup-wetness','impact-feedback','river-mouth']},
++      {id:'fft-source-routing', title:'FFT source routing', goal:'Verify FFT remains an incoming source routed through Fable nearshore core rather than replacing it.', scenarios:['deep-fft','shore-fft','breaker-bar-fft','storm-fft']},
++      {id:'surface-film-conversion', title:'Surface film / 2D FLIP adapter', goal:'Verify foam streaks, film return/deposits, vorticity intent and thin-sheet/runout controls are packaged.', scenarios:['foam-streaks','landing-deposits','vorticity-swirls','thin-sheet']},
++      {id:'splash-bubble-loop', title:'Splash → bubble → resurfacing loop', goal:'Verify above-surface MPM conversion outputs can route to future underwater entrained-air and resurfacing foam proxies.', scenarios:['breaker-sheets','impact-crown','spout-plunge','plunge-bubbles','breaker-entrainment']},
++      {id:'semantic-volume-intent-object', title:'Volumes / terrain intent / object contracts', goal:'Verify semantic water volumes, intent painting and object-water contracts are exported together.', scenarios:['river','lake','waterfall','bucket-scoop','boat-wake']},
++      {id:'composer-package', title:'Composer package integrity', goal:'Verify saved water systems contain graph, module packets, volumes, terrain intent, object contracts and validation receipts.', scenarios:['fable-shoreline-system','river-mouth-system','waterfall-plunge-system','bucket-scoop-system']}
++    ];
++    const wpValidationChecks = [
++      ['baseline.audit','Baseline audit packet is available', () => !!wpBaselineAudit()?.schema],
++      ['abi.channels','WaveField ABI includes core channels', () => { const ids = wpWaveFieldABI.map(x=>x.id); return ['eta_base','delta_sim','depth','foamSeed','wetness','sprayEmit'].every(x=>ids.includes(x)); }],
++      ['core.module','Protected Fable core module packet exists', () => wpFableCorePacket()?.module?.id === 'FABLE_NEARSHORE_HEIGHTFIELD_CORE'],
++      ['fft.module','FFT source module packet exists', () => wpFftSourcePacket()?.module?.id === 'WATERPRO_SOURCE_FFT_WEBGPU_CASCADE'],
++      ['film.module','Surface film module packet exists', () => wpSurfaceFilmPacket()?.module?.id === 'WATERPRO_SURFACE_FILM_FLIP_ADAPTER'],
++      ['splash.module','Splash conversion module packet exists', () => wpSplashConversionPacket()?.module?.id === 'WATERPRO_ABOVE_SURFACE_MPM_CONVERSION_POLICY'],
++      ['bubble.module','Bubble proxy module packet exists', () => wpBubbleProxyPacket()?.module?.id === 'WATERPRO_UNDERWATER_BUBBLE_WHITEWATER_PROXY'],
++      ['volume.module','Semantic water volume manager exists', () => wpSemanticVolumePacket()?.module?.id === 'WATERPRO_SEMANTIC_WATER_VOLUME_MANAGER'],
++      ['intent.module','Terrain intent painting bridge exists', () => wpTerrainIntentPacket()?.module?.id === 'WATERPRO_TERRAIN_INTENT_PAINTING_BRIDGE'],
++      ['object.module','Object interaction contracts exist', () => wpObjectInteractionPacket()?.module?.id === 'WATERPRO_OBJECT_INTERACTION_CONTRACTS'],
++      ['composer.module','Composer packet exists', () => wpComposerPacket()?.module?.id === 'WATERPRO_WATER_SYSTEM_COMPOSER'],
++      ['composer.graph','Composer graph has source/core/conversion/render nodes', () => { const g = wpComposerPacket()?.activeRecipe?.graph || wpComposerGraph(); const types = (g.nodes||[]).map(n=>n.type); return ['sourceLayer','interactionCore','splashConversion','materialRender'].every(x=>types.includes(x)); }],
++      ['classification.existing','Existing Fable behaviors are explicitly protected', () => wpClassification.some(x => x.id === 'fable.nearshore-heightfield-core') || wpClassification.some(x => /nearshore/i.test(x.name||''))],
++      ['scenario.exports','Regression suites are defined', () => wpValidationSuites.length >= 7],
++      ['visual.proof.boundary','Visual/WebGPU proof is marked local-only', () => wpValidationState.localVisualProof === false]
++    ];
++    wpLayerRegistry.push({ id:'validation.regression-receipts', name:'Validation / Regression Receipts', bucket:'new-integration', pass:'static receipts + scenario manifests + future visual proof hooks', outputs:['validationReceipt','phaseGate','riskRegister','visualProofTargets'], controls:['runSuite','downloadReceipt','downloadPhasePacket','downloadRegressionMatrix'] });
++    wpChannelRegistry.push(['validationReceipt','WaterPRO validation module','Exportable proof packet describing checks, warnings, required local visual proof and module coverage.']);
++    wpChannelRegistry.push(['regressionSuite','WaterPRO validation module','Named scenario suite for protecting Fable core and validating connected adapters.']);
++    wpChannelRegistry.push(['phaseGate','WaterPRO validation module','PASS/WARN/FAIL summary gate for connected multi-phase builds.']);
++    wpPhasePlan.push({ phase:'12', title:'Validation / regression / receipts', status:'active connected receipt layer in this build', deliverables:['validation page','regression suite matrix','static module checks','phase gate','downloadable receipts','risk register','local visual proof targets'], risk:'Current receipts validate structure and scenario routing. GPU visual proof/performance proof still require local browser instrumentation and future readback captures.' });
++    wpClassification.push({ id:'validation.regression-receipts', bucket:'new-integration', name:'Validation / Regression / Receipts', evidence:'Phase 12 adds a connected page/API that emits build receipts, regression suites, phase gates and visual proof targets over real Fable/WaterPRO module packets.', protect:'Validation must not become a cosmetic checklist. It must gate future changes against protected Fable behavior and recipe/module completeness.' });
++    wpExperimentQueue.push({ id:'exp.gpu-visual-proof-capture', title:'GPU visual proof capture and diffing', input:'local browser frames + diagnostic channel views + scenario seeds', output:'thumbnail/readback receipts and regression diffs', success:'each core scenario can be replayed and visually compared before/after a patch.', target:'post-Phase 12 instrumentation' });
++
++    function wpRunValidationScenario(id) {
++      if (!id) return;
++      if (id === 'baseline') wpApplyScenario('full');
++      if (id === 'full') wpApplyScenario('full');
++      if (id === 'shoreline') wpApplyFableCoreScenario('curved-shore');
++      if (['curved-shore','breaker-bar','runup-wetness','impact-feedback','river-mouth'].includes(id)) wpApplyFableCoreScenario(id);
++      if (['deep-fft','shore-fft','breaker-bar-fft','storm-fft'].includes(id)) wpApplyFftSourceScenario(id);
++      if (['foam-streaks','landing-deposits','vorticity-swirls','thin-sheet'].includes(id)) wpApplySurfaceFilmScenario(id);
++      if (['breaker-sheets','impact-crown','spout-plunge'].includes(id)) wpApplySplashConversionScenario(id);
++      if (['plunge-bubbles','breaker-entrainment','impact-underwater'].includes(id)) wpApplyBubbleProxyScenario(id);
++      if (['river','lake','waterfall','flood','bar','cove'].includes(id)) wpPaintTerrainIntent(id);
++      if (['bucket-scoop','boat-wake','rock-current','body-impact','propeller-churn','waterfall-collider'].includes(id)) wpApplyObjectInteractionScenario(id);
++      if (['fable-shoreline-system','river-mouth-system','waterfall-plunge-system','bucket-scoop-system'].includes(id)) wpComposeWaterSystem(id);
++    }
++    function wpValidationReceipt(suiteId='full-connected-stack', applyScenarios=false) {
++      const suite = wpValidationSuites.find(s=>s.id===suiteId) || wpValidationSuites[0];
++      if (applyScenarios) (suite.scenarios||[]).forEach(wpRunValidationScenario);
++      const checks = wpValidationChecks.map(([id, label, fn]) => {
++        try { const pass = !!fn(); return {id, label, status: pass ? 'pass' : 'fail'}; }
++        catch(err) { return {id, label, status:'fail', error:String(err && err.message || err)}; }
++      });
++      const warnings = [
++        {id:'visual-proof.local-required', status:'warn', label:'Browser/WebGPU visual proof must be captured locally; this static receipt cannot prove rendered ocean correctness.'},
++        {id:'gpu-readback.pending', status:'warn', label:'Per-channel GPU readback thumbnails and statistics are future instrumentation, not present in this phase.'},
++        {id:'solo-mute.intent-only', status:'warn', label:'Some solo/mute functions are diagnostic intent over existing controls rather than per-pass GPU disable switches.'}
++      ];
++      const failCount = checks.filter(c=>c.status==='fail').length;
++      const passCount = checks.filter(c=>c.status==='pass').length;
++      const gate = failCount ? 'FAIL' : warnings.length ? 'WARN' : 'PASS';
++      const receipt = {
++        schema:'waterpro.validation_receipt.v1.2_phase12',
++        generatedAt:new Date().toISOString(),
++        suite,
++        gate,
++        summary:{passCount, failCount, warningCount:warnings.length, visualProofCaptured:wpValidationState.localVisualProof},
++        checks,
++        warnings,
++        requiredLocalProof:[
++          'Open DevHub → Fable Core and run Curved Shore / Breaker Bar / Runup / Impact Feedback.',
++          'Open DevHub → FFT Source and run Deep FFT / Shore FFT / Breaker Bar FFT.',
++          'Open DevHub → Surface Film / Splash Convert / Bubbles and confirm visible routing changes.',
++          'Open DevHub → Intent / Objects / Composer and confirm scenarios affect the live Fable runtime.'
++        ],
++        packets:{
++          audit:wpBaselineAudit(),
++          abi:wpAbiPacket(),
++          fableCore:wpFableCorePacket(),
++          fftSource:wpFftSourcePacket(),
++          surfaceFilm:wpSurfaceFilmPacket(),
++          splashConversion:wpSplashConversionPacket(),
++          bubbleProxy:wpBubbleProxyPacket(),
++          semanticVolumeManager:wpSemanticVolumePacket(),
++          terrainIntent:wpTerrainIntentPacket(),
++          objectInteraction:wpObjectInteractionPacket(),
++          composer:wpComposerPacket()
++        }
++      };
++      wpValidationState.activeSuite = suite.id;
++      wpValidationState.lastRunAt = receipt.generatedAt;
++      wpValidationState.lastReceipt = receipt;
++      wpValidationState.history.unshift({suiteId:suite.id, gate, generatedAt:receipt.generatedAt, summary:receipt.summary});
++      wpValidationState.history = wpValidationState.history.slice(0, 12);
++      return receipt;
++    }
++    function wpPhase12Packet() {
++      return {
++        schema:'waterpro.fable.phase12_packet.v1.2',
++        generatedAt:new Date().toISOString(),
++        module:wpValidationModule,
++        validation:wpValidationReceipt(wpValidationState.activeSuite || 'full-connected-stack', false),
++        suites:wpValidationSuites,
++        state:{...wpValidationState, lastReceipt:undefined},
++        roadmap:wpPhasePlan,
++        classification:wpClassification,
++        riskRegister:[
++          'Static JS/module validation is not a replacement for local browser/WebGPU visual proof.',
++          'Future GPU readback instrumentation is required before true regression automation.',
++          'Per-pass solo/mute requires careful shader/buffer gates to avoid destabilizing current Fable behavior.',
++          'Recipe rehydration needs deterministic migration/version handling before production use.'
++        ]
++      };
++    }
++    function wpRenderValidation() {
++      const status = $('wpValidationStatus');
++      const receipt = wpValidationState.lastReceipt || wpValidationReceipt(wpValidationState.activeSuite, false);
++      if (status) status.innerHTML = '<strong>'+wpValidationModule.id+'</strong><br>gate: '+receipt.gate+' · suite: '+receipt.suite.title+' · pass '+receipt.summary.passCount+' / fail '+receipt.summary.failCount+' / warn '+receipt.summary.warningCount+'<br>visual proof: local browser required';
++      const suites = $('wpValidationSuites');
++      if (suites) suites.innerHTML = wpValidationSuites.map(s => '<div class="wpNode"><small>'+s.id+'</small><h3>'+s.title+'</h3><p>'+s.goal+'</p><p><b>Scenarios:</b> '+s.scenarios.join(', ')+'</p><button data-wp-validation-run="'+s.id+'">Run Static Receipt</button><button data-wp-validation-runapply="'+s.id+'">Apply Scenarios + Receipt</button></div>').join('');
++      const checks = $('wpValidationChecks');
++      if (checks) checks.innerHTML = receipt.checks.concat(receipt.warnings).map(c => '<div class="wpNode '+(c.status==='fail'?'bad':c.status==='warn'?'warn':'')+'"><small>'+c.id+'</small><h3>'+c.status.toUpperCase()+'</h3><p>'+c.label+'</p>'+(c.error?'<p>'+c.error+'</p>':'')+'</div>').join('');
++      const hist = $('wpValidationHistory');
++      if (hist) hist.innerHTML = (wpValidationState.history.length ? wpValidationState.history : [{suiteId:receipt.suite.id, gate:receipt.gate, generatedAt:receipt.generatedAt, summary:receipt.summary}]).map(h => '<div class="wpNode"><small>'+h.generatedAt+'</small><h3>'+h.gate+' · '+h.suiteId+'</h3><p>pass '+h.summary.passCount+' · fail '+h.summary.failCount+' · warn '+h.summary.warningCount+'</p></div>').join('');
++      const pre = $('wpValidationPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase12Packet(), null, 2).slice(0, 16000);
++    }
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -5521,6 +5673,8 @@
+       if (ds.wpComposerScenario) { wpComposeWaterSystem(ds.wpComposerScenario); return; }
+       if (ds.wpComposerLoad) { wpComposerState.activeRecipeId = ds.wpComposerLoad; wpRenderAll(); return; }
+       if (ds.wpComposerDownload) { const r = wpComposerState.library.find(x=>x.id===ds.wpComposerDownload); if (r) wpDownload(ds.wpComposerDownload + '.json', r); return; }
++      if (ds.wpValidationRun) { wpValidationReceipt(ds.wpValidationRun, false); wpRenderAll(); return; }
++      if (ds.wpValidationRunapply) { wpValidationReceipt(ds.wpValidationRunapply, true); wpRenderAll(); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -5552,6 +5706,10 @@
+       if (action === 'saveComposerRecipe') wpSaveComposerRecipe('live-fable-system','Live Fable Water System');
+       if (action === 'downloadComposerPacket') wpDownload('waterpro-fable-composer-phase11.json', wpComposerPacket());
+       if (action === 'downloadRecipeLibrary') wpDownload('waterpro-fable-recipe-library-phase11.json', {schema:'waterpro.recipe_library.v1.1_phase11', generatedAt:new Date().toISOString(), library:wpComposerState.library, activeRecipeId:wpComposerState.activeRecipeId, composer:wpComposerModule});
++      if (action === 'runValidation') { wpValidationReceipt(wpValidationState.activeSuite || 'full-connected-stack', false); wpRenderAll(); }
++      if (action === 'downloadValidationReceipt') wpDownload('waterpro-fable-validation-receipt-phase12.json', wpValidationState.lastReceipt || wpValidationReceipt(wpValidationState.activeSuite || 'full-connected-stack', false));
++      if (action === 'downloadRegressionMatrix') wpDownload('waterpro-fable-regression-matrix-phase12.json', {schema:'waterpro.regression_matrix.v1.2_phase12', generatedAt:new Date().toISOString(), module:wpValidationModule, suites:wpValidationSuites});
++      if (action === 'downloadPhase12Packet') wpDownload('waterpro-fable-phase12-packet.json', wpPhase12Packet());
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -5570,7 +5728,7 @@
+       if (action === 'downloadClassification') wpDownload('waterpro-fable-module-classification.json', {schema:'waterpro.fable.module_classification.v0.2', generatedAt:new Date().toISOString(), modules:wpClassification});
+       if (action === 'downloadExperiments') wpDownload('waterpro-fable-experiment-queue.json', {schema:'waterpro.fable.experiment_queue.v0.2', generatedAt:new Date().toISOString(), experiments:wpExperimentQueue});
+       if (action === 'downloadRoadmap') wpDownload('waterpro-fable-multiphase-roadmap.json', {schema:'waterpro.fable.phase_plan.v0.2', generatedAt:new Date().toISOString(), phases:wpPhasePlan});
+-      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase11-packet.json', {schema:'waterpro.fable.phase11_packet.v1.1', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
++      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase12-packet.json', {schema:'waterpro.fable.phase12_packet.v1.2', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
+       if (action === 'refreshRecipe') wpRefreshRecipeBox();
+       if (action === 'downloadRecipe') wpDownload('waterpro-fable-connected-recipe.json', wpRecipe());
+       if (action === 'copyRecipe') { try { await navigator.clipboard.writeText($('wpRecipeText')?.value || JSON.stringify(wpRecipe(), null, 2)); } catch(err) { console.warn('clipboard copy failed', err); } }
+@@ -5590,6 +5748,9 @@
+       composeWaterSystem:wpComposeWaterSystem,
+       saveComposerRecipe:wpSaveComposerRecipe,
+       recipeLibrary:() => wpComposerState.library,
++      validation:wpPhase12Packet,
++      validationReceipt:wpValidationReceipt,
++      regressionSuites:() => wpValidationSuites.map(s => ({...s, scenarios:[...s.scenarios]})),
+       layers:() => wpLayerRegistry.map(v => ({...v})),
+       channels:() => wpChannelRegistry.map(([id,source,meaning]) => ({id, source, meaning})),
+       waveFieldABI:() => wpWaveFieldABI.map(x => ({...x})),
+@@ -5849,7 +6010,7 @@
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+   <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 11</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 11 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds the first Water System Composer: saved water-system recipes, graph contracts, module packets, validation receipts, and scene handoff packaging routed through the real Fable heightfield, FFT, surface-film, splash, bubble, volume, terrain-intent, and object-interaction systems.</div>
++  <div class="mapHint">Phase 12 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds validation/regression/receipt infrastructure over the protected Fable core, FFT source, surface-film, splash conversion, bubble proxy, semantic volumes, terrain intent, object interaction, and Composer recipe systems.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -5869,6 +6030,7 @@
+     <button data-page="bubbleproxy">Bubbles</button>
+     <button data-page="recipes">Recipes</button>
+     <button data-page="composer">Composer</button>
++    <button data-page="validation">Validation</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -6126,6 +6288,25 @@
+     <pre class="wpMono devNote" id="wpComposerPacket"></pre>
+   </section>
+ 
++  <section class="devPage" data-page="validation">
++    <div class="wlGrp">PHASE 12 — VALIDATION / REGRESSION / RECEIPTS</div>
++    <div id="wpValidationStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> this page validates the connected Fable/WaterPRO module graph as a build artifact. Static receipts prove structure and scenario routing. Local Chrome/Edge visual proof is still required for true ocean correctness until GPU readback/diff instrumentation is added.</div>
++    <div class="wpActionRow">
++      <button data-wp-action="runValidation">Run Current Static Receipt</button>
++      <button data-wp-action="downloadValidationReceipt">Download Validation Receipt</button>
++      <button data-wp-action="downloadRegressionMatrix">Download Regression Matrix</button>
++      <button data-wp-action="downloadPhase12Packet">Download Phase 12 Packet</button>
++    </div>
++    <div class="wlGrp">Regression suites</div>
++    <div class="wpHubGrid" id="wpValidationSuites"></div>
++    <div class="wlGrp">Current checks</div>
++    <div class="wpHubGrid" id="wpValidationChecks"></div>
++    <div class="wlGrp">Receipt history</div>
++    <div class="wpHubGrid" id="wpValidationHistory"></div>
++    <pre class="wpMono devNote" id="wpValidationPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>
