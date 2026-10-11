@@ -997,6 +997,7 @@ fn g2p(@builtin(global_invocation_id) id : vec3u) {
   paux[id.x] = vec4f(aux.x + M.x, aux.y, aux.z, phase);
 }
 `;
+
 /* Impact / merge / crown — fragments return to the body (BFT deposits),
    strong hits eject a small secondary crown. */
 const WG_IMPACT = /*wgsl*/`
