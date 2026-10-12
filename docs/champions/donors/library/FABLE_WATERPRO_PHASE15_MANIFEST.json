@@ -1,0 +1,17 @@
+{
+  "schema": "waterpro.fable.phase15_manifest.v1.5",
+  "generatedAt": "2026-06-16T01:27:50.019177Z",
+  "base": "hybridsplashFable_waterpro_phase14.html",
+  "html": "hybridsplashFable_waterpro_phase15.html",
+  "phase": "15",
+  "title": "Wet rock / runoff / custom rock formation reference integration",
+  "noPreviewPolicy": true,
+  "syntaxCheck": "node --check /mnt/data/fable_waterpro_phase15_module.mjs passed",
+  "artifacts": [
+    "hybridsplashFable_waterpro_phase15.html",
+    "hybridsplashFable_waterpro_phase15.patch",
+    "FABLE_WATERPRO_PHASE15_BUILD_NOTES.md",
+    "FABLE_WATERPRO_WET_ROCK_REFERENCE_MODULE_v1_5.json",
+    "FABLE_WATERPRO_PHASE15_MANIFEST.json"
+  ]
+}
