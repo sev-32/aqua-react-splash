@@ -1,0 +1,18 @@
+{
+  "schema": "waterpro.phase_manifest.v1.3",
+  "phase": "13",
+  "title": "Instrumentation / Visual Proof / Performance Budgets",
+  "builtAt": "2026-06-16T00:00:00Z",
+  "base": "hybridsplashFable_waterpro_phase12.html",
+  "outputs": [
+    "hybridsplashFable_waterpro_phase13.html",
+    "hybridsplashFable_waterpro_phase13.patch",
+    "FABLE_WATERPRO_PHASE13_BUILD_NOTES.md",
+    "FABLE_WATERPRO_INSTRUMENTATION_MODULE_v1_3.json",
+    "FABLE_WATERPRO_PHASE13_MANIFEST.json"
+  ],
+  "validation": [
+    "node --check extracted inline module"
+  ],
+  "previewPolicy": "No HTML preview/open link in assistant reply unless user asks, to avoid taxing PC."
+}
