@@ -1,0 +1,10 @@
+{
+  "schema": "waterpro.phase_manifest.v1.2_phase12",
+  "phase": "12",
+  "html": "hybridsplashFable_waterpro_phase12.html",
+  "patch": "hybridsplashFable_waterpro_phase12.patch",
+  "notes": "FABLE_WATERPRO_PHASE12_BUILD_NOTES.md",
+  "module": "FABLE_WATERPRO_VALIDATION_MODULE_v1_2.json",
+  "validation": "node --check passed",
+  "preview_link_omitted_by_request": true
+}
