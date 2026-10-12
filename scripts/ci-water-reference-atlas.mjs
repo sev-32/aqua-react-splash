@@ -5,7 +5,8 @@
  * Renderability is measured, not assumed; failures remain visible in receipts.
  */
 import {chromium} from 'playwright';
-import {readdirSync,mkdirSync,writeFileSync,statSync} from 'node:fs';
+import {readdirSync,mkdirSync,writeFileSync,statSync,readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 const out='captures/water-reference-atlas';
 mkdirSync(out,{recursive:true});
 const dir='dist/atlas';
@@ -21,6 +22,32 @@ const all=[];
 for(let i=0;i<names.length;i++){
  const name=names[i],id=String(i+1).padStart(2,'0')+'_'+name.replace(/\.html$/i,'').replace(/[^a-zA-Z0-9_-]/g,'_');
  const errors=[],warnings=[],entry={id,name,frames:[],errors,warnings};
+ const raw=readFileSync(dir+'/'+name);
+ const source=raw.toString('utf8');
+ const flag=(pattern)=>pattern.test(source);
+ const family= name.startsWith('aqua_')?'Aqua SWE/heightfield':
+  name.startsWith('pool_')?'Aqua obstacle/JIT pool':
+  name.startsWith('heightfield')?'HeightfieldBEST':
+  /^(HybridSplash|hybridsplashFable)/.test(name)?'HybridSplash WebGPU':
+  /^(BEST_water|WaterPRO)/.test(name)?'WaterPRO/JIT':
+  /^(PoolSimulation|POOL_EXACT)/.test(name)?'Standalone pool/optics':
+  'Other original water donor';
+ entry.source={
+  gitBlobSha1:createHash('sha1').update('blob '+raw.length+'\\0').update(raw).digest('hex'),
+  sha256:createHash('sha256').update(raw).digest('hex'),
+  bytes:raw.length,family,
+  features:{
+   webgpu:flag(/navigator\\.gpu|requestAdapter\\s*\\(/),
+   webgl2:flag(/webgl2|WebGL2RenderingContext/i),
+   mpm:flag(/MLS.MPM|WG_P2G|p2gKernel|\\bMPM\\b/i),
+   jit:flag(/\\bJIT\\b|jitEmit/i),
+   heightfield:flag(/heightfield|\\bSWE\\b|shallow.water/i),
+   fresnel:flag(/fresnel/i),caustics:flag(/caustic/i),
+   connectedFluid:flag(/marching.cubes|metaball|tendril|neck|filament/i),
+   foam:flag(/foam/i),
+  }
+ };
+
  const page=await context.newPage();
  page.setDefaultTimeout(16000);
  page.on('pageerror',e=>{if(errors.length<15)errors.push('page: '+e.message)});
@@ -73,5 +100,5 @@ writeFileSync(out+'/receipt.json',JSON.stringify({
   'A blank or broken page is recorded as failure, not quietly replaced with an image.',
   'WebGPU support on software runner may differ from user desktop hardware.',
  ],
- total:names.length,entries:all
+ total:names.length,uniqueSourceHashes:new Set(all.map(x=>x.source.gitBlobSha1)).size,entries:all
 },null,2));
