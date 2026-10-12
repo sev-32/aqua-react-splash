@@ -1,0 +1,277 @@
+--- hybridsplashFable_waterpro_phase14.html
++++ hybridsplashFable_waterpro_phase15.html
+@@ -1349,6 +1349,7 @@
+   let mSpout = fxOn(6.0, fxMode);
+   let mFalls = fxOn(7.0, fxMode);
+   let mFFT = fxOn(8.0, fxMode);
++  let mWetRock = fxOn(9.0, fxMode);
+   let dragSlope = draggedOctaveSlope(v.wp.xz * 0.12, t, wd);
+   dN += dragSlope * mDrag * fxI * 0.85;
+   let seaA = seascapeChop(v.wp.xz * 0.21, t);
+@@ -1391,6 +1392,9 @@
+   let hit = v.wp + rd * min(tr, 9.0);
+   let wdist = min(tr, 9.0);
+   var bed = sandColor(hit.xz);
++  let wetRockBed = clamp(mWetRock * fxI * smoothstep(0.18, 0.78, fbm(hit.xz * 0.52 + vec2f(9.0, -3.0))) * smoothstep(2.8, 0.12, depth), 0.0, 1.0);
++  let wetRockTex = clamp(0.48 + 0.52 * fbm(hit.xz * 3.4) + 0.38 * (1.0 - abs(2.0 * fbm(hit.xz * 9.2) - 1.0)), 0.25, 1.35);
++  bed = mix(bed, vec3f(0.135, 0.128, 0.118) * wetRockTex, wetRockBed * 0.72);
+   let caRaw = heightfieldCaustic(v.wp, hit, N, depth, R.sun.xyz, R.sun.w, t, R.mouse.w);
+   // Caustics should read as underwater light focusing seen through the water,
+   // not as a texture stamped onto the air-water surface. Gate them by the
+@@ -1519,6 +1523,9 @@
+     p = m2 * p * 2.0;
+   }
+   return vec3f(a, d.x, d.y);
++}
++fn terrainFxOn(id : f32, mode : f32) -> f32 {
++  return 1.0 - smoothstep(0.25, 0.55, abs(mode - id));
+ }
+ @vertex
+ fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+@@ -1597,6 +1604,15 @@
+   col *= nd;
+   let wet = clamp(v.wet, 0.0, 1.0);
+   col *= mix(1.0, 0.52, wet * (0.5 + 0.5 * fbm(v.wp.xz * 7.0)));
++  let wetRockMode = terrainFxOn(9.0, R.fx2.x) * max(R.fx2.y, 0.0);
++  let rockContactWet = clamp((wet * 0.82 + smoothstep(0.06, 0.75, v.foamResid) * 0.55) * rockM, 0.0, 1.0);
++  let runoffMask = wetRockMode * rockM * smoothstep(0.12, 0.72, 1.0 - N.y) * smoothstep(0.58, 0.82, fbm(v.wp.xz * 18.0 + vec2f(R.misc.x * 0.18, -R.misc.x * 0.62)));
++  let runLines = smoothstep(0.74, 0.96, 1.0 - abs(2.0 * fbm(vec2f(v.wp.x * 7.0 + R.misc.x * 0.12, v.wp.z * 18.0 - R.misc.x * 1.15)) - 1.0));
++  let wr = clamp(rockContactWet + runoffMask * runLines, 0.0, 1.0);
++  col = mix(col, col * vec3f(0.43, 0.48, 0.52) + vec3f(0.012, 0.018, 0.021), wr * wetRockMode);
++  let Vrock = normalize(R.eye.xyz - v.wp);
++  let wetSpec = pow(max(dot(reflect(-normalize(R.sun.xyz), N), Vrock), 0.0), 72.0) * (0.25 + 0.75 * wr) * rockM * wetRockMode;
++  col += vec3f(0.20, 0.24, 0.26) * wetSpec * R.sun.w;
+   let foamResid = clamp(v.foamResid, 0.0, 1.0);
+   // Reticulated swash-foam deposit: ridged lace + cellular clumps + fine bubbles, so the
+   // receded foam reads as lacy strandlines on the sand rather than a smooth stain.
+@@ -4125,14 +4141,16 @@
+       ['riverflow.txt','river meander / foam','FBM flow derivatives, river banks, cone stepping and foam'],
+       ['fft_ocean.zip','FFT ocean app','Phillips spectrum, butterfly FFT, buoyancy, tile/plate/projected-grid/quad-tree renderers'],
+       ['EXAMPLES_EXTREME_AUDIT.md','ProFlow ocean inventory','shared engine pattern: FFT/spectrum → heightfield → foam/crest → particles'],
++      ['Pasted text(80).txt','wet rock / runoff reference','SDF rock forms, triplanar texture/bump, wet rock darkening/specular, foam contact and Beer-law underwater refraction'],
+     ];
+-    const effectModes = { 'clear-close':1, 'drag-octaves':2, 'seascape':3, 'lake-view':4, 'river-flow':5, 'spout':6, 'waterfall-drops':7, 'fft':8 };
++    const effectModes = { 'clear-close':1, 'drag-octaves':2, 'seascape':3, 'lake-view':4, 'river-flow':5, 'spout':6, 'waterfall-drops':7, 'fft':8, 'wet-rock':9 };
+     const effects = [
+       { id:'clear-close', title:'Clear Close Water', source:'realisticoceancloseupclearwater', status:'active shader mode + tuning route', tags:['caustics','capillaries','transmission'], desc:'Pushes shallow transparency, underwater caustics, clean low foam, sharp sun flecks, and visible sand ripples.', patch:{world:'shore',wind:4.2,swell:0.34,chop:0.46,spawn:0.28,splashOn:0,foamOn:1,foamAmt:0.16,foamStrength:0.18,whitecaps:0.06,foamTurb:0.24,foamWind:0.18,caustics:2.35,rippleGain:1.65,capillaryGain:1.9,rippleScale:0.72,sandRippleAmp:0.075,sandRippleLen:0.48,sunElev:39,sunAz:158,sunInt:1.8,mie:0.38,atmo:0.78,beachWidth:1.9,landReach:0.62,waterLevel:-0.04,wetDecay:0.42,strandDecay:0.05}, camera:'close' },
+       { id:'drag-octaves', title:'Great Ocean Wave Drag', source:'greatoceanwaves', status:'active shader mode + tuning route', tags:['octaves','derivative-drag','rolling swell'], desc:'Mimics the reference dragged-octave feel by increasing chop, ripple normals, solver advection, and broad swell pull.', patch:{world:'deep',wind:12.5,swell:1.18,chop:0.96,spawn:0.78,splashOn:0,foamOn:1,foamAmt:0.42,whitecaps:0.48,foamStrength:0.38,foamTurb:0.75,foamAdvect:1.35,rippleGain:1.2,capillaryGain:0.75,rippleScale:1.45,advectGain:1.36,gravityScale:1.08,frictionBase:0.0011,frictionScale:0.008,bgVisc:0.045,oceanSpan:1.75,oceanWidth:2.2,oceanLength:2.8,beachWidth:4.2,landReach:0.45,sunElev:24,mie:1.0,atmo:1.25}, camera:'wide' },
+       { id:'seascape', title:'Perfect Choppy Seascape', source:'perfectoceanwaves', status:'active shader mode + tuning route', tags:['choppy','fresnel','specular'], desc:'Aggressive Seascape-like choppiness: compact foam, high specular, low horizon haze, and deep blue reflection/refraction balance.', patch:{world:'deep',wind:18,swell:0.92,chop:1.0,spawn:1.0,splashOn:1,foamOn:1,foamAmt:0.74,whitecaps:1.22,foamStrength:0.62,foamTurb:1.15,foamWind:0.85,rippleGain:1.05,capillaryGain:1.2,rippleScale:0.95,breaker:0.72,gammaBreakLo:0.48,gammaBreakHi:1.0,crestWhiteLo:0.44,crestWhiteHi:1.05,sunElev:18,sunAz:205,sunInt:1.65,mie:0.85,atmo:1.05,caustics:0.7,oceanSpan:2.25,oceanWidth:3.4,oceanLength:3.7}, camera:'wide' },
+       { id:'waterfall-drops', title:'Waterfall Spray / Lens Drops', source:'WaterFalls', status:'active shader mode: screen droplets + splash route', tags:['droplets','spray','lens'], desc:'Uses the existing MLS-MPM splash and break-lens path to expose waterfall-style refraction droplets, misty atmosphere, and bright sun shafts.', patch:{world:'shore',wind:9,swell:1.25,chop:0.88,spawn:1.75,splashOn:1,foamOn:1,splashEnergy:1.95,dropletScale:1.55,bft:1.25,foamAmt:1.2,foamStrength:1.35,whitecaps:1.1,foamTurb:1.7,foamWind:1.2,runup:1.5,wetDry:1.3,breaker:0.58,foldStrength:1.55,throwMag:1.7,lipScale:1.35,normalTilt:2.1,caustics:1.05,mie:2.65,atmo:2.35,sunElev:14,sunAz:235,sunInt:1.9,lens:1,beachWidth:0.72,landReach:2.1,collisionGain:1.3,backwashGain:0.8}, camera:'break' },
+       { id:'lake-view', title:'Lake View / Calm Reflection', source:'Lake_View', status:'active shader mode + tuning route', tags:['calm','reflection','cloud haze'], desc:'Flattened lake-scale state with slow ripples, low foam, stronger atmospheric read, and broad terrain framing.', patch:{world:'lake',wind:2.1,swell:0.16,chop:0.28,spawn:0.08,splashOn:0,foamOn:1,foamAmt:0.06,foamStrength:0.05,whitecaps:0.0,foamTurb:0.08,foamWind:0.05,runup:0.18,breaker:1.32,rippleGain:0.72,capillaryGain:0.48,rippleScale:2.3,caustics:1.0,sunElev:31,sunAz:145,sunInt:1.25,mie:1.65,atmo:1.85,oceanSpan:1.0,oceanWidth:3.0,oceanLength:3.0,beachWidth:7.5,landReach:0.35,rockDensity:0.25}, camera:'wide' },
++      { id:'wet-rock', title:'Wet Rock / Runoff Formations', source:'Pasted text(80)', status:'active terrain shader mode + connected rock/current route', tags:['rock','wetness','runoff','triplanar'], desc:'Learns the uploaded SDF rock/water reference: richer procedural rock formations, wet darkening/specular on contact bands, runoff streaks, foam where water kisses stone, and underwater rock colour through refraction.', patch:{world:'shore',wind:6.8,swell:0.72,chop:0.72,spawn:0.78,splashOn:1,foamOn:1,foamAmt:0.72,foamStrength:0.76,foamTurb:1.25,foamAdvect:1.48,foamWind:0.28,runup:1.45,wetDry:1.75,breaker:0.86,rockDensity:1.35,rockSeed:23,beachWidth:1.15,landReach:2.15,shoreOffset:-0.7,inletWidth:0.9,inletDepth:0.75,inletPos:0.22,sandRippleAmp:0.035,sandRippleLen:0.55,caustics:1.55,rippleGain:1.25,capillaryGain:1.25,rippleScale:0.78,wetDecay:0.38,strandDecay:0.025,depositSeed:1.05,foamAdvectDist:1.65,effectMode:9,effectIntensity:1.0}, camera:'break' },
+       { id:'spout', title:'Pouring Spout / Jet Impact', source:'pouringwaterspout', status:'active shader mode: impact ring + splash route; SDF jet pending', tags:['jet','SDF','impact'], desc:'Current route shows the impact footprint: concentrated splash source, heavy local droplets, stronger BFT feedback, and lens refraction.', patch:{world:'shore',wind:6,swell:0.28,chop:0.58,spawn:2.0,splashOn:1,foamOn:1,splashEnergy:2.25,dropletScale:1.85,bft:1.85,foamAmt:1.1,foamStrength:1.2,whitecaps:0.35,foamTurb:2.1,foamAdvect:0.7,runup:0.55,wetDry:1.9,breaker:0.95,rippleGain:1.9,capillaryGain:2.0,rippleScale:0.62,caustics:1.55,lens:1,mie:1.45,atmo:1.25,beachWidth:1.2,landReach:1.1,collisionGain:1.6,backwashGain:1.0}, camera:'close' },
+       { id:'river-flow', title:'River Flow / Meander Foam', source:'riverflow', status:'active shader mode + terrain/foam route', tags:['flow','meander','banks'], desc:'A long-channel look using inlet depth/width, advected foam, wet deposits, and high terrain friction for bank interaction.', patch:{world:'shore',wind:5.5,swell:0.38,chop:0.52,spawn:0.72,splashOn:1,foamOn:1,foamAmt:0.76,foamStrength:0.85,whitecaps:0.22,foamTurb:1.25,foamAdvect:2.25,foamWind:0.18,runup:1.05,wetDry:1.75,breaker:1.05,inletWidth:2.9,inletDepth:2.65,inletPos:-0.18,beachWidth:2.8,landReach:1.35,oceanWidth:1.05,oceanLength:4.2,shoreOffset:-1.2,frictionBase:0.0045,frictionScale:0.021,advectGain:1.55,depositSeed:0.9,foamAdvectDist:1.7,strandDecay:0.028,wetDecay:0.55}, camera:'top' },
+       { id:'fft', title:'FFT Ocean / ProFlow', source:'fft_ocean.zip + audit', status:'active WebGPU butterfly FFT backend + Phillips cascade companion', tags:['H0','H(k,t)','IFFT','layer mixer'], desc:'Activates a true grid FFT layer generated from a Phillips H0 spectrum through WebGPU butterfly passes, then adds it under Fable’s shallow solver, breaker, foam, and MLS-MPM stack. The earlier cascade bank remains available as a cheap companion/fallback.', patch:{world:'deep',wind:16,swell:1.45,chop:0.82,spawn:0.42,splashOn:0,foamOn:1,foamAmt:0.34,whitecaps:0.50,foamStrength:0.32,rippleGain:0.62,capillaryGain:0.36,rippleScale:2.7,gravityScale:1.0,relaxRate:42,bgVisc:0.035,fftBlend:0.18,fftLong:1.28,fftMid:0.92,fftShort:0.58,fftAlignment:3.2,fftDisplacement:1.18,fftFoamSeed:1.35,fftSeed:0,fftGridBlend:1.0,fftGridGain:1.0,fftGridChop:1.0,fftUpdateHz:10,fftGridWindScale:1.0,fftGridJacobianFoam:1.0,oceanSpan:3.4,oceanWidth:5.2,oceanLength:5.8,beachWidth:9.5,landReach:0.28,sunElev:27,sunAz:215,mie:1.15,atmo:1.2}, camera:'wide' }
+@@ -4185,8 +4203,8 @@
+       ['Splash screen-fluid','MLS-MPM particle pool is composited as a screen-fluid splat/blur pass after the water/terrain passes.', ['splashOn','spawn','splashEnergy','dropletScale','bft','collisionGain','backwashGain']]
+     ].map(([title,desc,keys]) => '<div class="fxCard"><div class="fxTitle">'+title+'</div><div class="fxDesc">'+desc+'</div><div class="fxTags">'+keys.map(k=>'<span>'+k+'</span>').join('')+'</div></div>').join('');
+     const pipeline = $('devPipeline'); if (pipeline) pipeline.innerHTML = '<div class="devCard"><b>FFT backend status</b><p id="fftDiag">worker not initialized yet</p></div><table class="devTable"><tr><th>Pass</th><th>Purpose</th><th>Shown by</th></tr>'+
+-      [['L2 spectral ocean','Finite-depth spectral base, Gerstner displacement and shoaling','Seascape / Great waves'],['L2b FFT-derived Phillips cascades','Cheap three-lane spectral wave-bank fallback and visual companion.','FFT / ProFlow'],['L2c true FFT grid backend','WebGPU H0/H(k,t)/butterfly/post-IFFT baseState buffer, added under the shallow-water correction.','FFT backend controls'],['δ-breach','Impact deposits back into dynamic water','spout, waterfall, splash'],['L3 heightfield','Bathymetry-aware shallow-water solver','river, surf, lake'],['Breaker/fold','Foam, whitecap and C-curl fold controls','barrel, shorebreak'],['Surface film / 2D FLIP adapter','Foam/material transport, landing deposits, film vorticity and future film buffers','Phase 5 Surface Film'],['MLS-MPM splash','Particle splash pool with feedback and screen-fluid composite','waterfall, spout, storm'],['Underwater bubbles / whitewater','Phase 7 proxy route for splash penetration, entrained air, buoyant bubble clouds and resurfacing foam','plunge, breaker, impact'],['Semantic water volumes','Phase 9 intent-aware ocean/lake/river/waterfall/flood/container contracts routed into existing Fable systems','volume manager'],['Terrain map','Painted geology, erosion, planet placement','river banks, lake basin, reef'],['Object interaction contracts','Bucket/boat/rock/body/propeller/plunge object-water policies routed to heightfield, film, splash, bubbles and volume ledger','Phase 10 Objects'],['Render','Sky, fresnel, caustics, foam, capillary normals','clear water, Seascape']].map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table>';
+-    const refsEl = $('devRefs'); if (refsEl) refsEl.innerHTML = '<table class="devTable"><tr><th>File</th><th>Mapped page</th><th>Why it matters</th></tr>'+refs.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table><div class="devNote">Status rule: active cards now set a reference-effect uniform used directly by the water or screen-fluid shader. FFT now has two layers: a cheap Phillips-cascade component bank and a true WebGPU butterfly FFT backend that writes a baseState buffer. Waterfall and spout are visible approximations inside existing passes; full SDF waterfall/pipe geometry still requires a dedicated module before exact source parity. Phase 5 adds a surface-film adapter contract so landed splash/foam can move as material. Phase 7 adds an underwater bubble/whitewater proxy contract so splash penetration can persist below the surface and return as foam instead of being visually deleted. Phase 9 upgrades semantic volumes from simple recipe bindings into a connected volume manager contract for ocean, lake, river, waterfall, flood and container water intents. Phase 10 adds object interaction contracts for buckets, boats, rocks, bodies, propellers and plunge colliders so objects can route into heightfield wakes, film deposits, splash conversion, bubbles and semantic volume ledgers.</div>';
++      [['L2 spectral ocean','Finite-depth spectral base, Gerstner displacement and shoaling','Seascape / Great waves'],['L2b FFT-derived Phillips cascades','Cheap three-lane spectral wave-bank fallback and visual companion.','FFT / ProFlow'],['L2c true FFT grid backend','WebGPU H0/H(k,t)/butterfly/post-IFFT baseState buffer, added under the shallow-water correction.','FFT backend controls'],['δ-breach','Impact deposits back into dynamic water','spout, waterfall, splash'],['L3 heightfield','Bathymetry-aware shallow-water solver','river, surf, lake'],['Breaker/fold','Foam, whitecap and C-curl fold controls','barrel, shorebreak'],['Surface film / 2D FLIP adapter','Foam/material transport, landing deposits, film vorticity and future film buffers','Phase 5 Surface Film'],['MLS-MPM splash','Particle splash pool with feedback and screen-fluid composite','waterfall, spout, storm'],['Underwater bubbles / whitewater','Phase 7 proxy route for splash penetration, entrained air, buoyant bubble clouds and resurfacing foam','plunge, breaker, impact'],['Semantic water volumes','Phase 9 intent-aware ocean/lake/river/waterfall/flood/container contracts routed into existing Fable systems','volume manager'],['Terrain map','Painted geology, erosion, planet placement','river banks, lake basin, reef'],['Object interaction contracts','Bucket/boat/rock/body/propeller/plunge object-water policies routed to heightfield, film, splash, bubbles and volume ledger','Phase 10 Objects'],['Wet rock / runoff material','Procedural rock formations, wet contact, runoff streaks, foam-rock contact and underwater rock refraction','Phase 15 Wet Rock'],['Render','Sky, fresnel, caustics, foam, capillary normals','clear water, Seascape']].map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table>';
++    const refsEl = $('devRefs'); if (refsEl) refsEl.innerHTML = '<table class="devTable"><tr><th>File</th><th>Mapped page</th><th>Why it matters</th></tr>'+refs.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table><div class="devNote">Status rule: active cards now set a reference-effect uniform used directly by the water or screen-fluid shader. FFT now has two layers: a cheap Phillips-cascade component bank and a true WebGPU butterfly FFT backend that writes a baseState buffer. Waterfall and spout are visible approximations inside existing passes; full SDF waterfall/pipe geometry still requires a dedicated module before exact source parity. Phase 5 adds a surface-film adapter contract so landed splash/foam can move as material. Phase 7 adds an underwater bubble/whitewater proxy contract so splash penetration can persist below the surface and return as foam instead of being visually deleted. Phase 9 upgrades semantic volumes from simple recipe bindings into a connected volume manager contract for ocean, lake, river, waterfall, flood and container water intents. Phase 10 adds object interaction contracts for buckets, boats, rocks, bodies, propellers and plunge colliders so objects can route into heightfield wakes, film deposits, splash conversion, bubbles and semantic volume ledgers. Phase 15 learns the uploaded wet-rock reference as a terrain/material module: wet rock darkening/specular, runoff streaks, foam contact, underwater rock refraction, and future custom rock formation brushes.</div>';
+ 
+     // ---------- WATERPRO CONNECTED DEV HUB: live pages over the existing Fable runtime ----------
+     const wpSemantic = {
+@@ -4280,7 +4298,7 @@
+       proofScenario:'baseline-connected',
+       readbackPolicy:'metadata-now; GPU readback/playback capture later'
+     };
+-    const wpProofScenarios = [
++    const wpDiagProofScenarios = [
+       { id:'baseline-connected', title:'Connected baseline', expect:'all current Fable systems remain active unless explicitly focused.' },
+       { id:'base-only', title:'Base source only', expect:'spectral/FFT source isolated as much as existing controls allow.' },
+       { id:'heightfield-core', title:'Fable heightfield core', expect:'curved shoreline, depth response, runup/backwash and terrain coupling visible.' },
+@@ -4298,7 +4316,7 @@
+         abi:wpWaveFieldABI.map(x=>({...x})),
+         layerRegistry:wpLayerRegistry.map(x=>({...x})),
+         diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]},
+-        proofScenarios:wpProofScenarios.map(x=>({...x}))
++        proofScenarios:wpDiagProofScenarios.map(x=>({...x}))
+       };
+     }
+     function wpSetDiagFocus(channel, layer) {
+@@ -4337,7 +4355,7 @@
+       const st = $('wpDiagStatus');
+       if (st) st.innerHTML = '<strong>Diagnostic focus:</strong> channel <em>'+wpDiagnosticState.focusChannel+'</em> · layer <em>'+wpDiagnosticState.focusLayer+'</em> · solo <em>'+(wpDiagnosticState.soloLayer || 'none')+'</em> · muted <em>'+(wpDiagnosticState.mutedLayers.join(', ') || 'none')+'</em>.';
+       const presets = $('wpProofScenarioButtons');
+-      if (presets) presets.innerHTML = wpProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
++      if (presets) presets.innerHTML = wpDiagProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
+       const layers = $('wpLayerDiagRows');
+       if (layers) layers.innerHTML = wpLayerRegistry.map(layer => {
+         const muted = wpDiagnosticState.mutedLayers.includes(layer.id);
+@@ -5980,7 +5998,82 @@
+       const pre = $('wpReplayPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase14Packet(), null, 2).slice(0, 20000);
+     }
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderReplay(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++    const wpWetRockReferenceModule = {
++      schema:'waterpro.fable.wet_rock_reference_module.v1.5_phase15',
++      id:'WATERPRO_WET_ROCK_RUNOFF_REFERENCE_ADAPTER',
++      bucket:'new-integration',
++      status:'connected shader/material adapter + future geometry/terrain module',
++      source:'Pasted text(80).txt wet rock / water / SDF terrain reference',
++      doctrine:'Learn rock/water contact behavior from the reference without detaching from Fable: procedural rock formations, triplanar-style detail, wet rock darkening/specular, runoff streaks, foam contact, underwater rock refraction and rock/current obstruction must route through existing Fable terrain, heightfield, surface-film, object and render systems.',
++      learnedPatterns:[
++        'SDF/capsule/smooth-min rock formation grammar for custom cliffs, boulders and water-contact stone.',
++        'Triplanar texture sampling and bump mapping so rock texture does not smear on steep/vertical faces.',
++        'Wetness mask near the water function plus noisy threshold to darken stone irregularly rather than as a flat band.',
++        'Specular wet rock glints only where wetness/runoff masks and light/view alignment agree.',
++        'Foam/contact mixing where terrain and water SDF surfaces nearly meet.',
++        'Underwater terrain raymarch/refraction with Beer-law absorption to keep submerged rock visible through water.'
++      ],
++      connectedFableInputs:['rockDensity','rockSeed','bathyBuf','PAINT_HM','surfTex wet/foam channels','waterLevel','runup','wetDry','foamAdvect','depositSeed','effectMode=9'],
++      currentOutputs:['rockWetness','rockRunoff','rockFoamContact','underwaterRockRefraction','customRockFormationIntent'],
++      futureBuffers:['rockMaskBuf','rockWetnessBuf','runoffVelocityBuf','rockMaterialBuf','contactFoamBuf','triplanarRockAtlas','proceduralRockFormationGraph'],
++      nonGoals:['Do not replace Fable terrain with a raymarched SDF scene.','Do not make all terrain wet uniformly.','Do not spawn MPM just because rock is wet; only high-energy contact should route to particles/bubbles.']
++    };
++    const wpWetRockScenarios = [
++      {id:'wet-rock-shore', title:'Wet rock shoreline', scenario:'Dense boulders at shore with active wetness/runup and effectMode 9 terrain material.', success:'Rocks darken unevenly at contact bands; thin foam residue and wet glints appear without flattening Fable shore dynamics.'},
++      {id:'runoff-streaks', title:'Runoff streaks', scenario:'Steep rocky shore after splash/runup; wet streaks run visually down high-slope faces.', success:'Streaks read as water coming off rock while existing foam/wetness channels still drive the mask.'},
++      {id:'rock-current-breakup', title:'Rock/current breakup', scenario:'Rock field plus river/inlet flow using object-current and surface-film routes.', success:'Foam/current splits around obstacles; wet rock material reinforces contact zones.'},
++      {id:'underwater-rock-view', title:'Underwater rock view', scenario:'Clear shallow water over rock/boulder field using Beer-law/refraction cues.', success:'Submerged rocks are visible through water with caustic tint and absorption, not just sand.'},
++      {id:'disable-wet-rock', title:'Disable wet rock mode', scenario:'Return to standard Fable material with normal rock/terrain controls.', success:'effectMode resets and protected Fable core remains unchanged.'}
++    ];
++    wpLayerRegistry.push({ id:'terrain.wet-rock-runoff', name:'Wet rock / runoff material adapter', bucket:'new-integration', pass:'RS_TERRAIN effectMode 9 + water refraction rock-bed tint + existing rockDensity/rockSeed/bathyBuf', outputs:['rockWetness','rockRunoff','rockFoamContact','underwaterRockRefraction','customRockFormationIntent'], controls:['effectMode','rockDensity','rockSeed','wetDry','runup','foamAdvect','foamTurb','depositSeed','caustics','inletWidth','inletDepth'] });
++    wpChannelRegistry.push(['rockWetness','RS_TERRAIN wet/foam/contact mask + effectMode 9','Wet/dry and foam residue on rock material, irregularly darkened and specular rather than a flat waterline band.']);
++    wpChannelRegistry.push(['rockRunoff','RS_TERRAIN runoff streak procedural mask → future runoffVelocityBuf','Visual water-coming-off-rock streaks on steep faces, driven by slope, time, wetness and effectMode 9.']);
++    wpChannelRegistry.push(['rockFoamContact','surfTex foamResid + rockM/contact band','Foam at water/rock contact where whitewater, wetness and terrain proximity meet.']);
++    wpChannelRegistry.push(['underwaterRockRefraction','RS_WATER bed tint in effectMode 9 → future terrain material lookup','Submerged rock material visible through refracted/absorbed water instead of sand-only seabed.']);
++    wpChannelRegistry.push(['customRockFormationIntent','rockDensity/rockSeed + future proceduralRockFormationGraph','Intent channel for cliffs, boulders, shelves, wet stone edges, plunge-pool rocks and current-obstruction fields.']);
++    wpPhasePlan.push({ phase:'15', title:'Wet rock / runoff / custom rock formation reference', status:'active connected reference adapter in this build', deliverables:['Wet Rock page','effectMode 9 terrain shader branch','underwater rock refraction tint','wet rock scenarios','module packet','learned-reference registry'], risk:'This is a connected material/contract phase. Full SDF/custom rock generator, triplanar texture atlas and runoff velocity buffers remain future work.' });
++    wpClassification.push({ id:'terrain.wet-rock-runoff', bucket:'new-integration', name:'Wet rock / runoff reference adapter', evidence:'Phase 15 learns the uploaded wet-rock/water shader and maps its SDF rock, triplanar/bump, wetness, foam contact, refraction and Beer absorption ideas onto the existing Fable terrain/water systems.', protect:'Do not replace existing Fable bathymetry, rockDensity/rockSeed, wetness memory or object rock/current contracts. This module extends them and must remain routeable through WaterPRO channels.' });
++    wpExperimentQueue.push({ id:'exp.custom-rock-formations', title:'Custom procedural rock formations', input:'painted terrain + rock formation intent + water contact masks', output:'cliffs/boulders/shelves/plunge rocks with wetness/runoff/foam contact materials', success:'designer can add specific wet rock formations without hand-modeling geometry; water reacts through existing Fable heightfield/current systems.', target:'future proceduralRockFormationGraph + rockMaskBuf + triplanarRockAtlas' });
++    function wpWetRockPacket() {
++      return {
++        schema:'waterpro.fable.wet_rock_reference_packet.v1.5_phase15',
++        generatedAt:new Date().toISOString(),
++        module:wpWetRockReferenceModule,
++        scenarios:wpWetRockScenarios,
++        activeState:wpPick(['world','effectMode','effectIntensity','rockDensity','rockSeed','waterLevel','runup','wetDry','foamAmt','foamStrength','foamTurb','foamAdvect','depositSeed','strandDecay','wetDecay','inletWidth','inletDepth','inletPos','caustics','rippleGain','capillaryGain']),
++        existingFableHooks:['RS_TERRAIN rock mask and wet/foam residue','genBathy procedural rocks','object rock/current contract','surface film foam/wetness adapter','RS_WATER refraction/Beer absorption path'],
++        futureImplementation:['rockMaskBuf','rockWetnessBuf','runoffVelocityBuf','contactFoamBuf','triplanar material atlas','custom rock formation brushes','waterfall/plunge rock presets']
++      };
++    }
++    function wpApplyWetRockScenario(kind='wet-rock-shore') {
++      if (kind === 'disable-wet-rock') {
++        wpSetState({effectMode:0,effectIntensity:1.0,rockDensity:0.35,foamStrength:0.35});
++      } else if (kind === 'runoff-streaks') {
++        wpSetState({world:'shore',effectMode:9,effectIntensity:1.0,rockDensity:1.45,rockSeed:31,wind:8.2,swell:0.82,chop:0.82,spawn:1.0,splashOn:1,foamOn:1,foamAmt:0.85,foamStrength:0.9,foamTurb:1.55,foamAdvect:1.65,runup:1.75,wetDry:2.05,breaker:0.78,beachWidth:0.92,landReach:2.65,shoreOffset:-0.9,inletWidth:0.55,inletDepth:0.48,depositSeed:1.18,strandDecay:0.018,wetDecay:0.32,caustics:1.2,rippleGain:1.45,capillaryGain:1.35});
++      } else if (kind === 'rock-current-breakup') {
++        wpApplyObjectInteractionScenario('rock-current');
++        wpSetState({effectMode:9,effectIntensity:1.0,rockDensity:1.5,rockSeed:17,wetDry:1.85,runup:1.25,foamStrength:0.92,depositSeed:1.0,caustics:1.05});
++      } else if (kind === 'underwater-rock-view') {
++        wpSetState({world:'shore',effectMode:9,effectIntensity:1.0,rockDensity:1.1,rockSeed:9,wind:3.4,swell:0.28,chop:0.42,spawn:0.25,splashOn:0,foamOn:1,foamAmt:0.22,foamStrength:0.18,foamTurb:0.22,foamAdvect:0.55,runup:0.52,wetDry:1.15,breaker:1.18,beachWidth:1.35,landReach:1.85,shoreOffset:-0.2,waterLevel:-0.08,caustics:2.25,rippleGain:1.35,capillaryGain:1.45,rippleScale:0.68,sunElev:35,mie:0.55,atmo:0.85});
++      } else {
++        wpSetState({world:'shore',effectMode:9,effectIntensity:1.0,rockDensity:1.35,rockSeed:23,wind:6.8,swell:0.72,chop:0.72,spawn:0.78,splashOn:1,foamOn:1,foamAmt:0.72,foamStrength:0.76,foamTurb:1.25,foamAdvect:1.48,runup:1.45,wetDry:1.75,breaker:0.86,beachWidth:1.15,landReach:2.15,shoreOffset:-0.7,inletWidth:0.9,inletDepth:0.75,inletPos:0.22,caustics:1.55,rippleGain:1.25,capillaryGain:1.25,rippleScale:0.78,wetDecay:0.38,strandDecay:0.025,depositSeed:1.05,foamAdvectDist:1.65});
++      }
++      resetWater();
++      wpRenderAll();
++      return wpWetRockPacket();
++    }
++    function wpRenderWetRock() {
++      const status = $('wpWetRockStatus');
++      if (status) status.innerHTML = '<strong>'+wpWetRockReferenceModule.id+'</strong><br>effectMode '+(state.effectMode||0)+' · rock density '+(state.rockDensity||0)+' · seed '+(state.rockSeed||0)+' · status: '+wpWetRockReferenceModule.status;
++      const learned = $('wpWetRockLearned');
++      if (learned) learned.innerHTML = '<div class="wpProof"><h3>Learned reference patterns</h3><p>'+wpWetRockReferenceModule.doctrine+'</p><div class="wpPillRow">'+wpWetRockReferenceModule.learnedPatterns.map(x=>'<span>'+x+'</span>').join('')+'</div></div>';
++      const tests = $('wpWetRockTests');
++      if (tests) tests.innerHTML = wpWetRockScenarios.map(t=>'<div class="wpProof"><h3>'+t.title+'</h3><p><b>Scenario:</b> '+t.scenario+'</p><p><b>Success:</b> '+t.success+'</p><button data-wp-wetrock-scenario="'+t.id+'">Run scenario</button></div>').join('');
++      const packet = $('wpWetRockPacket'); if (packet) packet.textContent = JSON.stringify(wpWetRockPacket(), null, 2).slice(0, 20000);
++    }
++
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderReplay(); wpRenderWetRock(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -5996,6 +6089,7 @@
+       if (ds.wpValidationRunapply) { wpValidationReceipt(ds.wpValidationRunapply, true); wpRenderAll(); return; }
+       if (ds.wpProofScenario) { wpApplyProofScenario(ds.wpProofScenario); wpRenderAll(); return; }
+       if (ds.wpReplaySuite) { wpRunReplaySuite(ds.wpReplaySuite); wpRenderAll(); return; }
++      if (ds.wpWetrockScenario) { wpApplyWetRockScenario(ds.wpWetrockScenario); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -6040,6 +6134,9 @@
+       if (action === 'downloadReplayReceipt') wpDownload('waterpro-fable-replay-receipt-phase14.json', wpReplayState.lastReplay || wpRunReplaySuite(wpReplayState.activeSuite));
+       if (action === 'downloadReplayMatrix') wpDownload('waterpro-fable-replay-matrix-phase14.json', wpReplayMatrix());
+       if (action === 'downloadPhase14Packet') wpDownload('waterpro-fable-phase14-packet.json', wpPhase14Packet());
++      if (action === 'downloadWetRockPacket') wpDownload('waterpro-fable-wet-rock-reference-phase15.json', wpWetRockPacket());
++      if (action === 'downloadWetRockTests') wpDownload('waterpro-fable-wet-rock-tests-phase15.json', {schema:'waterpro.fable.wet_rock_tests.v1.5_phase15', generatedAt:new Date().toISOString(), tests:wpWetRockScenarios, module:wpWetRockReferenceModule});
++      if (action === 'downloadPhase15Packet') wpDownload('waterpro-fable-phase15-packet.json', {schema:'waterpro.fable.phase15_packet.v1.5', generatedAt:new Date().toISOString(), phase14:wpPhase14Packet(), wetRock:wpWetRockPacket(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan});
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -6058,14 +6155,14 @@
+       if (action === 'downloadClassification') wpDownload('waterpro-fable-module-classification.json', {schema:'waterpro.fable.module_classification.v0.2', generatedAt:new Date().toISOString(), modules:wpClassification});
+       if (action === 'downloadExperiments') wpDownload('waterpro-fable-experiment-queue.json', {schema:'waterpro.fable.experiment_queue.v0.2', generatedAt:new Date().toISOString(), experiments:wpExperimentQueue});
+       if (action === 'downloadRoadmap') wpDownload('waterpro-fable-multiphase-roadmap.json', {schema:'waterpro.fable.phase_plan.v0.2', generatedAt:new Date().toISOString(), phases:wpPhasePlan});
+-      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase14-packet.json', {schema:'waterpro.fable.phase14_packet.v1.4', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), instrumentation:wpPhase13Packet(), replay:wpPhase14Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
++      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase14-packet.json', {schema:'waterpro.fable.phase14_packet.v1.4', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), instrumentation:wpPhase13Packet(), replay:wpPhase14Packet(), wetRock:wpWetRockPacket(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
+       if (action === 'refreshRecipe') wpRefreshRecipeBox();
+       if (action === 'downloadRecipe') wpDownload('waterpro-fable-connected-recipe.json', wpRecipe());
+       if (action === 'copyRecipe') { try { await navigator.clipboard.writeText($('wpRecipeText')?.value || JSON.stringify(wpRecipe(), null, 2)); } catch(err) { console.warn('clipboard copy failed', err); } }
+       if (action === 'applyRecipeText') { try { const r = JSON.parse($('wpRecipeText')?.value || '{}'); if (r.currentControls) { for (const grp of Object.values(r.currentControls)) Object.assign(state, grp); syncInputs(state); uploadWorld(); uploadSpectrum(); rebuildWorld(); resetWater(); } if (Array.isArray(r.semanticVolumes)) wpSemantic.volumes = r.semanticVolumes; if (r.activeVolume) wpSemantic.activeVolume = r.activeVolume; wpRenderAll(); } catch(err) { alert('Recipe parse/apply failed: '+err.message); } }
+     });
+     window.WaterPROFableHub = {
+-      version:'1.4-phase14-scenario-replay-proof-bundles',
++      version:'1.5-phase15-wet-rock-runoff-reference',
+       recipe:wpRecipe,
+       volumes:() => wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+       semanticVolumeManager:wpSemanticVolumePacket,
+@@ -6084,6 +6181,8 @@
+       runReplaySuite:wpRunReplaySuite,
+       replayMatrix:wpReplayMatrix,
+       replaySuites:() => wpReplaySuites.map(s => ({...s, scenarios:[...s.scenarios], capture:[...s.capture]})),
++      wetRock:wpWetRockPacket,
++      applyWetRockScenario:wpApplyWetRockScenario,
+       visualProofReceipt:wpInstrumentationReceipt,
+       performanceBudgets:wpBudgetStatus,
+       requestVisualReadback:wpResetVisualReadback,
+@@ -6348,8 +6447,8 @@
+ 
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+-  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 14</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 14 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds a scenario replay and proof-bundle harness over the Phase 13 instrumentation layer: replay suites, step receipts, scenario-state snapshots, downloadable proof bundles, and local-run replay packets without sending heavy preview links.</div>
++  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 15</b></span><span id="devClose">&#10005;</span></div>
++  <div class="mapHint">Phase 15 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build learns the new wet-rock/water reference as a connected terrain/material module: procedural rock formations, triplanar-style rock texture/bump logic, waterline wetting, runoff streaks, foam contact, underwater rock refraction cues, and rock/current interaction routing.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -6372,6 +6471,7 @@
+     <button data-page="validation">Validation</button>
+     <button data-page="instrumentation">Proof</button>
+     <button data-page="replay">Replay</button>
++    <button data-page="wetrock">Wet Rock</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -6687,6 +6787,27 @@
+     <pre class="wpMono devNote" id="wpReplayPacket"></pre>
+   </section>
+ 
++
++  <section class="devPage" data-page="wetrock">
++    <div class="wlGrp">PHASE 15 — WET ROCK / RUNOFF / CUSTOM ROCK FORMATIONS</div>
++    <div id="wpWetRockStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> this learns the uploaded wet-rock/water shader as a WaterPRO reference module inside the existing Fable app. It does not replace Fable terrain with a standalone raymarched SDF. It routes rock formation intent, wet contact, runoff streaks, foam-contact, and underwater rock refraction through the real bathymetry, terrain, wetness, surface-film, object-rock/current and render systems.</div>
++    <div class="wpActionRow">
++      <button data-wp-wetrock-scenario="wet-rock-shore">Wet Rock Shore</button>
++      <button data-wp-wetrock-scenario="runoff-streaks">Runoff Streaks</button>
++      <button data-wp-wetrock-scenario="rock-current-breakup">Rock Current Breakup</button>
++      <button data-wp-wetrock-scenario="underwater-rock-view">Underwater Rock View</button>
++      <button data-wp-wetrock-scenario="disable-wet-rock">Disable Wet Rock</button>
++      <button data-wp-action="downloadWetRockPacket">Download Wet Rock Packet</button>
++      <button data-wp-action="downloadWetRockTests">Download Wet Rock Tests</button>
++      <button data-wp-action="downloadPhase15Packet">Download Phase 15 Packet</button>
++    </div>
++    <div id="wpWetRockLearned"></div>
++    <div class="wlGrp">Regression/proof targets</div>
++    <div id="wpWetRockTests"></div>
++    <pre class="wpMono devNote" id="wpWetRockPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>
