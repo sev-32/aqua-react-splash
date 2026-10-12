@@ -1,0 +1,284 @@
+--- hybridsplashFable_waterpro_phase13.html
++++ hybridsplashFable_waterpro_phase14.html
+@@ -4280,7 +4280,7 @@
+       proofScenario:'baseline-connected',
+       readbackPolicy:'metadata-now; GPU readback/playback capture later'
+     };
+-    const wpProofScenarios = [
++    const wpDiagProofScenarios = [
+       { id:'baseline-connected', title:'Connected baseline', expect:'all current Fable systems remain active unless explicitly focused.' },
+       { id:'base-only', title:'Base source only', expect:'spectral/FFT source isolated as much as existing controls allow.' },
+       { id:'heightfield-core', title:'Fable heightfield core', expect:'curved shoreline, depth response, runup/backwash and terrain coupling visible.' },
+@@ -4298,7 +4298,7 @@
+         abi:wpWaveFieldABI.map(x=>({...x})),
+         layerRegistry:wpLayerRegistry.map(x=>({...x})),
+         diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]},
+-        proofScenarios:wpProofScenarios.map(x=>({...x}))
++        proofScenarios:wpDiagProofScenarios.map(x=>({...x}))
+       };
+     }
+     function wpSetDiagFocus(channel, layer) {
+@@ -4337,7 +4337,7 @@
+       const st = $('wpDiagStatus');
+       if (st) st.innerHTML = '<strong>Diagnostic focus:</strong> channel <em>'+wpDiagnosticState.focusChannel+'</em> · layer <em>'+wpDiagnosticState.focusLayer+'</em> · solo <em>'+(wpDiagnosticState.soloLayer || 'none')+'</em> · muted <em>'+(wpDiagnosticState.mutedLayers.join(', ') || 'none')+'</em>.';
+       const presets = $('wpProofScenarioButtons');
+-      if (presets) presets.innerHTML = wpProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
++      if (presets) presets.innerHTML = wpDiagProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
+       const layers = $('wpLayerDiagRows');
+       if (layers) layers.innerHTML = wpLayerRegistry.map(layer => {
+         const muted = wpDiagnosticState.mutedLayers.includes(layer.id);
+@@ -5826,7 +5826,161 @@
+       const pre = $('wpInstrumentationPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase13Packet(), null, 2).slice(0, 18000);
+     }
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++
++
++    // ---------- PHASE 14: scenario replay / proof bundle harness ----------
++    const wpReplayModule = {
++      id:'WATERPRO_SCENARIO_REPLAY_PROOF_BUNDLE_HARNESS',
++      phase:'14',
++      status:'connected replay harness over Phase 13 instrumentation and existing Fable runtime scenarios',
++      bucket:'new-integration',
++      doctrine:'A serious multi-phase water engine needs repeatable local proof packets. This harness does not send heavy previews and does not claim accepted visual proof from static checks. It assembles scenario replay steps, readback requests, runtime snapshots, validation receipts, budget receipts, recipes and module packets so a local browser run can produce deterministic evidence for each major WaterPRO layer.',
++      inputs:['wpProofScenarios','wpInstrumentationReceipt','wpBudgetStatus','wpValidationReceipt','wpComposerPacket','wpRecipe','existing Fable scenario routers'],
++      outputs:['replayReceipt','replayMatrix','proofBundle','phase14Packet','scenarioStepReceipts'],
++      futureRuntime:['frame-delayed capture scheduler','GPU readback thumbnail atlas per replay step','visual diff baseline store','performance timeline CSV','deterministic seed lock','replay queue worker','local screenshot ZIP export']
++    };
++    const wpReplaySuites = [
++      {id:'core-regression-replay', title:'Protected Fable core replay', goal:'Replay the critical existing Fable behaviors that must not be flattened by WaterPRO layers.', scenarios:['connected-baseline-proof','curved-shore-proof','breaker-bar-proof'], capture:['audit','fableCore','visualProofReceipt','performanceBudget']},
++      {id:'source-to-core-replay', title:'Source → core replay', goal:'Verify FFT source routing feeds the protected nearshore core instead of replacing it.', scenarios:['fft-to-core-proof','breaker-bar-proof'], capture:['fftSource','fableCore','recipe','budget']},
++      {id:'conversion-loop-replay', title:'Film → splash → bubbles replay', goal:'Package the surface-film, MPM conversion, and underwater bubble proxy chain as a replayable proof bundle.', scenarios:['film-splash-bubble-proof'], capture:['surfaceFilm','splashConversion','bubbleProxy','visualProofReceipt']},
++      {id:'semantic-authoring-replay', title:'Volume / intent / object replay', goal:'Replay the high-level authoring path from semantic volumes through painted terrain intent and object-water contracts.', scenarios:['volume-intent-object-proof','composer-recipe-proof'], capture:['semanticVolumeManager','terrainIntent','objectInteraction','composer','validation']},
++      {id:'full-waterpro-replay', title:'Full WaterPRO connected replay', goal:'One replay bundle spanning existing Fable core, FFT source, film/splash/bubble, semantic volumes, objects, composer, validation and instrumentation.', scenarios:['connected-baseline-proof','fft-to-core-proof','film-splash-bubble-proof','volume-intent-object-proof','composer-recipe-proof'], capture:['all']}
++    ];
++    const wpReplayState = {
++      activeSuite:'core-regression-replay',
++      lastReplay:null,
++      history:[],
++      replayMode:'local-proof-bundle-no-preview',
++      acceptedVisualProof:false,
++      requiresLocalBrowser:true
++    };
++    wpLayerRegistry.push({ id:'replay.proof-bundle-harness', name:'Scenario Replay / Proof Bundle Harness', bucket:'new-integration', pass:'scenario replay receipts + local proof bundles', outputs:['replayReceipt','proofBundle','scenarioStepReceipts'], controls:['runReplaySuite','downloadReplayReceipt','downloadReplayMatrix','downloadPhase14Packet'] });
++    wpChannelRegistry.push(['replayReceipt','WaterPRO replay harness','Deterministic local proof bundle built from scenario steps, runtime snapshots, validation, budgets and module packets.']);
++    wpChannelRegistry.push(['scenarioStepReceipt','WaterPRO replay harness','Per-scenario step packet containing applied proof scenario, requested readback, runtime digest and module coverage snapshot.']);
++    wpPhasePlan.push({ phase:'14', title:'Scenario replay / proof bundle harness', status:'active connected replay-harness layer in this build', deliverables:['Replay page','replay suites','step receipts','proof bundle packet','replay matrix','browser API exports'], risk:'Replay packets package deterministic intent and runtime snapshots. They still need local browser execution plus delayed GPU readback/screenshot capture for accepted visual proof.' });
++    wpClassification.push({ id:'replay.proof-bundle-harness', bucket:'new-integration', name:'Scenario Replay / Proof Bundle Harness', evidence:'Phase 14 adds a connected replay layer over proof scenarios, instrumentation receipts, budgets, recipes and validation packets. It avoids assistant-preview overhead while producing local proof bundles.', protect:'Do not call replay bundles accepted visual truth unless local readbacks/screenshots are completed and reviewed.' });
++    wpExperimentQueue.push({ id:'exp.frame-delayed-replay-capture', title:'Frame-delayed replay capture scheduler', input:'Phase 14 replay suites + Phase 13 readback requests', output:'wait N frames per scenario before readback/screenshot; capture stable diagnostic thumbnails', success:'each replay step yields non-black visual readback plus diagnostic channel thumbnails without manual timing.', target:'Phase 15+' });
++
++    function wpReplayModuleCoverage() {
++      return {
++        audit:wpBaselineAudit(),
++        abi:wpAbiPacket(),
++        fableCore:wpFableCorePacket(),
++        fftSource:wpFftSourcePacket(),
++        surfaceFilm:wpSurfaceFilmPacket(),
++        splashConversion:wpSplashConversionPacket(),
++        bubbleProxy:wpBubbleProxyPacket(),
++        semanticVolumeManager:wpSemanticVolumePacket(),
++        terrainIntent:wpTerrainIntentPacket(),
++        objectInteraction:wpObjectInteractionPacket(),
++        composer:wpComposerPacket(),
++        validation:wpPhase12Packet(),
++        instrumentation:wpPhase13Packet()
++      };
++    }
++    function wpReplayRuntimeDigest() {
++      const vr = runtimeProbe.visualReadback || visualReadback || {};
++      return {
++        frame:runtimeProbe.frame,
++        simTime:runtimeProbe.simTime,
++        fps:runtimeProbe.fps,
++        paused:runtimeProbe.paused,
++        canvas:runtimeProbe.canvas,
++        frameSubmits:bootDiag.frameSubmits,
++        firstFrameAt:bootDiag.firstFrameAt,
++        visualReadback:{requested:!!vr.requested, pending:!!vr.pending, complete:!!vr.complete, failed:!!vr.failed, nonBlack:!!vr.nonBlack, meanRgb:vr.meanRgb, maxRgb:vr.maxRgb, reason:vr.reason || null},
++        stateDigest:{world:state.world, wind:state.wind, swell:state.swell, chop:state.chop, fftBlend:state.fftBlend, trueFftBlend:state.trueFftBlend, breaker:state.breaker, foamAmt:state.foamAmt, wetDry:state.wetDry, splashOn:state.splashOn, foamOn:state.foamOn, effectMode:state.effectMode, waterLevel:state.waterLevel}
++      };
++    }
++    function wpReplayStepReceipt(scenarioId, index=0) {
++      const before = wpReplayRuntimeDigest();
++      const scenarioReceipt = wpApplyProofScenario(scenarioId);
++      const readbackRequest = wpResetVisualReadback('replay-step:'+scenarioId);
++      const after = wpReplayRuntimeDigest();
++      return {
++        schema:'waterpro.fable.replay_step_receipt.v1.4',
++        generatedAt:new Date().toISOString(),
++        index,
++        scenarioId,
++        scenario:wpProofScenarios.find(s=>s.id===scenarioId) || null,
++        before,
++        after,
++        readbackRequest,
++        visualProofReceipt:scenarioReceipt || wpInstrumentationReceipt(scenarioId, false),
++        budget:wpBudgetStatus(),
++        acceptedVisualProof:false,
++        localBrowserRequired:true
++      };
++    }
++    function wpRunReplaySuite(suiteId=wpReplayState.activeSuite) {
++      const suite = wpReplaySuites.find(s=>s.id===suiteId) || wpReplaySuites[0];
++      wpReplayState.activeSuite = suite.id;
++      const steps = suite.scenarios.map((scenarioId, i)=>wpReplayStepReceipt(scenarioId, i));
++      const failCount = steps.filter(s => s.budget && s.budget.gate === 'FAIL').length;
++      const warnCount = steps.filter(s => s.budget && s.budget.gate === 'WARN').length;
++      const replay = {
++        schema:'waterpro.fable.scenario_replay_receipt.v1.4',
++        generatedAt:new Date().toISOString(),
++        module:wpReplayModule,
++        suite,
++        gate: failCount ? 'FAIL' : warnCount ? 'WARN' : 'PASS',
++        summary:{stepCount:steps.length, failCount, warnCount, acceptedVisualProof:false, localBrowserRequired:true},
++        replayMode:wpReplayState.replayMode,
++        steps,
++        captureTargets:suite.capture,
++        moduleCoverage:wpReplayModuleCoverage(),
++        recipe:wpRecipe(),
++        noPreviewPolicy:'Artifacts are downloadable; assistant replies should not include HTML preview/open links unless requested.'
++      };
++      wpReplayState.lastReplay = replay;
++      wpReplayState.history.unshift({suiteId:suite.id, gate:replay.gate, generatedAt:replay.generatedAt, stepCount:steps.length, failCount, warnCount});
++      wpReplayState.history = wpReplayState.history.slice(0, 12);
++      return replay;
++    }
++    function wpReplayMatrix() {
++      return {
++        schema:'waterpro.fable.replay_matrix.v1.4',
++        generatedAt:new Date().toISOString(),
++        module:wpReplayModule,
++        suites:wpReplaySuites,
++        proofScenarios:wpProofScenarios,
++        dependencies:['Phase 12 validation receipts','Phase 13 instrumentation/proof budgets','existing Fable scenario routers','WaterPRO module packets'],
++        nextInstrumentation:['delayed capture per step','diagnostic atlas','visual diff baselines','performance timeline export']
++      };
++    }
++    function wpPhase14Packet() {
++      return {
++        schema:'waterpro.fable.phase14_packet.v1.4',
++        generatedAt:new Date().toISOString(),
++        module:wpReplayModule,
++        replayState:{...wpReplayState, lastReplay:undefined},
++        replaySuites:wpReplaySuites,
++        replayMatrix:wpReplayMatrix(),
++        lastReplay:wpReplayState.lastReplay,
++        phase13:wpPhase13Packet(),
++        validation:wpPhase12Packet(),
++        recipe:wpRecipe(),
++        moduleCoverage:wpReplayModuleCoverage(),
++        riskRegister:[
++          'Replay suites currently apply scenarios immediately and request readback, but do not wait for N stable frames before capture.',
++          'Accepted visual proof is still local-browser only; this container only validates syntax and artifact packaging.',
++          'Future work should add diagnostic thumbnail atlas and deterministic visual-diff baselines.',
++          'Replay must preserve existing Fable behavior; scenario routers should not mutate protected defaults without explicit restore/recipe state.'
++        ]
++      };
++    }
++    function wpRenderReplay() {
++      const status = $('wpReplayStatus');
++      const last = wpReplayState.lastReplay;
++      if (status) status.innerHTML = '<strong>'+wpReplayModule.id+'</strong><br>active suite: '+wpReplayState.activeSuite+' · last: '+(last ? last.gate+' / '+last.summary.stepCount+' steps' : 'none')+' · local proof required: yes · preview links disabled';
++      const suites = $('wpReplaySuites');
++      if (suites) suites.innerHTML = wpReplaySuites.map(s => '<div class="wpNode '+(wpReplayState.activeSuite===s.id?'on':'')+'"><small>'+s.id+'</small><h3>'+s.title+'</h3><p>'+s.goal+'</p><p><b>Scenarios:</b> '+s.scenarios.join(', ')+'</p><p><b>Capture:</b> '+s.capture.join(', ')+'</p><button data-wp-replay-suite="'+s.id+'">Select + Run</button></div>').join('');
++      const hist = $('wpReplayHistory');
++      if (hist) hist.innerHTML = (wpReplayState.history.length ? wpReplayState.history : [{suiteId:wpReplayState.activeSuite, gate:'pending', generatedAt:new Date().toISOString(), stepCount:0, failCount:0, warnCount:0}]).map(h => '<div class="wpNode '+(h.gate==='FAIL'?'bad':h.gate==='WARN'?'warn':'')+'"><small>'+h.generatedAt+'</small><h3>'+h.gate+' · '+h.suiteId+'</h3><p>steps '+h.stepCount+' · fail '+h.failCount+' · warn '+h.warnCount+'</p></div>').join('');
++      const pre = $('wpReplayPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase14Packet(), null, 2).slice(0, 20000);
++    }
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderReplay(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -5841,6 +5995,7 @@
+       if (ds.wpValidationRun) { wpValidationReceipt(ds.wpValidationRun, false); wpRenderAll(); return; }
+       if (ds.wpValidationRunapply) { wpValidationReceipt(ds.wpValidationRunapply, true); wpRenderAll(); return; }
+       if (ds.wpProofScenario) { wpApplyProofScenario(ds.wpProofScenario); wpRenderAll(); return; }
++      if (ds.wpReplaySuite) { wpRunReplaySuite(ds.wpReplaySuite); wpRenderAll(); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -5881,6 +6036,10 @@
+       if (action === 'downloadVisualProofReceipt') wpDownload('waterpro-fable-visual-proof-receipt-phase13.json', wpInstrumentationReceipt(wpInstrumentationState.activeScenario, true));
+       if (action === 'downloadPerformanceBudgets') wpDownload('waterpro-fable-performance-budgets-phase13.json', wpBudgetStatus());
+       if (action === 'downloadPhase13Packet') wpDownload('waterpro-fable-phase13-packet.json', wpPhase13Packet());
++      if (action === 'runReplaySuite') { wpRunReplaySuite(wpReplayState.activeSuite); wpRenderAll(); }
++      if (action === 'downloadReplayReceipt') wpDownload('waterpro-fable-replay-receipt-phase14.json', wpReplayState.lastReplay || wpRunReplaySuite(wpReplayState.activeSuite));
++      if (action === 'downloadReplayMatrix') wpDownload('waterpro-fable-replay-matrix-phase14.json', wpReplayMatrix());
++      if (action === 'downloadPhase14Packet') wpDownload('waterpro-fable-phase14-packet.json', wpPhase14Packet());
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -5899,14 +6058,14 @@
+       if (action === 'downloadClassification') wpDownload('waterpro-fable-module-classification.json', {schema:'waterpro.fable.module_classification.v0.2', generatedAt:new Date().toISOString(), modules:wpClassification});
+       if (action === 'downloadExperiments') wpDownload('waterpro-fable-experiment-queue.json', {schema:'waterpro.fable.experiment_queue.v0.2', generatedAt:new Date().toISOString(), experiments:wpExperimentQueue});
+       if (action === 'downloadRoadmap') wpDownload('waterpro-fable-multiphase-roadmap.json', {schema:'waterpro.fable.phase_plan.v0.2', generatedAt:new Date().toISOString(), phases:wpPhasePlan});
+-      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase13-packet.json', {schema:'waterpro.fable.phase13_packet.v1.3', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), instrumentation:wpPhase13Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
++      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase14-packet.json', {schema:'waterpro.fable.phase14_packet.v1.4', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), instrumentation:wpPhase13Packet(), replay:wpPhase14Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
+       if (action === 'refreshRecipe') wpRefreshRecipeBox();
+       if (action === 'downloadRecipe') wpDownload('waterpro-fable-connected-recipe.json', wpRecipe());
+       if (action === 'copyRecipe') { try { await navigator.clipboard.writeText($('wpRecipeText')?.value || JSON.stringify(wpRecipe(), null, 2)); } catch(err) { console.warn('clipboard copy failed', err); } }
+       if (action === 'applyRecipeText') { try { const r = JSON.parse($('wpRecipeText')?.value || '{}'); if (r.currentControls) { for (const grp of Object.values(r.currentControls)) Object.assign(state, grp); syncInputs(state); uploadWorld(); uploadSpectrum(); rebuildWorld(); resetWater(); } if (Array.isArray(r.semanticVolumes)) wpSemantic.volumes = r.semanticVolumes; if (r.activeVolume) wpSemantic.activeVolume = r.activeVolume; wpRenderAll(); } catch(err) { alert('Recipe parse/apply failed: '+err.message); } }
+     });
+     window.WaterPROFableHub = {
+-      version:'1.3-phase13-instrumentation-proof-budgets',
++      version:'1.4-phase14-scenario-replay-proof-bundles',
+       recipe:wpRecipe,
+       volumes:() => wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+       semanticVolumeManager:wpSemanticVolumePacket,
+@@ -5921,6 +6080,10 @@
+       recipeLibrary:() => wpComposerState.library,
+       validation:wpPhase12Packet,
+       instrumentation:wpPhase13Packet,
++      replay:wpPhase14Packet,
++      runReplaySuite:wpRunReplaySuite,
++      replayMatrix:wpReplayMatrix,
++      replaySuites:() => wpReplaySuites.map(s => ({...s, scenarios:[...s.scenarios], capture:[...s.capture]})),
+       visualProofReceipt:wpInstrumentationReceipt,
+       performanceBudgets:wpBudgetStatus,
+       requestVisualReadback:wpResetVisualReadback,
+@@ -6185,8 +6348,8 @@
+ 
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+-  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 13</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 13 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds instrumentation/proof infrastructure: visual readback receipts, runtime probes, performance budget targets, scenario capture intents, and proof packets over the protected Fable core and all WaterPRO connected modules.</div>
++  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 14</b></span><span id="devClose">&#10005;</span></div>
++  <div class="mapHint">Phase 14 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds a scenario replay and proof-bundle harness over the Phase 13 instrumentation layer: replay suites, step receipts, scenario-state snapshots, downloadable proof bundles, and local-run replay packets without sending heavy preview links.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -6208,6 +6371,7 @@
+     <button data-page="composer">Composer</button>
+     <button data-page="validation">Validation</button>
+     <button data-page="instrumentation">Proof</button>
++    <button data-page="replay">Replay</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -6504,6 +6668,25 @@
+     <pre class="wpMono devNote" id="wpInstrumentationPacket"></pre>
+   </section>
+ 
++
++
++  <section class="devPage" data-page="replay">
++    <div class="wlGrp">PHASE 14 — SCENARIO REPLAY / PROOF BUNDLE HARNESS</div>
++    <div id="wpReplayStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> this page does not send heavy previews. It packages deterministic replay intent over the existing Fable runtime: proof scenarios, module packets, validation receipts, visual-readback requests, budget snapshots, recipe state, and scenario-step manifests. Accepted visual proof still requires running locally in Chrome/Edge.</div>
++    <div class="wpActionRow">
++      <button data-wp-action="runReplaySuite">Run Selected Replay Suite</button>
++      <button data-wp-action="downloadReplayReceipt">Download Replay Receipt</button>
++      <button data-wp-action="downloadReplayMatrix">Download Replay Matrix</button>
++      <button data-wp-action="downloadPhase14Packet">Download Phase 14 Packet</button>
++    </div>
++    <div class="wlGrp">Replay suites</div>
++    <div class="wpHubGrid" id="wpReplaySuites"></div>
++    <div class="wlGrp">Replay history</div>
++    <div class="wpHubGrid" id="wpReplayHistory"></div>
++    <pre class="wpMono devNote" id="wpReplayPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>

@@ -1,0 +1,47 @@
+name: THALASSA original pool champion renderer audit
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - '.github/workflows/champion-pool-ocean.yml'
+      - 'scripts/ci-champion-pool-ocean.mjs'
+  workflow_dispatch:
+jobs:
+  render-lineage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Preserve champion source and causal contract
+        run: |
+          node scripts/champion-audit.mjs
+          npm run typecheck
+          npm run build
+      - name: Install software WebGL2 browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run compiled engine
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/ocean-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/ocean-preview.log
+          exit 1
+      - name: Render existing original pool and current ocean scene
+        run: node scripts/ci-champion-pool-ocean.mjs
+      - name: Preserve all true frames and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-original-pool-vs-ocean-real-webgl
+          path: captures/pool-ocean-champion/
+          retention-days: 14
+          if-no-files-found: warn

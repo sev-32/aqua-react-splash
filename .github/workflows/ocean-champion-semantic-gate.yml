@@ -1,0 +1,40 @@
+name: THALASSA champion and semantic regression gate
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - 'src/**'
+      - 'docs/consolidation/**'
+      - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
+      - 'scripts/**'
+      - '.github/workflows/ocean-champion-semantic-gate.yml'
+  pull_request:
+    branches: [claude/affectionate-edison-15ya9p]
+    paths:
+      - 'src/**'
+      - 'docs/consolidation/**'
+      - 'docs/champions/donors/**'
+      - 'public/mlsmpm-webgpu.html'
+      - 'scripts/**'
+      - '.github/workflows/ocean-champion-semantic-gate.yml'
+  workflow_dispatch:
+jobs:
+  semantic-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit historical champion bytes, causal ontology and downgrade tripwires
+        run: node scripts/champion-audit.mjs
+      - name: Preserve observed debts and source receipts, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-champion-source-and-semantic-audit
+          path: captures/champion-audit/receipt.json
+          retention-days: 30
+          if-no-files-found: warn

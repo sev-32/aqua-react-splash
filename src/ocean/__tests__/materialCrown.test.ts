@@ -1,0 +1,104 @@
+import { describe, it, expect } from 'vitest';
+import { MaterialCrownHistory } from '../sim/materialCrown';
+import { MpmParticles, FLAG_ALIVE } from '../sim/oceanMpm';
+
+function setup(n=16, dz=0.22, vol=0.00015){
+  const P=new MpmParticles(n*3);
+  P.count=n*2;
+  const h=new MaterialCrownHistory();
+  for(let epoch=0;epoch<2;epoch++){
+    h.start(17,epoch*0.08);
+    for(let k=0;k<n;k++){
+      const i=epoch*n+k,a=k*2*Math.PI/n;
+      P.px[i]=0.5*Math.cos(a);
+      P.py[i]=epoch*dz;
+      P.pz[i]=0.5*Math.sin(a);
+      P.vol[i]=vol;
+      P.flags[i]=FLAG_ALIVE;
+      P.seed[i]=0.11+i*0.00001;
+      h.record(i,P.seed[i],a,vol);
+    }
+    h.end();
+  }
+  return {P,h};
+}
+function integrateFilmVolume(vertices: Float32Array) {
+ let total=0;
+ for(let i=0;i<vertices.length;i+=15){
+   const d1=[vertices[i+5]-vertices[i],vertices[i+6]-vertices[i+1],vertices[i+7]-vertices[i+2]];
+   const d2=[vertices[i+10]-vertices[i],vertices[i+11]-vertices[i+1],vertices[i+12]-vertices[i+2]];
+   const n=[
+     d1[1]*d2[2]-d1[2]*d2[1],
+     d1[2]*d2[0]-d1[0]*d2[2],
+     d1[0]*d2[1]-d1[1]*d2[0],
+   ];
+   total+=Math.hypot(...n)*0.5*vertices[i+3];
+ }
+ return total;
+}
+describe('V4 material coordinate sheet emitted with water',()=>{
+  it('constructs a cylindrical continuous curtain from two original material epochs',()=>{
+    const {P,h}=setup();
+    const mesh=h.build(P);
+    expect(h.recordedRings).toBe(2);
+    expect(mesh.triangles).toBeGreaterThan(0);
+    expect(mesh.connectedParticles).toBe(32);
+    expect(mesh.allocatedVolume).toBeCloseTo(mesh.carrierVolume,10);
+    expect(integrateFilmVolume(mesh.vertices)).toBeCloseTo(mesh.carrierVolume,6);
+    expect(mesh.maxOpticalThickness).toBeLessThan(0.27);
+    expect(mesh.vertices.every(Number.isFinite)).toBe(true);
+  });
+  it('follows advected MPM material indices without recomputing bonds',()=>{
+    const {P,h}=setup();
+    const old=h.build(P);
+    for(let i=0;i<P.count;i++) P.py[i]+=0.17;
+    const moved=h.build(P);
+    expect(moved.vertexCount).toBe(old.vertexCount);
+    expect(moved.vertices[1]).toBeCloseTo(old.vertices[1]+0.17,5);
+    expect(moved.allocatedVolume).toBeCloseTo(old.allocatedVolume,10);
+  });
+  it('drops only retired/overwritten birth identities, not physically live unrelated water',()=>{
+    const {P,h}=setup();
+    const before=h.build(P);
+    P.seed[0]+=0.004; // recycled particle slot, same index but different water
+    const after=h.build(P);
+    expect(after.triangles).toBeLessThan(before.triangles);
+    expect(after.covered[0]).toBe(0);
+    expect(P.flags[0]).toBe(FLAG_ALIVE);
+  });
+  it('never rewires surviving birth nodes when an original panel vertex disappears',()=>{
+    const {P,h}=setup(16);
+    const before=h.build(P);
+    // Removing one birth vertex must remove its original incident faces.
+    // The other living particles must not become newly connected simply
+    // because their sorted angular indices have shifted.
+    P.flags[4]=0;
+    const after=h.build(P);
+    expect(after.vertexCount).toBeLessThan(before.vertexCount);
+    const oldXYZ=new Set<string>();
+    for(let i=0;i<before.vertices.length;i+=5)
+      oldXYZ.add(before.vertices[i].toFixed(5)+','+before.vertices[i+1].toFixed(5)+','+before.vertices[i+2].toFixed(5));
+    for(let i=0;i<after.vertices.length;i+=5)
+      expect(oldXYZ.has(after.vertices[i].toFixed(5)+','+after.vertices[i+1].toFixed(5)+','+after.vertices[i+2].toFixed(5))).toBe(true);
+    expect(after.allocatedVolume).toBeCloseTo(after.carrierVolume,10);
+  });
+  it('refuses false sheet panels between unrelated source bodies',()=>{
+    const {P,h}=setup(16);
+    h.clear();
+    for(let epoch=0;epoch<2;epoch++){
+      h.start(epoch+1,epoch*0.08);
+      for(let k=0;k<16;k++){const i=epoch*16+k;h.record(i,P.seed[i],k*2*Math.PI/16,P.vol[i]);}
+      h.end();
+    }
+    expect(h.build(P).vertexCount).toBe(0);
+  });
+  it('refuses unsupported huge gaps between emission epochs',()=>{
+    const {P,h}=setup(16);h.clear();
+    for(let epoch=0;epoch<2;epoch++){
+      h.start(17,epoch*0.7);
+      for(let k=0;k<16;k++){const i=epoch*16+k;h.record(i,P.seed[i],k*2*Math.PI/16,P.vol[i]);}
+      h.end();
+    }
+    expect(h.build(P).vertexCount).toBe(0);
+  });
+});

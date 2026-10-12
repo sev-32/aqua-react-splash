@@ -1,0 +1,16 @@
+{
+  "schema": "waterpro.fable.build_manifest.v1.4_phase14",
+  "generatedAt": "2026-06-16T00:49:00Z",
+  "phase": "14",
+  "name": "Fable WaterPRO Phase 14 Connected Build",
+  "primaryHtml": "hybridsplashFable_waterpro_phase14.html",
+  "notes": "FABLE_WATERPRO_PHASE14_BUILD_NOTES.md",
+  "patch": "hybridsplashFable_waterpro_phase14.patch",
+  "module": "FABLE_WATERPRO_REPLAY_MODULE_v1_4.json",
+  "zip": "FABLE_WATERPRO_PHASE14_CONNECTED_BUILD.zip",
+  "validation": [
+    "node --check /mnt/data/fable_waterpro_phase14_module.mjs"
+  ],
+  "previewPolicy": "No HTML preview/open link in assistant reply unless user asks.",
+  "validationResult": "passed"
+}

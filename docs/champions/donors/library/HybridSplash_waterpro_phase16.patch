@@ -1,0 +1,297 @@
+--- hybridsplashFable_waterpro_phase15.html
++++ hybridsplashFable_waterpro_phase16.html
+@@ -1233,6 +1233,35 @@
+   let streak = smoothstep(0.42, 0.72, fbm(vec2f(z * 7.0 - t * 0.9, x * 1.7)));
+   return vec2f(channel, bankFoam * (0.35 + streak * 0.75));
+ }
++
++fn foamProcessBlob(pos : vec2f, t : f32) -> f32 {
++  // Learned from the supplied foam snippet: scaled coordinates, orthogonal sine/cosine perturbation,
++  // blob/noise inversion, amplification, power sharpening and clamp.
++  var foamUv = pos * 0.42;
++  let fx = pos.y * 0.08;
++  let fy = pos.x * 0.08;
++  foamUv.x += cos(fx * 20.0 + t * 1.0) * 0.17;
++  foamUv.y += sin(fy * 20.0 + t * 1.0) * 0.17;
++  let blob = clamp(0.62 * fbm(foamUv * 2.1) + 0.38 * vnoise(foamUv * 5.7), 0.0, 1.0);
++  var foam = 1.0 - blob;
++  foam = clamp(foam * 1.2, 0.0, 1.0);
++  foam = pow(foam, 4.0);
++  foam = clamp(foam * 1.5, 0.0, 1.0);
++  return foam;
++}
++fn coastalPulseFoam(pos : vec2f, sdf : f32, t : f32) -> vec2f {
++  // sdf is adapted to Fable as local water depth / shore-distance proxy.
++  var pulse = fract(sdf * 0.72 + t * 0.20 + fbm(pos * 0.035) * 0.055);
++  let frontPow = pow(pulse, 64.0);
++  let frontStep = clamp((pulse - 0.95) * 20.0, 0.0, 1.0);
++  let waveFront = max(frontPow, frontStep);
++  let waveBack = pow(1.0 - pulse, 8.0);
++  let waveHeight = max(waveFront, waveBack);
++  let fade = 1.0 - smoothstep(0.60, 0.82, sdf);
++  let foamBlob = foamProcessBlob(pos, t);
++  let waveFoam = max(0.0, waveHeight * 1.5 - 1.0 + foamBlob) * fade;
++  return vec2f(waveFoam, waveHeight * fade);
++}
+ fn fftCascadeShape(p : vec2f, t : f32, windDir : vec2f) -> vec4f {
+   // Lightweight render-side visual companion for the CPU Phillips-cascade bank.
+   // x=height hint, yz=normal slope hint, w=jacobian-like foam/compression hint.
+@@ -1350,6 +1379,7 @@
+   let mFalls = fxOn(7.0, fxMode);
+   let mFFT = fxOn(8.0, fxMode);
+   let mWetRock = fxOn(9.0, fxMode);
++  let mFoamProcess = fxOn(10.0, fxMode);
+   let dragSlope = draggedOctaveSlope(v.wp.xz * 0.12, t, wd);
+   dN += dragSlope * mDrag * fxI * 0.85;
+   let seaA = seascapeChop(v.wp.xz * 0.21, t);
+@@ -1363,6 +1393,10 @@
+   let fftVis = max(mFFT * fxI, R.fx2.z * 0.65);
+   let fftC = fftCascadeShape(v.wp.xz, t, wd);
+   dN += fftC.yz * fftVis * 1.55;
++  let foamPulse = coastalPulseFoam(v.wp.xz, depth, t);
++  let foamPulseX = coastalPulseFoam(v.wp.xz + vec2f(0.18, 0.0), depth, t);
++  let foamPulseZ = coastalPulseFoam(v.wp.xz + vec2f(0.0, 0.18), depth, t);
++  dN += vec2f(foamPulseX.x - foamPulse.x, foamPulseZ.x - foamPulse.x) * mFoamProcess * fxI * 0.72;
+   var N = normalize(v.n + vec3f(dN.x, 0.0, dN.y));
+   let foamBody = clamp(v.data.x * max(R.fx.x, 0.0), 0.0, 1.2);
+   let whitecap = clamp(v.data.y * 0.6 * max(R.fx.y, 0.0) * whitecapMask, 0.0, 1.2);
+@@ -1371,7 +1405,8 @@
+     + mSea * fxI * smoothstep(0.52, 1.8, seaA) * 0.46
+     + mDrag * fxI * smoothstep(0.10, 0.42, length(dragSlope)) * 0.32
+     + mRiver * fxI * riverMF.y * 0.72
+-    + fftVis * fftC.w * max(R.fx2.w, 0.0) * 0.42, 0.0, 1.0);
++    + fftVis * fftC.w * max(R.fx2.w, 0.0) * 0.42
++    + mFoamProcess * fxI * (foamPulse.x * 0.82 + foamPulse.y * 0.22), 0.0, 1.0);
+   let impactRing = smoothstep(2.8, 0.10, abs(length(v.wp.xz - R.mouse.xy) - 1.35)) * smoothstep(4.0, 0.2, length(v.wp.xz - R.mouse.xy));
+   foam = clamp(foam + mSpout * fxI * impactRing * 0.65 + mFalls * fxI * impactRing * 0.35, 0.0, 1.0);
+   N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), foam * 0.45 + mLake * fxI * 0.36));
+@@ -1431,6 +1466,7 @@
+   col = mix(col, col * vec3f(0.82, 1.02, 0.82) + vec3f(0.035, 0.060, 0.025) * riverMF.x, mRiver * fxI * 0.38);
+   col += vec3f(0.12, 0.55, 0.72) * impactRing * (mSpout * 0.35 + mFalls * 0.18) * fxI;
+   col = mix(col, col * vec3f(0.72, 0.86, 1.06) + vec3f(0.018, 0.042, 0.085) + refl * 0.06, clamp(fftVis * 0.42, 0.0, 0.72));
++  col = mix(col, col + vec3f(0.10, 0.14, 0.18) * foamPulse.y + vec3f(0.78, 0.86, 0.92) * foamPulse.x * 0.38, clamp(mFoamProcess * fxI, 0.0, 1.0));
+ 
+   // sun glints — tight + broad lobes on detail normal
+   let H = normalize(V + R.sun.xyz);
+@@ -4142,8 +4178,9 @@
+       ['fft_ocean.zip','FFT ocean app','Phillips spectrum, butterfly FFT, buoyancy, tile/plate/projected-grid/quad-tree renderers'],
+       ['EXAMPLES_EXTREME_AUDIT.md','ProFlow ocean inventory','shared engine pattern: FFT/spectrum → heightfield → foam/crest → particles'],
+       ['Pasted text(80).txt','wet rock / runoff reference','SDF rock forms, triplanar texture/bump, wet rock darkening/specular, foam contact and Beer-law underwater refraction'],
++      ['foam coastal pulse snippet','shoreline foam process','perturbed foam UVs, blob/noise inversion, power sharpening, SDF coastal pulse and shore fadeoff'],
+     ];
+-    const effectModes = { 'clear-close':1, 'drag-octaves':2, 'seascape':3, 'lake-view':4, 'river-flow':5, 'spout':6, 'waterfall-drops':7, 'fft':8, 'wet-rock':9 };
++    const effectModes = { 'clear-close':1, 'drag-octaves':2, 'seascape':3, 'lake-view':4, 'river-flow':5, 'spout':6, 'waterfall-drops':7, 'fft':8, 'wet-rock':9, 'coastal-foam-process':10 };
+     const effects = [
+       { id:'clear-close', title:'Clear Close Water', source:'realisticoceancloseupclearwater', status:'active shader mode + tuning route', tags:['caustics','capillaries','transmission'], desc:'Pushes shallow transparency, underwater caustics, clean low foam, sharp sun flecks, and visible sand ripples.', patch:{world:'shore',wind:4.2,swell:0.34,chop:0.46,spawn:0.28,splashOn:0,foamOn:1,foamAmt:0.16,foamStrength:0.18,whitecaps:0.06,foamTurb:0.24,foamWind:0.18,caustics:2.35,rippleGain:1.65,capillaryGain:1.9,rippleScale:0.72,sandRippleAmp:0.075,sandRippleLen:0.48,sunElev:39,sunAz:158,sunInt:1.8,mie:0.38,atmo:0.78,beachWidth:1.9,landReach:0.62,waterLevel:-0.04,wetDecay:0.42,strandDecay:0.05}, camera:'close' },
+       { id:'drag-octaves', title:'Great Ocean Wave Drag', source:'greatoceanwaves', status:'active shader mode + tuning route', tags:['octaves','derivative-drag','rolling swell'], desc:'Mimics the reference dragged-octave feel by increasing chop, ripple normals, solver advection, and broad swell pull.', patch:{world:'deep',wind:12.5,swell:1.18,chop:0.96,spawn:0.78,splashOn:0,foamOn:1,foamAmt:0.42,whitecaps:0.48,foamStrength:0.38,foamTurb:0.75,foamAdvect:1.35,rippleGain:1.2,capillaryGain:0.75,rippleScale:1.45,advectGain:1.36,gravityScale:1.08,frictionBase:0.0011,frictionScale:0.008,bgVisc:0.045,oceanSpan:1.75,oceanWidth:2.2,oceanLength:2.8,beachWidth:4.2,landReach:0.45,sunElev:24,mie:1.0,atmo:1.25}, camera:'wide' },
+@@ -4151,6 +4188,7 @@
+       { id:'waterfall-drops', title:'Waterfall Spray / Lens Drops', source:'WaterFalls', status:'active shader mode: screen droplets + splash route', tags:['droplets','spray','lens'], desc:'Uses the existing MLS-MPM splash and break-lens path to expose waterfall-style refraction droplets, misty atmosphere, and bright sun shafts.', patch:{world:'shore',wind:9,swell:1.25,chop:0.88,spawn:1.75,splashOn:1,foamOn:1,splashEnergy:1.95,dropletScale:1.55,bft:1.25,foamAmt:1.2,foamStrength:1.35,whitecaps:1.1,foamTurb:1.7,foamWind:1.2,runup:1.5,wetDry:1.3,breaker:0.58,foldStrength:1.55,throwMag:1.7,lipScale:1.35,normalTilt:2.1,caustics:1.05,mie:2.65,atmo:2.35,sunElev:14,sunAz:235,sunInt:1.9,lens:1,beachWidth:0.72,landReach:2.1,collisionGain:1.3,backwashGain:0.8}, camera:'break' },
+       { id:'lake-view', title:'Lake View / Calm Reflection', source:'Lake_View', status:'active shader mode + tuning route', tags:['calm','reflection','cloud haze'], desc:'Flattened lake-scale state with slow ripples, low foam, stronger atmospheric read, and broad terrain framing.', patch:{world:'lake',wind:2.1,swell:0.16,chop:0.28,spawn:0.08,splashOn:0,foamOn:1,foamAmt:0.06,foamStrength:0.05,whitecaps:0.0,foamTurb:0.08,foamWind:0.05,runup:0.18,breaker:1.32,rippleGain:0.72,capillaryGain:0.48,rippleScale:2.3,caustics:1.0,sunElev:31,sunAz:145,sunInt:1.25,mie:1.65,atmo:1.85,oceanSpan:1.0,oceanWidth:3.0,oceanLength:3.0,beachWidth:7.5,landReach:0.35,rockDensity:0.25}, camera:'wide' },
+       { id:'wet-rock', title:'Wet Rock / Runoff Formations', source:'Pasted text(80)', status:'active terrain shader mode + connected rock/current route', tags:['rock','wetness','runoff','triplanar'], desc:'Learns the uploaded SDF rock/water reference: richer procedural rock formations, wet darkening/specular on contact bands, runoff streaks, foam where water kisses stone, and underwater rock colour through refraction.', patch:{world:'shore',wind:6.8,swell:0.72,chop:0.72,spawn:0.78,splashOn:1,foamOn:1,foamAmt:0.72,foamStrength:0.76,foamTurb:1.25,foamAdvect:1.48,foamWind:0.28,runup:1.45,wetDry:1.75,breaker:0.86,rockDensity:1.35,rockSeed:23,beachWidth:1.15,landReach:2.15,shoreOffset:-0.7,inletWidth:0.9,inletDepth:0.75,inletPos:0.22,sandRippleAmp:0.035,sandRippleLen:0.55,caustics:1.55,rippleGain:1.25,capillaryGain:1.25,rippleScale:0.78,wetDecay:0.38,strandDecay:0.025,depositSeed:1.05,foamAdvectDist:1.65,effectMode:9,effectIntensity:1.0}, camera:'break' },
++      { id:'coastal-foam-process', title:'Coastal Foam Pulse Process', source:'foam coastal pulse snippet', status:'active water shader mode + connected foam route', tags:['foam','shore-sdf','pulse','blob-pattern'], desc:'Learns the supplied foam snippet: perturb foam coordinates, invert/amplify blob noise, sharpen with power curves, then combine with a shore-distance pulse wave that fades away from the coastline.', patch:{world:'shore',wind:7.6,swell:0.9,chop:0.88,splashOn:0,foamOn:1,foamAmt:1.05,foamStrength:1.25,foamTurb:1.55,foamAdvect:1.35,foamPersist:0.72,whitecaps:0.58,foamWind:0.36,runup:1.35,wetDry:1.55,breaker:0.78,beachWidth:1.05,landReach:1.55,shoreOffset:-0.55,depositSeed:1.1,strandDecay:0.018,wetDecay:0.42,foamAdvectDist:1.35,rippleGain:1.05,capillaryGain:1.0,rippleScale:0.92,caustics:1.25,effectMode:10,effectIntensity:1.0}, camera:'break' },
+       { id:'spout', title:'Pouring Spout / Jet Impact', source:'pouringwaterspout', status:'active shader mode: impact ring + splash route; SDF jet pending', tags:['jet','SDF','impact'], desc:'Current route shows the impact footprint: concentrated splash source, heavy local droplets, stronger BFT feedback, and lens refraction.', patch:{world:'shore',wind:6,swell:0.28,chop:0.58,spawn:2.0,splashOn:1,foamOn:1,splashEnergy:2.25,dropletScale:1.85,bft:1.85,foamAmt:1.1,foamStrength:1.2,whitecaps:0.35,foamTurb:2.1,foamAdvect:0.7,runup:0.55,wetDry:1.9,breaker:0.95,rippleGain:1.9,capillaryGain:2.0,rippleScale:0.62,caustics:1.55,lens:1,mie:1.45,atmo:1.25,beachWidth:1.2,landReach:1.1,collisionGain:1.6,backwashGain:1.0}, camera:'close' },
+       { id:'river-flow', title:'River Flow / Meander Foam', source:'riverflow', status:'active shader mode + terrain/foam route', tags:['flow','meander','banks'], desc:'A long-channel look using inlet depth/width, advected foam, wet deposits, and high terrain friction for bank interaction.', patch:{world:'shore',wind:5.5,swell:0.38,chop:0.52,spawn:0.72,splashOn:1,foamOn:1,foamAmt:0.76,foamStrength:0.85,whitecaps:0.22,foamTurb:1.25,foamAdvect:2.25,foamWind:0.18,runup:1.05,wetDry:1.75,breaker:1.05,inletWidth:2.9,inletDepth:2.65,inletPos:-0.18,beachWidth:2.8,landReach:1.35,oceanWidth:1.05,oceanLength:4.2,shoreOffset:-1.2,frictionBase:0.0045,frictionScale:0.021,advectGain:1.55,depositSeed:0.9,foamAdvectDist:1.7,strandDecay:0.028,wetDecay:0.55}, camera:'top' },
+       { id:'fft', title:'FFT Ocean / ProFlow', source:'fft_ocean.zip + audit', status:'active WebGPU butterfly FFT backend + Phillips cascade companion', tags:['H0','H(k,t)','IFFT','layer mixer'], desc:'Activates a true grid FFT layer generated from a Phillips H0 spectrum through WebGPU butterfly passes, then adds it under Fable’s shallow solver, breaker, foam, and MLS-MPM stack. The earlier cascade bank remains available as a cheap companion/fallback.', patch:{world:'deep',wind:16,swell:1.45,chop:0.82,spawn:0.42,splashOn:0,foamOn:1,foamAmt:0.34,whitecaps:0.50,foamStrength:0.32,rippleGain:0.62,capillaryGain:0.36,rippleScale:2.7,gravityScale:1.0,relaxRate:42,bgVisc:0.035,fftBlend:0.18,fftLong:1.28,fftMid:0.92,fftShort:0.58,fftAlignment:3.2,fftDisplacement:1.18,fftFoamSeed:1.35,fftSeed:0,fftGridBlend:1.0,fftGridGain:1.0,fftGridChop:1.0,fftUpdateHz:10,fftGridWindScale:1.0,fftGridJacobianFoam:1.0,oceanSpan:3.4,oceanWidth:5.2,oceanLength:5.8,beachWidth:9.5,landReach:0.28,sunElev:27,sunAz:215,mie:1.15,atmo:1.2}, camera:'wide' }
+@@ -4298,7 +4336,7 @@
+       proofScenario:'baseline-connected',
+       readbackPolicy:'metadata-now; GPU readback/playback capture later'
+     };
+-    const wpProofScenarios = [
++    const wpDiagnosticProofScenarios = [
+       { id:'baseline-connected', title:'Connected baseline', expect:'all current Fable systems remain active unless explicitly focused.' },
+       { id:'base-only', title:'Base source only', expect:'spectral/FFT source isolated as much as existing controls allow.' },
+       { id:'heightfield-core', title:'Fable heightfield core', expect:'curved shoreline, depth response, runup/backwash and terrain coupling visible.' },
+@@ -4316,7 +4354,7 @@
+         abi:wpWaveFieldABI.map(x=>({...x})),
+         layerRegistry:wpLayerRegistry.map(x=>({...x})),
+         diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]},
+-        proofScenarios:wpProofScenarios.map(x=>({...x}))
++        proofScenarios:wpDiagnosticProofScenarios.map(x=>({...x}))
+       };
+     }
+     function wpSetDiagFocus(channel, layer) {
+@@ -4355,7 +4393,7 @@
+       const st = $('wpDiagStatus');
+       if (st) st.innerHTML = '<strong>Diagnostic focus:</strong> channel <em>'+wpDiagnosticState.focusChannel+'</em> · layer <em>'+wpDiagnosticState.focusLayer+'</em> · solo <em>'+(wpDiagnosticState.soloLayer || 'none')+'</em> · muted <em>'+(wpDiagnosticState.mutedLayers.join(', ') || 'none')+'</em>.';
+       const presets = $('wpProofScenarioButtons');
+-      if (presets) presets.innerHTML = wpProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
++      if (presets) presets.innerHTML = wpDiagnosticProofScenarios.map(p => '<button data-wp-proof="'+p.id+'" class="'+(wpDiagnosticState.proofScenario===p.id?'on':'')+'">'+p.title+'</button>').join('');
+       const layers = $('wpLayerDiagRows');
+       if (layers) layers.innerHTML = wpLayerRegistry.map(layer => {
+         const muted = wpDiagnosticState.mutedLayers.includes(layer.id);
+@@ -5134,7 +5172,7 @@
+         channelRegistry: wpChannelRegistry.map(([id,source,meaning]) => ({id, source, meaning})),
+         waveFieldABI: wpWaveFieldABI.map(x => ({...x})),
+         diagnosticState: {...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]},
+-        proofScenarios: wpProofScenarios.map(x => ({...x})),
++        proofScenarios: wpDiagnosticProofScenarios.map(x => ({...x})),
+         surfaceFilm:wpSurfaceFilmPacket(),
+         splashConversion:wpSplashConversionPacket(),
+         bubbleProxy:wpBubbleProxyPacket(),
+@@ -6073,7 +6111,80 @@
+     }
+ 
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderReplay(); wpRenderWetRock(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++
++
++    const wpFoamProcessModule = {
++      schema:'waterpro.fable.coastal_foam_process_module.v1.6_phase16',
++      id:'WATERPRO_COASTAL_FOAM_PULSE_PATTERN_ADAPTER',
++      bucket:'new-integration',
++      status:'connected water shader branch + foam/wetness/surface-film route',
++      source:'user supplied foam snippet: get_foam_for_position / get_water_surface',
++      doctrine:'Learn the foam-generation process without detaching from Fable: perturb foam coordinates, sample/invert a blob/noise field, amplify and power-sharpen it, then combine it with a shore-distance pulse wave that fades inland/offshore. This should drive Fable foam, wetness, breaker and future surface-film advection rather than becoming a flat overlay texture.',
++      learnedPatterns:[
++        'Foam UVs are scaled from world/shore position and then perturbed by orthogonal sine/cosine motion before texture/noise lookup.',
++        'Blob/noise values are inverted, amplified, exponentiated and clamped to create crisp foam islands instead of soft generic noise.',
++        'Coastal wave pulse is driven by signed-distance-to-shore plus time, using a very sharp wave-front power and slower wave-back falloff.',
++        'Foam contribution is coupled to wave height: wave=max(0, waveHeight*1.5 - 1 + foamPattern), then multiplied by shore fadeoff.',
++        'In Fable this maps to depth/shore-distance, breaker/fold masks, foamSeed, foamAmount, wetness memory and surface-film transport.'
++      ],
++      connectedFableInputs:['foamAmt','foamStrength','foamTurb','foamAdvect','foamPersist','whitecaps','runup','wetDry','breaker','depositSeed','strandDecay','wetDecay','effectMode=10','RS_WATER foam branch','surface film adapter'],
++      currentOutputs:['shorePulseFoam','proceduralFoamBlobPattern','foamWaveCoupling','shoreFoamFadeoff','foamPatternSharpness'],
++      futureBuffers:['foamPatternBuf','shoreSdfBuf','foamPulseBuf','foamAgeBuf','filmFoamVelocityBuf','foamContactBuf'],
++      nonGoals:['Do not replace Fable foam/wetness history with a screen-space overlay.','Do not use one global foam texture for all water contexts.','Do not decouple foam patterning from shore distance, breaker state and surface-film advection.']
++    };
++    const wpFoamProcessScenarios = [
++      {id:'shore-pulse-foam', title:'Shore pulse foam', scenario:'effectMode 10 active near shore with medium runup and foam persistence.', success:'Foam appears in pulsing shoreline bands with broken blob structure and fades naturally away from the coast.'},
++      {id:'blob-foam-pattern', title:'Blob foam pattern', scenario:'High pattern sharpness / lower turbulence state to isolate the inverted blob/noise foam structure.', success:'Foam reads as connected cellular islands instead of cloudy Voronoi/domain-warp noise.'},
++      {id:'breaker-foam-pulse', title:'Breaker foam pulse', scenario:'Breaker threshold and fold strength increased so pulse foam combines with existing Fable breaker masks.', success:'Pulse-front foam rides on breaker/shore dynamics without overriding current heightfield behavior.'},
++      {id:'film-advected-foam', title:'Film-advected foam', scenario:'Surface-film route emphasized so foam pattern is treated as material to transport and strand.', success:'Foam pattern supports surface-film streaks, wetness deposits and shoreline residue.'},
++      {id:'disable-foam-process', title:'Disable foam process', scenario:'Return to standard Fable foam/material path.', success:'effectMode resets and protected Fable foam/wetness core remains unchanged.'}
++    ];
++    wpLayerRegistry.push({ id:'foam.coastal-pulse-process', name:'Coastal foam pulse / blob-pattern adapter', bucket:'new-integration', pass:'RS_WATER effectMode 10 + existing foam/wetness/surface-film controls', outputs:['shorePulseFoam','proceduralFoamBlobPattern','foamWaveCoupling','shoreFoamFadeoff','foamPatternSharpness'], controls:['effectMode','foamAmt','foamStrength','foamTurb','foamAdvect','foamPersist','runup','wetDry','breaker','depositSeed','strandDecay','wetDecay'] });
++    wpChannelRegistry.push(['shorePulseFoam','RS_WATER coastalPulseFoam(depth/shore-distance,time)','Pulse-front foam band learned from sdf + time wave pulse, adapted to Fable depth/shore distance.']);
++    wpChannelRegistry.push(['proceduralFoamBlobPattern','RS_WATER foamProcessBlob(world position,time)','Perturbed foam UVs with inverted/amplified/power-sharpened blob/noise pattern.']);
++    wpChannelRegistry.push(['foamWaveCoupling','foam pulse + Fable foamSeed/whitecap/breaker masks','Foam should be coupled to wave height/breaker activity, not drawn as an independent decal.']);
++    wpChannelRegistry.push(['shoreFoamFadeoff','depth/shore fade gate → future shoreSdfBuf','Controls where coastal pulse foam may exist relative to shoreline and shallow-water zone.']);
++    wpPhasePlan.push({ phase:'16', title:'Coastal foam process / shore pulse pattern reference', status:'active connected water shader branch in this build', deliverables:['Foam Process page','effectMode 10 RS_WATER branch','shore pulse foam scenarios','module packet','learned-reference registry'], risk:'This is a connected shader/contract phase. Full foam pattern buffers, shore-SDF maps and surface-film advection buffers remain future work.' });
++    wpClassification.push({ id:'foam.coastal-pulse-process', bucket:'new-integration', name:'Coastal foam process adapter', evidence:'Phase 16 learns the supplied foam snippet and maps perturbed foam UVs, blob inversion/power sharpening, SDF pulse fronts and shoreline fadeoff onto existing Fable foam/wetness/surface-film systems.', protect:'Do not replace existing foamSeed, foam persistence, wetness memory, breaker masks or surface-film adapter. This module must remain composable and routeable.' });
++    wpExperimentQueue.push({ id:'exp.foam-sdf-pattern-buffer', title:'Foam SDF/pulse pattern buffer', input:'shoreSdf + breaker mask + foam texture/noise + film velocity', output:'persistent foamPatternBuf / foamPulseBuf that can advect, age, dissolve and strand', success:'foam no longer looks like a static/noisy surface overlay; it behaves like transported whitewater material.', target:'future foamPatternBuf + shoreSdfBuf + filmFoamVelocityBuf' });
++    function wpFoamProcessPacket() {
++      return {
++        schema:'waterpro.fable.coastal_foam_process_packet.v1.6_phase16',
++        generatedAt:new Date().toISOString(),
++        module:wpFoamProcessModule,
++        scenarios:wpFoamProcessScenarios,
++        activeState:wpPick(['world','effectMode','effectIntensity','foamAmt','foamStrength','foamTurb','foamAdvect','foamPersist','whitecaps','runup','wetDry','breaker','foldStrength','barrelHold','depositSeed','strandDecay','wetDecay','foamAdvectDist','rippleGain','capillaryGain','caustics']),
++        existingFableHooks:['RS_WATER foam branch','foamSeed / whitecap masks','Fable breaker/fold masks','surface film adapter','wetness/deposit memory','shore depth from surfTex'],
++        futureImplementation:['foamPatternBuf','shoreSdfBuf','foamPulseBuf','foamAgeBuf','filmFoamVelocityBuf','foamTextureAtlas','shoreline pulse compiler']
++      };
++    }
++    function wpApplyFoamProcessScenario(kind='shore-pulse-foam') {
++      if (kind === 'disable-foam-process') {
++        wpSetState({effectMode:0,effectIntensity:1.0,foamStrength:0.45,foamAmt:0.60});
++      } else if (kind === 'blob-foam-pattern') {
++        wpSetState({world:'shore',effectMode:10,effectIntensity:1.0,foamOn:1,splashOn:0,wind:4.8,swell:0.58,chop:0.55,foamAmt:0.92,foamStrength:1.55,foamTurb:0.55,foamAdvect:0.78,foamPersist:0.66,whitecaps:0.18,runup:0.92,wetDry:1.1,breaker:0.98,beachWidth:1.35,landReach:1.15,shoreOffset:-0.35,depositSeed:0.7,strandDecay:0.035,wetDecay:0.55,rippleGain:0.75,capillaryGain:0.7});
++      } else if (kind === 'breaker-foam-pulse') {
++        wpSetState({world:'shore',effectMode:10,effectIntensity:1.0,foamOn:1,splashOn:1,wind:10.5,swell:1.25,chop:1.0,foamAmt:1.25,foamStrength:1.35,foamTurb:1.35,foamAdvect:1.15,foamPersist:0.78,whitecaps:1.0,runup:1.25,wetDry:1.45,breaker:0.62,foldStrength:1.55,barrelHold:0.6,beachWidth:0.92,landReach:1.85,shoreOffset:-0.85,spawn:0.75,splashEnergy:1.15,depositSeed:1.0,strandDecay:0.018});
++      } else if (kind === 'film-advected-foam') {
++        wpSetState({world:'shore',effectMode:10,effectIntensity:1.0,foamOn:1,splashOn:1,wind:7.2,swell:0.82,chop:0.78,foamAmt:1.08,foamStrength:1.15,foamTurb:1.9,foamAdvect:2.45,foamPersist:0.82,foamWind:0.95,runup:1.45,wetDry:1.9,breaker:0.82,depositSeed:1.25,strandDecay:0.014,wetDecay:0.32,foamAdvectDist:2.2,capillaryGain:1.25,rippleGain:1.15});
++      } else {
++        wpSetState({world:'shore',effectMode:10,effectIntensity:1.0,foamOn:1,splashOn:0,wind:7.6,swell:0.9,chop:0.88,foamAmt:1.05,foamStrength:1.25,foamTurb:1.55,foamAdvect:1.35,foamPersist:0.72,whitecaps:0.58,foamWind:0.36,runup:1.35,wetDry:1.55,breaker:0.78,beachWidth:1.05,landReach:1.55,shoreOffset:-0.55,depositSeed:1.1,strandDecay:0.018,wetDecay:0.42,foamAdvectDist:1.35,rippleGain:1.05,capillaryGain:1.0,rippleScale:0.92,caustics:1.25});
++      }
++      resetWater();
++      wpRenderAll();
++      return wpFoamProcessPacket();
++    }
++    function wpRenderFoamProcess() {
++      const status = $('wpFoamProcessStatus');
++      if (status) status.innerHTML = '<strong>'+wpFoamProcessModule.id+'</strong><br>effectMode '+(state.effectMode||0)+' · foam '+(state.foamAmt||0)+' / '+(state.foamStrength||0)+' · status: '+wpFoamProcessModule.status;
++      const learned = $('wpFoamProcessLearned');
++      if (learned) learned.innerHTML = '<div class="wpProof"><h3>Learned foam process</h3><p>'+wpFoamProcessModule.doctrine+'</p><div class="wpPillRow">'+wpFoamProcessModule.learnedPatterns.map(x=>'<span>'+x+'</span>').join('')+'</div></div>';
++      const tests = $('wpFoamProcessTests');
++      if (tests) tests.innerHTML = wpFoamProcessScenarios.map(t=>'<div class="wpProof"><h3>'+t.title+'</h3><p><b>Scenario:</b> '+t.scenario+'</p><p><b>Success:</b> '+t.success+'</p><button data-wp-foamprocess-scenario="'+t.id+'">Run scenario</button></div>').join('');
++      const packet = $('wpFoamProcessPacket'); if (packet) packet.textContent = JSON.stringify(wpFoamProcessPacket(), null, 2).slice(0, 20000);
++    }
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderReplay(); wpRenderWetRock(); wpRenderFoamProcess(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -6090,6 +6201,7 @@
+       if (ds.wpProofScenario) { wpApplyProofScenario(ds.wpProofScenario); wpRenderAll(); return; }
+       if (ds.wpReplaySuite) { wpRunReplaySuite(ds.wpReplaySuite); wpRenderAll(); return; }
+       if (ds.wpWetrockScenario) { wpApplyWetRockScenario(ds.wpWetrockScenario); return; }
++      if (ds.wpFoamprocessScenario) { wpApplyFoamProcessScenario(ds.wpFoamprocessScenario); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -6137,6 +6249,9 @@
+       if (action === 'downloadWetRockPacket') wpDownload('waterpro-fable-wet-rock-reference-phase15.json', wpWetRockPacket());
+       if (action === 'downloadWetRockTests') wpDownload('waterpro-fable-wet-rock-tests-phase15.json', {schema:'waterpro.fable.wet_rock_tests.v1.5_phase15', generatedAt:new Date().toISOString(), tests:wpWetRockScenarios, module:wpWetRockReferenceModule});
+       if (action === 'downloadPhase15Packet') wpDownload('waterpro-fable-phase15-packet.json', {schema:'waterpro.fable.phase15_packet.v1.5', generatedAt:new Date().toISOString(), phase14:wpPhase14Packet(), wetRock:wpWetRockPacket(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan});
++      if (action === 'downloadFoamProcessPacket') wpDownload('waterpro-fable-coastal-foam-process-phase16.json', wpFoamProcessPacket());
++      if (action === 'downloadFoamProcessTests') wpDownload('waterpro-fable-coastal-foam-process-tests-phase16.json', {schema:'waterpro.fable.foam_process_tests.v1.6_phase16', generatedAt:new Date().toISOString(), tests:wpFoamProcessScenarios, module:wpFoamProcessModule});
++      if (action === 'downloadPhase16Packet') wpDownload('waterpro-fable-phase16-packet.json', {schema:'waterpro.fable.phase16_packet.v1.6', generatedAt:new Date().toISOString(), phase15:{schema:'waterpro.fable.phase15_packet.v1.5', wetRock:wpWetRockPacket()}, foamProcess:wpFoamProcessPacket(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan});
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -6162,7 +6277,7 @@
+       if (action === 'applyRecipeText') { try { const r = JSON.parse($('wpRecipeText')?.value || '{}'); if (r.currentControls) { for (const grp of Object.values(r.currentControls)) Object.assign(state, grp); syncInputs(state); uploadWorld(); uploadSpectrum(); rebuildWorld(); resetWater(); } if (Array.isArray(r.semanticVolumes)) wpSemantic.volumes = r.semanticVolumes; if (r.activeVolume) wpSemantic.activeVolume = r.activeVolume; wpRenderAll(); } catch(err) { alert('Recipe parse/apply failed: '+err.message); } }
+     });
+     window.WaterPROFableHub = {
+-      version:'1.5-phase15-wet-rock-runoff-reference',
++      version:'1.6-phase16-coastal-foam-process-reference',
+       recipe:wpRecipe,
+       volumes:() => wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+       semanticVolumeManager:wpSemanticVolumePacket,
+@@ -6182,7 +6297,9 @@
+       replayMatrix:wpReplayMatrix,
+       replaySuites:() => wpReplaySuites.map(s => ({...s, scenarios:[...s.scenarios], capture:[...s.capture]})),
+       wetRock:wpWetRockPacket,
++      foamProcess:wpFoamProcessPacket,
+       applyWetRockScenario:wpApplyWetRockScenario,
++      applyFoamProcessScenario:wpApplyFoamProcessScenario,
+       visualProofReceipt:wpInstrumentationReceipt,
+       performanceBudgets:wpBudgetStatus,
+       requestVisualReadback:wpResetVisualReadback,
+@@ -6447,8 +6564,8 @@
+ 
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+-  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 15</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 15 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build learns the new wet-rock/water reference as a connected terrain/material module: procedural rock formations, triplanar-style rock texture/bump logic, waterline wetting, runoff streaks, foam contact, underwater rock refraction cues, and rock/current interaction routing.</div>
++  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 16</b></span><span id="devClose">&#10005;</span></div>
++  <div class="mapHint">Phase 16 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build learns the new foam-process reference as a connected shoreline foam module: perturbed foam coordinates, blob/noise inversion, power sharpening, coastal pulse fronts, shore-distance fadeoff, and foam/wave coupling routed through the existing Fable foam, wetness, surface-film and breaker systems.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -6472,6 +6589,7 @@
+     <button data-page="instrumentation">Proof</button>
+     <button data-page="replay">Replay</button>
+     <button data-page="wetrock">Wet Rock</button>
++    <button data-page="foamprocess">Foam Process</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -6808,6 +6926,28 @@
+     <pre class="wpMono devNote" id="wpWetRockPacket"></pre>
+   </section>
+ 
++
++
++  <section class="devPage" data-page="foamprocess">
++    <div class="wlGrp">PHASE 16 — COASTAL FOAM PROCESS / SHORE PULSE PATTERN</div>
++    <div id="wpFoamProcessStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> this learns the supplied foam snippet as a WaterPRO foam-process module inside the existing Fable app. It routes perturbed foam UVs, blob/noise inversion, power sharpening, coastal pulse fronts, and shore-distance fadeoff through the real Fable foam, wetness, breaker, surface-film and render systems.</div>
++    <div class="wpActionRow">
++      <button data-wp-foamprocess-scenario="shore-pulse-foam">Shore Pulse Foam</button>
++      <button data-wp-foamprocess-scenario="blob-foam-pattern">Blob Foam Pattern</button>
++      <button data-wp-foamprocess-scenario="breaker-foam-pulse">Breaker Foam Pulse</button>
++      <button data-wp-foamprocess-scenario="film-advected-foam">Film-Advected Foam</button>
++      <button data-wp-foamprocess-scenario="disable-foam-process">Disable Foam Process</button>
++      <button data-wp-action="downloadFoamProcessPacket">Download Foam Process Packet</button>
++      <button data-wp-action="downloadFoamProcessTests">Download Foam Process Tests</button>
++      <button data-wp-action="downloadPhase16Packet">Download Phase 16 Packet</button>
++    </div>
++    <div id="wpFoamProcessLearned"></div>
++    <div class="wlGrp">Regression/proof targets</div>
++    <div id="wpFoamProcessTests"></div>
++    <pre class="wpMono devNote" id="wpFoamProcessPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>

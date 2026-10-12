@@ -1,0 +1,39 @@
+name: Causal Water R1 verification
+
+on:
+  push:
+    branches:
+      - feature/causal-water-ledger-r1
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/causal-water-r1.yml'
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Conservation and particle regression tests
+        run: npx vitest run src/ocean/__tests__/causalLedger.test.ts src/ocean/__tests__/mpm.test.ts
+      - name: Compile app
+        run: npm run build
+
+      - name: Save reproducible browser build
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-browser-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3

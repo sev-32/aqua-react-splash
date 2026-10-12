@@ -33,6 +33,7 @@ precision highp float;
 precision highp int;
 uniform sampler2D uP, uV, uM;
 uniform int uW;
+uniform int uMorphology;
 uniform vec3 uOsmC, uOsmU, uOsmV, uOsmD; uniform vec4 uOsmExt; uniform float uOsmSize;
 out float vTau; out float vS;
 void main(){
@@ -41,11 +42,22 @@ void main(){
   vTau = 0.0; vS = 0.0;
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
+  if (uMorphology == 1 && M.z < -1.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return;
+  }
   bool spray = V.w <= 0.0012;
   float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
   float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
-  // Scattering cross-section (m²): drops 1.5V/r_d; aerated water ≈ 300 m⁻¹·V; clear water ~0.
-  float sig = spray ? 1.5*M.x/V.w : 300.0*M.x*aer;
+  if (uMorphology == 1 && M.z >= 0.0) {
+    // A flag from high relative speed does not create a microbubble cloud
+    // while actual bonds still constrain the fluid into a coherent sheet.
+    aer = spray ? 0.08*(1.0 - coh) :
+      0.12*(1.0 - coh)*smoothstep(6.0, 12.0, length(V.xyz));
+  }
+  // Extinction of true unresolved detached mist; coherent water's scattering
+  // is much smaller. Always separate water volume from scattering cross-section.
+  bool mist = spray && (uMorphology == 0 || coh < 0.45);
+  float sig = mist ? 1.5*M.x/max(V.w, 1e-4) : 300.0*M.x*aer;
   float R = 1.6*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
   vec3 q = P.xyz - uOsmC;
   gl_Position = vec4(dot(q, uOsmU)/uOsmExt.x, dot(q, uOsmV)/uOsmExt.x, 0.0, 1.0);
@@ -81,30 +93,68 @@ uniform mat4 uViewProj;
 uniform vec3 uCam;               // camera position relative to the splash origin
 uniform float uViewportH, uProjY;
 uniform float uSizeGain;
+uniform int uMorphology;  // 0 = R1 reference, 1 = connected sheets + optically separate mist
+uniform int uGroup;       // morphology only: -1 all, 0 connected sheet, 1 detached mist
+out vec2 vAxis;           // projected filament tangent for anisotropic splats
+out float vWidth;         // transverse/axial ellipse ratio
+out float vMist;
 out vec4 vData;                  // x: alpha, y: aeration (1 = atomized), z: age01, w: coherence
 out vec3 vRel;
 out vec2 vSplat;                 // world radius (m), water volume (m³)
 void main(){
   ivec2 c = ivec2(gl_VertexID % uW, gl_VertexID / uW);
   vec4 P = texelFetch(uP, c, 0);
+  vAxis = vec2(1.0, 0.0); vWidth = 1.0; vMist = 0.0;
   vSplat = vec2(1.0, 0.0);
   if (P.w <= 0.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vData = vec4(0.0); vRel = vec3(0.0); return; }
   vec4 V = texelFetch(uV, c, 0), M = texelFetch(uM, c, 0);
+  // Graph-connected parcels in V3 are rendered by actual sheet polygons.
+  // They are deliberately NOT splatted again as sphere impostors.
+  if (uMorphology == 1 && M.z < -1.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    vData = vec4(0.0); vRel = vec3(0.0); return;
+  }
   // Atomized water (drops < 1.2 mm) is white water; clear water is the sheet.
-  bool spray = V.w <= 0.0012;
-  float coh = M.z < 0.0 ? 1.0 : smoothstep(0.15, 0.9, M.z);
+  bool ligament = M.z < 0.0;
+  bool spray = !ligament && V.w <= 0.0012;
+  float coh = ligament ? 1.0 : smoothstep(0.15, 0.9, M.z);
+  bool detached = spray && coh < 0.45;
+  if (uMorphology == 1 && uGroup >= 0 && ((uGroup == 1) != detached)) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    vData = vec4(0.0); vRel = vec3(0.0); return;
+  }
+  vMist = (uMorphology == 1 && detached) ? 1.0 : 0.0;
   vec3 rel = P.xyz - uCam;
   vec4 clip = uViewProj*vec4(rel, 1.0);
   // Coherent water (dense) renders at its sheet thickness; water that has broken up into
   // isolated drops (low MPM density) shrinks toward droplet size — the pool's metaball
   // strength followed density the same way.
   float r = uSizeGain*pow(max(M.x, 1e-7), 1.0/3.0)*mix(0.35, 1.05, coh);
+  if (uMorphology == 1 && ligament) {
+    // Ligaments are derived graphical connectors. In that representation
+    // V.xyz stores the segment tangent and M.w its sample spacing.
+    vec2 tc = (uViewProj*vec4(V.xyz, 0.0)).xy;
+    vAxis = dot(tc, tc) > 1e-8 ? normalize(tc) : vec2(1.0, 0.0);
+    r = uSizeGain*max(M.w*0.65, pow(max(M.x, 1e-7), 1.0/3.0)*0.55);
+    vWidth = 0.25;
+  } else if (vMist > 0.5) {
+    // A coarse simulation parcel is not one physical droplet.
+    // Its microdrop population gets a small aggregated scattering footprint.
+    r = uSizeGain*max(V.w*4.0, pow(max(M.x, 1e-8), 1.0/3.0)*0.12);
+  }
   gl_Position = clip;
   gl_PointSize = clamp(r*uViewportH*uProjY/max(clip.w, 0.05), 1.0, 96.0);
   float fadeIn = smoothstep(0.0, 0.06, M.y), fadeOut = smoothstep(0.0, 0.25, P.w);
   // Aeration: atomized parcels (the solver flags them spray once past the Weber break-up
   // speed; droplet radius < 1.2 mm) stay white; a torn-up parcel is partly so.
   float aer = spray ? 1.0 : 0.35*(1.0 - coh)*smoothstep(4.0, 10.0, length(V.xyz));
+  if (uMorphology == 1 && vMist < 0.5) {
+    // Fast motion alone does not make the *connected* sheet opaque foam.
+    aer = spray ? 0.08*(1.0 - coh) :
+      0.12*(1.0 - coh)*smoothstep(6.0, 12.0, length(V.xyz));
+  }
   vData = vec4(fadeIn*fadeOut, aer, clamp(M.y/1.5, 0.0, 1.0), coh);
   vRel = rel;
   vSplat = vec2(max(r, 1e-4), max(M.x, 0.0));
@@ -115,6 +165,9 @@ precision highp float;
 in vec4 vData;
 in vec3 vRel;
 in vec2 vSplat;
+in vec2 vAxis;
+in float vWidth;
+in float vMist;
 out vec4 o;
 uniform vec3 uSunDir, uSunE, uSkyE;
 uniform float uFogDensity;
@@ -122,7 +175,8 @@ uniform vec3 uHaze;
 uniform float uOpacity;
 void main(){
   vec2 d = gl_PointCoord*2.0 - 1.0;
-  float r2 = dot(d, d);
+  float tangent = dot(d, vAxis), transverse = dot(d, vec2(-vAxis.y, vAxis.x))/max(vWidth, 0.1);
+  float r2 = tangent*tangent + transverse*transverse;
   if (r2 > 1.0) discard;
   // Parcel of droplets: dense core, feathered edge; normals of a soft sphere.
   float dens = (1.0 - r2)*(1.0 - r2);
@@ -137,6 +191,9 @@ void main(){
   float fwd = pow(max(dot(-V, uSunDir), 0.0), 6.0);
   vec3 col = 0.9*(uSunE*(ndl + 1.8*fwd) + uSkyE*1.1)/3.14159;
   float a = clamp(dens*vData.x*uOpacity*(0.35 + 0.65*(1.0 - vData.z)), 0.0, 1.0);
+  // Individually unresolved droplets scatter, but do not turn into large
+  // opaque foam balls (coarse parcel volume stays in the physical ledger).
+  if (vMist > 0.5) a *= 0.35;
   float fog = exp(-length(vRel)*uFogDensity);
   col = mix(uHaze, col, fog);
   o = vec4(col*a, a);
@@ -168,12 +225,16 @@ precision highp float;
 in vec4 vData;
 in vec3 vRel;
 in vec2 vSplat;
+in vec2 vAxis;
+in float vWidth;
+in float vMist;
 layout(location=0) out vec4 oDepth;   // x: view distance (min via blending MIN), y: -, z: aeration
 uniform float uThickGain;
 ${OCCLUDE_GLSL}
 void main(){
   vec2 d = gl_PointCoord*2.0 - 1.0;
-  float r2 = dot(d, d);
+  float tangent = dot(d, vAxis), transverse = dot(d, vec2(-vAxis.y, vAxis.x))/max(vWidth, 0.1);
+  float r2 = tangent*tangent + transverse*transverse;
   if (r2 > 1.0) discard;
   float dist = length(vRel);
   if (occluded(dist)) discard;
@@ -187,18 +248,25 @@ precision highp float;
 in vec4 vData;
 in vec3 vRel;
 in vec2 vSplat;
+in vec2 vAxis;
+in float vWidth;
+in float vMist;
 out vec4 o;                            // r: water path (m), g: aeration·path, b: count
 uniform float uThickGain;
 ${OCCLUDE_GLSL}
 void main(){
   vec2 d = gl_PointCoord*2.0 - 1.0;
-  float r2 = dot(d, d);
+  float tangent = dot(d, vAxis), transverse = dot(d, vec2(-vAxis.y, vAxis.x))/max(vWidth, 0.1);
+  float r2 = tangent*tangent + transverse*transverse;
   if (r2 > 1.0) discard;
   if (occluded(length(vRel))) discard;
   // Volume-conserving splat: the profile 1.5·√(1−ρ²)·V/(πr²) integrates to the parcel's
   // volume V over its disc, so overlapping splats sum to the water's path along the view
   // ray — a 4 cm crown wall reads 4 cm face-on and more at grazing incidence.
-  float t = 1.5*sqrt(1.0 - r2)*vSplat.y/(3.14159265*vSplat.x*vSplat.x)*uThickGain*vData.x;
+  // Preserve integral optical path when a filament's splat is squeezed into
+  // a narrower ellipse (π r_axial r_transverse).
+  float t = 1.5*sqrt(1.0 - r2)*vSplat.y/
+    (3.14159265*vSplat.x*vSplat.x*max(vWidth, 0.1))*uThickGain*vData.x;
   // The pool's splash was clear water: sheets, jets and the drops they shed stay glassy.
   // Water is white only where air shear has atomized it (Weber, set in the vertex stage).
   float aer = min(vData.y, 1.0);
@@ -247,7 +315,9 @@ out vec4 o;
 uniform sampler2D uDepth, uThick, uScene, uEnv;
 uniform sampler2D uSeaPos;      // sea G-buffer (camera-relative position, a = valid): soft contact
 uniform int uHasSea;
-uniform mat4 uInvViewProj;
+uniform int uDebugMode; // diagnostic probe only; default 0 never changes production pixels
+uniform mat4 uInvViewProj, uViewProj;
+uniform int uMorphology;
 uniform vec2 uTexel;
 uniform vec3 uSunDir, uSunE, uSkyE, uAbsorb, uScatter, uBackscatter;
 uniform float uEnvLevels, uIor;
@@ -302,6 +372,9 @@ void main(){
   vec3 th = texture(uThick, vUv).rgb;
   float z = fluidDepth(vUv);
   if (z > 5e4 || th.b < 0.02) discard;
+  if (uDebugMode == 1) { o = vec4(1.0, 0.0, 1.0, 1.0); return; }
+  if (uDebugMode == 2) { o = vec4(texture(uScene, vUv).rgb, 1.0); return; }
+  if (uDebugMode == 3) { o = vec4(vec3(clamp(z / 20.0, 0.0, 1.0)), 1.0); return; }
   vec3 P = viewPos(vUv, z);
   float zx1 = fluidDepth(vUv + vec2(uTexel.x, 0.0)), zx0 = fluidDepth(vUv - vec2(uTexel.x, 0.0));
   float zy1 = fluidDepth(vUv + vec2(0.0, uTexel.y)), zy0 = fluidDepth(vUv - vec2(0.0, uTexel.y));
@@ -332,15 +405,29 @@ void main(){
   // What lies behind the sheet (the sea, already shaded) seen through it, refracted: the
   // lateral shift of a ray through a water path L is ~L·(1 − 1/n), projected to the screen.
   vec2 off = N.xy*(1.0 - 1.0/uIor)*min(thick, 1.0)/max(z, 0.5)*0.9;
-  vec3 behind = texture(uScene, vUv + off).rgb;
-  // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
-  vec3 refl = skyOrSea(R, 1.5, texture(uScene, vUv).rgb);
-  vec3 H = normalize(V + uSunDir);
-  float a2 = 0.012;
-  float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
-  refl += sunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 trd = refract(-V, N, 1.0/uIor);
   if (dot(trd, trd) < 1e-6) trd = -N;
+  if (uMorphology == 1) {
+    // Project refracted and unrefracted rays through the SAME measured
+    // water path into the real camera basis. The legacy N.xy was in
+    // world coordinates, so rotating the camera changed refraction falsely.
+    float L = min(thick, 1.5);
+    vec4 refrHit = uViewProj*vec4(P + trd*L, 1.0);
+    vec4 straightHit = uViewProj*vec4(P - V*L, 1.0);
+    if (refrHit.w > 0.1 && straightHit.w > 0.1) {
+      off = clamp(0.5*(refrHit.xy/refrHit.w -
+                       straightHit.xy/straightHit.w), vec2(-0.08), vec2(0.08));
+    }
+  }
+  vec3 behind = texture(uScene, clamp(vUv + off, vec2(0.0), vec2(1.0))).rgb;
+  // A smoothed fluid sheet is a little rough: reflect a slightly blurred sky, or the sea around it.
+  // Coherent water has a smooth sky-reflecting interface, not the heavily
+  // preblurred appearance of an aerated spray cloud.
+  vec3 refl = skyOrSea(R, uMorphology == 1 ? 0.35 : 1.5, texture(uScene, vUv).rgb);
+  vec3 H = normalize(V + uSunDir);
+  float a2 = uMorphology == 1 ? 0.006 : 0.012;
+  float NoH = max(dot(N, H), 0.0), dd = NoH*NoH*(a2 - 1.0) + 1.0;
+  refl += sunE*min(a2/(PI*dd*dd), 60.0)*max(dot(N, uSunDir), 0.0)*0.25;
   vec3 Tc;
   // The thickness buffer is the water path along the view ray (volume-conserving splats).
   vec3 column = sheetColumn(normalize(trd), min(thick, 3.0), sunE, Tc);
@@ -362,5 +449,71 @@ void main(){
     vec4 sp = texture(uSeaPos, vUv);
     if (sp.a > 0.5) alpha *= smoothstep(0.0, 0.35, length(sp.xyz) - z);
   }
+  // The fluid surface can graze/cross the camera near plane; undefined
+  // normal/refraction intermediates must never composite opaque black.
+  // Debug mode 4 maps non-finite material outputs to red, finite to green.
+  bool invalidMaterial = any(isnan(col)) || any(isinf(col)) || isnan(alpha) || isinf(alpha);
+  if (uDebugMode == 4) { o = invalidMaterial ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0); return; }
+  if (invalidMaterial) discard;
   o = vec4(col, alpha);
+}`;
+
+
+/**
+ * V3 topology-based film surface. This is a genuine GPU triangle raster:
+ * the MPM bond graph creates sheet triangles/ribbons in 3D (splashMesh.ts).
+ * A fragment samples optical path from the volume/area carried by its
+ * triangle, not from a repeated opaque sphere impostor.
+ */
+export const SPLASH_MESH_VS = /* glsl */ `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPosition;
+layout(location=1) in float aThickness;
+layout(location=2) in float aAeration;
+uniform mat4 uViewProj;
+uniform vec3 uCam;
+out vec3 vMeshRel;
+out float vMeshThickness;
+out float vMeshAeration;
+void main(){
+  vMeshRel=aPosition-uCam;
+  vMeshThickness=max(aThickness,0.0);
+  vMeshAeration=clamp(aAeration,0.0,1.0);
+  gl_Position=uViewProj*vec4(vMeshRel,1.0);
+}`;
+
+export const SPLASH_MESH_DEPTH_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec3 vMeshRel;
+in float vMeshThickness;
+in float vMeshAeration;
+layout(location=0) out vec4 oDepth;
+${OCCLUDE_GLSL}
+void main(){
+  float dist=length(vMeshRel);
+  if (!isnan(dist) && !isinf(dist) && !occluded(dist)) {
+    oDepth=vec4(max(dist-min(0.5*vMeshThickness,0.08),0.001),0.0,0.0,1.0);
+  } else discard;
+}`;
+
+export const SPLASH_MESH_THICK_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec3 vMeshRel;
+in float vMeshThickness;
+in float vMeshAeration;
+layout(location=0) out vec4 o;
+${OCCLUDE_GLSL}
+void main(){
+  float dist=length(vMeshRel);
+  if (!isnan(dist) && !isinf(dist) && !occluded(dist)) {
+    vec3 dx=dFdx(vMeshRel),dy=dFdy(vMeshRel);
+    vec3 n=cross(dx,dy);
+    float nlen=length(n);
+    float incidence=nlen>1e-9 ? abs(dot(n/nlen, vMeshRel/max(dist,1e-6))) : 1.0;
+    // Thin-film projected optical path. The cap prevents an infinite grazing
+    // path at silhouettes without making the surface opaque white foam.
+    float t=vMeshThickness/max(incidence,0.20);
+    if (isnan(t) || isinf(t)) discard;
+    o=vec4(t,t*vMeshAeration,1.0,1.0);
+  } else discard;
 }`;

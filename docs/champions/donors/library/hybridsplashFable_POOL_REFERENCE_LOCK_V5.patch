@@ -1,0 +1,589 @@
+--- hybridsplashFable_heightfield_material_unified(1).html
++++ hybridsplashFable_POOL_REFERENCE_LOCK_V5.html
+@@ -125,7 +125,7 @@
+       <div class="row"><label>Droplet size</label><input type="range" id="dropletScale" min="0.45" max="2" step="0.01" value="1.0"><span class="val" id="dropletScaleV"></span></div>
+       <div class="row"><label>Feedback</label><input type="range" id="bft" min="0" max="2" step="0.01" value="1.0"><span class="val" id="bftV"></span></div>
+       <div class="btns">
+-        <button id="tSplash">Splash OFF</button>
++        <button id="tSplash" class="on">Splash ON</button>
+         <button id="tFoam" class="on">Foam ON</button>
+       </div>
+     </div>
+@@ -1408,6 +1408,45 @@
+   let n = fbm(p * 2.4) * 0.5 + fbm(p * 9.0) * 0.18;
+   return mix(vec3f(0.72, 0.62, 0.45), vec3f(0.82, 0.73, 0.55), n);
+ }
++
++// POOL REFERENCE OPTICAL LOCK — equation anchors ported from the working
++// WaterPRO pool reference. No Beer fog/body-color substitute is permitted here.
++const IOR_AIR : f32 = 1.0;
++const IOR_WATER : f32 = 1.333;
++const ETA_AIR_TO_WATER : f32 = IOR_AIR / IOR_WATER;
++const ETA_WATER_TO_AIR : f32 = IOR_WATER / IOR_AIR;
++const abovewaterColor : vec3f = vec3f(0.25, 1.0, 1.25);
++const underwaterColor : vec3f = vec3f(0.4, 0.9, 1.0);
++
++fn propoolSafeY(y : f32) -> f32 {
++  // Preserve the sign of the pool equation denominator. V4 used abs(y), which
++  // changes the receiver projection direction and can misalign caustics.
++  if (abs(y) < 0.045) { return select(-0.045, 0.045, y >= 0.0); }
++  return y;
++}
++fn propoolUvFromDomain(xz : vec2f, domain : vec2f) -> vec2f {
++  return clamp(xz / max(domain, vec2f(0.001)) + vec2f(0.5), vec2f(0.001), vec2f(0.999));
++}
++fn propoolCausticReceiverUv(point : vec3f, refractedLight : vec3f, domain : vec2f) -> vec2f {
++  // Pool reference: poolUv(0.75 * (point.xz - point.y * refractedLight.xz / refractedLight.y))
++  let receiver = 0.75 * (point.xz - point.y * refractedLight.xz / propoolSafeY(refractedLight.y));
++  return propoolUvFromDomain(receiver, domain);
++}
++fn propoolFresnelAbove(normal : vec3f, incomingRay : vec3f) -> f32 {
++  // Pool waterAboveFragmentShader equation.
++  return mix(0.25, 1.0, pow(clamp(1.0 - dot(normal, -incomingRay), 0.0, 1.0), 3.0));
++}
++fn propoolFresnelBelow(normal : vec3f, incomingRay : vec3f) -> f32 {
++  // Pool waterBelowFragmentShader equation.
++  return mix(0.5, 1.0, pow(clamp(1.0 - dot(normal, -incomingRay), 0.0, 1.0), 3.0));
++}
++fn propoolNormalizedPointScale(point : vec3f, domain : vec2f, depth : f32) -> f32 {
++  // Pool getWallColor: scale = 0.5; scale /= length(point). Fable must normalize
++  // metres into the pool's [-1,1] receiver coordinates before applying that law.
++  let halfDomain = max(domain * 0.5, vec2f(0.001));
++  let q = vec3f(point.x / halfDomain.x, point.y / max(depth, 0.1), point.z / halfDomain.y);
++  return clamp(0.5 / max(length(q), 0.35), 0.18, 1.45);
++}
+ `;
+ 
+ /* ProPool caustic render target pass — this is the missing architecture from the
+@@ -1418,29 +1457,35 @@
+ @group(0) @binding(0) var<uniform> R : RU;
+ @group(0) @binding(1) var surfTex : texture_2d<f32>;
+ @group(0) @binding(2) var smp : sampler;
++@group(0) @binding(3) var<storage, read> bathy : array<f32>;
+ const NV : f32 = ${NVERT}.0;
+ const WORLD : f32 = ${WORLD};
++const HN2 : i32 = 256;
+ struct VOut {
+   @builtin(position) cp : vec4f,
+   @location(0) oldPos : vec3f,
+   @location(1) newPos : vec3f,
+-  @location(2) ray : vec3f,
+-  @location(3) surfN : vec3f,
+-  @location(4) pathLen : f32,
+ };
+-fn schlick(cosTheta : f32, f0 : f32) -> f32 {
+-  let m = clamp(1.0 - cosTheta, 0.0, 1.0);
+-  let m2 = m * m;
+-  return f0 + (1.0 - f0) * m2 * m2 * m;
+-}
+-fn projectToCausticPlane(origin : vec3f, ray : vec3f) -> vec3f {
+-  // ProPool projects through the water volume to the receiver domain.  Hybrid has
+-  // non-flat bathymetry, so this pass uses a stable shallow receiver plane; the
+-  // terrain/water receiver shaders do the final per-point projected lookup.
+-  let floorY = -2.0;
+-  let denom = min(ray.y, -0.045);
+-  let t = clamp((floorY - origin.y) / denom, 0.0, 80.0);
+-  return origin + ray * t;
++fn bathyAt(ix : i32, iz : i32) -> f32 {
++  return bathy[clamp(iz, 0, HN2 - 1) * HN2 + clamp(ix, 0, HN2 - 1)];
++}
++fn sampleBathyUv(uv : vec2f) -> f32 {
++  let p = uv * f32(HN2) - vec2f(0.5);
++  let p0 = floor(p);
++  let f = fract(p);
++  let x0 = i32(p0.x); let z0 = i32(p0.y);
++  let d00 = bathyAt(x0, z0);
++  let d10 = bathyAt(x0 + 1, z0);
++  let d01 = bathyAt(x0, z0 + 1);
++  let d11 = bathyAt(x0 + 1, z0 + 1);
++  return max(0.04, mix(mix(d00, d10, f.x), mix(d01, d11, f.x), f.y));
++}
++fn propoolProjectToReceiver(origin : vec3f, ray : vec3f, receiverDepth : f32) -> vec3f {
++  // Pool project() receiver-plane equation with poolDepthY replaced by Fable's
++  // actual seabed/bathymetry at the same domain address. This is the necessary
++  // non-pool adaptation: Fable has sloped beach depth, not one flat cube floor.
++  let t = (-origin.y - receiverDepth) / propoolSafeY(ray.y);
++  return origin + ray * clamp(t, 0.0, 80.0);
+ }
+ @vertex
+ fn vs(@builtin(vertex_index) vid : u32) -> VOut {
+@@ -1450,49 +1495,94 @@
+   let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+   let visualScale = max(R.atmo.zw, vec2f(0.1));
+   let domain = vec2f(WORLD * visualScale.x, WORLD * visualScale.y);
++  let halfDomain = max(domain * 0.5, vec2f(0.001));
+   let baseXZ = vec2f((uv.x - 0.5) * domain.x, (uv.y - 0.5) * domain.y);
+-  let basePos = vec3f(baseXZ.x, 0.0, baseXZ.y);
+-  let surfPos = vec3f(baseXZ.x, s.x, baseXZ.y);
+-  var N = normalize(vec3f(s.y, 1.0, s.z));
+-  N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), 0.08));
++  let receiverDepth = sampleBathyUv(uv);
++
++  // Pool causticsVertexShader: info.ba *= 0.5; normal = vec3(info.b, sqrt(...), info.a)
++  let slope = vec2f(s.y, s.z) * 0.5;
++  let normal = normalize(vec3f(slope.x, sqrt(max(0.0, 1.0 - dot(slope, slope))), slope.y));
+   let lightDir = normalize(R.sun.xyz);
+-  let eta = 0.7501;
+-  let flatRay = refract(-lightDir, vec3f(0.0, 1.0, 0.0), eta);
+-  let bentRay = refract(-lightDir, N, eta);
+-  let oldP = projectToCausticPlane(basePos, flatRay);
+-  let newP = projectToCausticPlane(surfPos, bentRay);
++  let refractedLight = refract(-lightDir, vec3f(0.0, 1.0, 0.0), ETA_AIR_TO_WATER);
++  let ray = refract(-lightDir, normal, ETA_AIR_TO_WATER);
++
++  let v = vec3f(baseXZ.x, 0.0, baseXZ.y);
++  let oldPos = propoolProjectToReceiver(v, refractedLight, receiverDepth);
++  let newPos = propoolProjectToReceiver(v + vec3f(0.0, s.x, 0.0), ray, receiverDepth);
++
+   var o : VOut;
+-  o.oldPos = oldP;
+-  o.newPos = newP;
+-  o.ray = bentRay;
+-  o.surfN = N;
+-  o.pathLen = length(newP - surfPos);
+-  // The caustic pass already projects the refracted ray to receiver space.
+-  // Do not add a second light-vector offset here: that double-projection flips
+-  // the perceived wave-pattern drift, making caustics appear to move seaward.
+-  // Hybrid shore direction needs the receiver Z axis flipped so the focused
+-  // pattern propagates shoreward instead of reading as if deep-water is the front.
+-  let clip = vec2f(newP.x / max(0.001, domain.x * 0.5), -newP.z / max(0.001, domain.y * 0.5));
++  o.oldPos = oldPos;
++  o.newPos = newPos;
++  // Pool reference clip equation, with sign-preserved refractedLight.y.
++  let clip = 0.75 * ((newPos.xz + refractedLight.xz / propoolSafeY(refractedLight.y)) / halfDomain);
+   o.cp = vec4f(clip, 0.0, 1.0);
+   return o;
+ }
+ @fragment
+ fn fs(v : VOut) -> @location(0) vec4f {
+-  let oldDx = dpdx(v.oldPos);
+-  let oldDy = dpdy(v.oldPos);
+-  let newDx = dpdx(v.newPos);
+-  let newDy = dpdy(v.newPos);
+-  let oldArea = max(length(cross(oldDx, oldDy)), 1e-5);
+-  let newArea = max(length(cross(newDx, newDy)), 1e-5);
+-  let focus = clamp(oldArea / newArea, 0.0, 50.0);
+-  let L = normalize(R.sun.xyz);
+-  let cosI = clamp(dot(normalize(v.surfN), L), 0.0, 1.0);
+-  let F = schlick(cosI, 0.02);
+-  let trans = (1.0 - F) * exp(-0.15 * max(v.pathLen, 0.0));
+-  let gain = clamp(R.mouse.w, 0.0, 3.0) * max(R.sun.w, 0.0);
+-  let intensity = focus * 0.20 * gain * trans;
+-  // r = focused energy, g = transmission/shadow carrier as in ProPool receiver sampling.
+-  return vec4f(intensity, trans, 0.0, 1.0);
++  let oldArea = max(length(dpdx(v.oldPos)) * length(dpdy(v.oldPos)), 1e-5);
++  let newArea = max(length(dpdx(v.newPos)) * length(dpdy(v.newPos)), 1e-5);
++  return vec4f(oldArea / newArea * 0.2, 1.0, 0.0, 0.0);
++}
++`;
++
++const POOL_REF_MATERIAL = /*wgsl*/`
++fn poolReferenceReceiverColor(point : vec3f, depth : f32, receiverN : vec3f, submerged : f32) -> vec3f {
++  let domain = vec2f(WORLD * max(R.atmo.z, 0.1), WORLD * max(R.atmo.w, 0.1));
++  var color = sandColor(point.xz);
++  var scale = propoolNormalizedPointScale(point, domain, depth);
++  let refractedLight = -refract(-normalize(R.sun.xyz), vec3f(0.0, 1.0, 0.0), ETA_AIR_TO_WATER);
++  let diffuse = max(0.0, dot(refractedLight, normalize(receiverN)));
++  let ca = textureSampleLevel(causticTex, smp, propoolCausticReceiverUv(point, refractedLight, domain), 0.0);
++  scale += diffuse * ca.r * 2.0 * ca.g * clamp(R.mouse.w, 0.0, 3.0) * submerged;
++  return color * scale;
++}
++fn poolReferenceSurfaceRayColor(origin : vec3f, ray : vec3f, depth : f32, waterColor : vec3f) -> vec3f {
++  var color : vec3f;
++  if (ray.y < 0.0) {
++    let floorY = -max(depth, 0.04);
++    let tHit = clamp((floorY - origin.y) / propoolSafeY(ray.y), 0.0, 80.0);
++    color = poolReferenceReceiverColor(origin + ray * tHit, depth, vec3f(0.0, 1.0, 0.0), 1.0);
++  } else {
++    color = skyColor(ray, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
++    color += vec3f(pow(max(0.0, dot(normalize(R.sun.xyz), ray)), 5000.0)) * vec3f(10.0, 8.0, 6.0);
++  }
++  if (ray.y < 0.0) { color *= waterColor; }
++  return color;
++}
++fn poolReferenceFineNormal(wp : vec3f, N0 : vec3f, foam : f32) -> vec3f {
++  let t = R.misc.x;
++  let duv1 = wp.xz * 1.9 + vec2f(t * 0.55, t * 0.31);
++  let duv2 = wp.xz * 5.3 - vec2f(t * 0.42, -t * 0.5);
++  let e = 0.09;
++  let h1 = fbm(duv1); let h1x = fbm(duv1 + vec2f(e, 0.0)); let h1z = fbm(duv1 + vec2f(0.0, e));
++  let h2 = vnoise(duv2); let h2x = vnoise(duv2 + vec2f(e, 0.0)); let h2z = vnoise(duv2 + vec2f(0.0, e));
++  let distF = clamp(1.0 - length(R.eye.xyz - wp) / 46.0, 0.15, 1.0);
++  let dN = vec2f((h1x - h1) + (h2x - h2) * 0.45, (h1z - h1) + (h2z - h2) * 0.45) * (1.35 * distF) / e * 0.055;
++  return normalize(mix(normalize(N0 + vec3f(dN.x, 0.0, dN.y)), vec3f(0.0, 1.0, 0.0), clamp(foam, 0.0, 1.0) * 0.45));
++}
++fn poolReferenceWaterAbove(wp : vec3f, N0 : vec3f, depth : f32, foam : f32) -> vec3f {
++  var N = poolReferenceFineNormal(wp, N0, foam);
++  let incomingRay = normalize(wp - R.eye.xyz);
++  if (dot(N, -incomingRay) < 0.0) { N = -N; }
++
++  // Direct pool waterAboveFragmentShader equation:
++  // reflected/refracted rays, Fresnel mix, abovewaterColor for both ray samples.
++  let reflectedRay = reflect(incomingRay, N);
++  let refractedRay = refract(incomingRay, N, ETA_AIR_TO_WATER);
++  let fresnel = propoolFresnelAbove(N, incomingRay);
++  let reflectedColor = poolReferenceSurfaceRayColor(wp, reflectedRay, depth, abovewaterColor);
++  let refractedColor = poolReferenceSurfaceRayColor(wp, refractedRay, depth, abovewaterColor);
++  var col = mix(refractedColor, reflectedColor, fresnel);
++
++  // Foam is not a second water material. It is a mask over the same water solution.
++  if (foam > 0.003) {
++    let fn1 = fbm(wp.xz * 5.5 + vec2f(R.misc.x * 0.22, -R.misc.x * 0.17));
++    let fm = clamp(foam * 1.22 - fn1 * 0.62, 0.0, 1.0);
++    let fdiff = clamp(dot(N, normalize(R.sun.xyz)), 0.0, 1.0) * 0.85 + 0.35;
++    col = mix(col, vec3f(0.93, 0.97, 1.0) * fdiff * (0.6 + 0.5 * R.sun.w), fm);
++  }
++  return col;
+ }
+ `;
+ 
+@@ -1537,126 +1627,26 @@
+   o.cp = R.viewProj * vec4f(wp, 1.0);
+   return o;
+ }
+-fn heightfieldCaustic(surfWp : vec3f, hit : vec3f, N : vec3f, depth : f32, sunDir : vec3f, sunI : f32, t : f32, gain : f32) -> f32 {
+-  let I = normalize(-sunDir);
+-  let T = refract(I, N, 0.7501);
+-  let toBed = max(0.05, surfWp.y + depth);
+-  let proj = surfWp.xz + T.xz * (toBed / max(0.08, -T.y));
+-  let dPdx = dpdx(surfWp.xz);
+-  let dPdy = dpdy(surfWp.xz);
+-  let dQdx = dpdx(proj);
+-  let dQdy = dpdy(proj);
+-  let oldArea = max(abs(dPdx.x * dPdy.y - dPdx.y * dPdy.x), 1e-4);
+-  let newArea = max(abs(dQdx.x * dQdy.y - dQdx.y * dQdy.x), 1e-4);
+-  let focus = clamp(oldArea / newArea, 0.0, 5.2);
+-  let cosI = clamp(dot(N, -I), 0.0, 1.0);
+-  let F = 0.022 + (1.0 - 0.022) * pow(1.0 - cosI, 5.0);
+-  let transmit = (1.0 - F) * exp(-depth * 0.22) * smoothstep(0.04, 0.42, depth) * sunI;
+-  let fold = pow(clamp(focus / 3.4, 0.0, 1.0), 1.65);
+-  let breakup = 0.72 + 0.28 * fbm(proj * 1.6 + vec2f(t * 0.07, -t * 0.045));
+-  return gain * transmit * breakup * (0.22 * focus + 2.15 * fold);
+-}
++${POOL_REF_MATERIAL}
+ @fragment
+ fn fs(v : VOut) -> @location(0) vec4f {
+   let depth = v.data.z;
+   if (depth < 0.004) { discard; }
+-  let t = R.misc.x;
+-  let V = normalize(R.eye.xyz - v.wp);
+-  // micro-detail normals: two scrolling noise octaves, wind-advected
+-  let duv1 = v.wp.xz * 1.9 + vec2f(t * 0.55, t * 0.31);
+-  let duv2 = v.wp.xz * 5.3 - vec2f(t * 0.42, -t * 0.5);
+-  let e = 0.09;
+-  let h1 = fbm(duv1); let h1x = fbm(duv1 + vec2f(e, 0.0)); let h1z = fbm(duv1 + vec2f(0.0, e));
+-  let h2 = vnoise(duv2); let h2x = vnoise(duv2 + vec2f(e, 0.0)); let h2z = vnoise(duv2 + vec2f(0.0, e));
+-  let distF = clamp(1.0 - length(R.eye.xyz - v.wp) / 46.0, 0.15, 1.0);
+-  let windXZ = normalize(vec2f(0.23337295247532416, 0.9723873019805175));
+-  let slopeGuess = normalize(v.n.xz + vec2f(1e-4, 0.0));
+-  let lee = clamp(0.5 + 0.5 * dot(slopeGuess, windXZ), 0.0, 1.0);
+-  let leeMask = mix(1.0, smoothstep(0.36, 0.84, lee), clamp(R.fx.z, 0.0, 1.0));
+-  let whiteRear = clamp(0.5 - 0.5 * dot(slopeGuess, windXZ), 0.0, 1.0);
+-  let whitecapMask = mix(1.0, smoothstep(0.36, 0.84, whiteRear), clamp(R.fx.z, 0.0, 1.0));
+-  let windMask = mix(1.0, smoothstep(0.24, 0.84, lee), clamp(R.fx.w, 0.0, 1.0));
+-  let dN = vec2f((h1x - h1) + (h2x - h2) * 0.45, (h1z - h1) + (h2z - h2) * 0.45)
+-           * (1.35 * distF) / e * 0.055 * mix(1.0, windMask, 0.65);
+-  var N = normalize(v.n + vec3f(dN.x, 0.0, dN.y));
++
+   let visualScaleF = max(R.atmo.zw, vec2f(0.1));
+   let outerRF = max(abs(v.wp.x) / max(0.001, 0.5 * WORLD * visualScaleF.x), abs(v.wp.z) / max(0.001, 0.5 * WORLD * visualScaleF.y));
+   let outerBlend = smoothstep(0.58, 0.98, outerRF) * clamp(R.lod.x, 0.0, 1.0);
++
++  let windXZ = normalize(vec2f(0.23337295247532416, 0.9723873019805175));
++  let slopeGuess = normalize(v.n.xz + vec2f(1e-4, 0.0));
++  let slopeRear = clamp(0.5 - 0.5 * dot(slopeGuess, windXZ), 0.0, 1.0);
++  let whitecapMask = mix(1.0, smoothstep(0.36, 0.84, slopeRear), clamp(R.fx.z, 0.0, 1.0));
+   let foamBody = clamp(v.data.x * max(R.fx.x, 0.0), 0.0, 1.2) * (1.0 - outerBlend * 0.45);
+   let whitecap = clamp(v.data.y * 0.6 * max(R.fx.y, 0.0) * whitecapMask, 0.0, 1.2) * (1.0 - outerBlend * 0.35);
+   let foam = clamp(foamBody + whitecap, 0.0, 1.0) * R.misc.w;
+-  N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), foam * 0.45 + outerBlend * 0.22));
+-
+-  let F0 = 0.022;
+-  let cosT = clamp(dot(N, V), 0.0, 1.0);
+-  let fres = F0 + (1.0 - F0) * pow(1.0 - cosT, 5.0);
+-
+-  // reflection
+-  var Rd = reflect(-V, N);
+-  Rd.y = abs(Rd.y) * 0.96 + 0.02;
+-  let refl = skyColor(Rd, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
+-
+-  // refraction to procedural seabed
+-  let rd = refract(-V, N, 0.7501);
+-  let floorY = -depth;
+-  let tr = (v.wp.y - floorY) / max(0.06, -rd.y);
+-  let hit = v.wp + rd * min(tr, 9.0);
+-  let wdist = min(tr, 9.0);
+-  var bed = sandColor(hit.xz);
+-  // Submerged shallow bed reads wetter/darker even before it is exposed by a trough.
+-  let bedWet = smoothstep(0.010, 0.24, depth) * smoothstep(1.45, 0.08, depth);
+-  bed *= mix(1.0, 0.44, bedWet * (0.78 + 0.22 * fbm(hit.xz * 5.2)));
+-  bed = mix(bed, vec3f(0.03, 0.09, 0.10), clamp(bedWet * 0.34, 0.0, 0.34));
+-  // ProPool receiver path: sample a caustic render target generated from the
+-  // refracted water mesh, instead of inventing caustics directly in this shader.
+-  // Receiver lookup samples the same receiver-space map written by RS_CAUSTIC.
+-  // The projection already happened in the caustic pass; applying refracted-light
+-  // projection again here produced the backwards/seaward drift.
+-  let caDomain = vec2f(WORLD * max(R.atmo.z, 0.1), WORLD * max(R.atmo.w, 0.1));
+-  let caUv = clamp(vec2f(hit.x / max(caDomain.x, 0.001), -hit.z / max(caDomain.y, 0.001)) + vec2f(0.5), vec2f(0.001), vec2f(0.999));
+-  let caTex = textureSampleLevel(causticTex, smp, caUv, 0.0);
+-  let underwaterView = pow(clamp(1.0 - fres, 0.0, 1.0), 1.35)
+-                     * smoothstep(0.28, 0.88, cosT)
+-                     * (1.0 - smoothstep(0.35, 0.95, foam));
+-  let caBand = smoothstep(0.05, 0.20, depth) * smoothstep(4.8, 0.20, depth);
+-  let ca = caTex.r * caTex.g * underwaterView * caBand * 3.6;
+-  bed *= 0.48 + ca * 1.35;
+-  let absorb = exp(-wdist * vec3f(0.42, 0.16, 0.105));
+-  let bodyCol = vec3f(0.015, 0.11, 0.16) * (0.5 + 0.5 * R.sun.w);
+-  var refr = bed * absorb + bodyCol * (1.0 - absorb);
+-  refr += vec3f(1.0, 0.96, 0.82) * ca * (1.0 - absorb) * 0.12;
+-
+-  // SSS: thin backlit crests glow green-cyan
+-  let Lh = normalize(vec3f(R.sun.x, 0.0, R.sun.z) + vec3f(1e-4));
+-  let sss = pow(clamp(dot(V, -Lh), 0.0, 1.0), 2.5)
+-            * clamp(v.data.w * 2.2 + 0.25, 0.0, 1.0)
+-            * smoothstep(0.35, 1.4, depth);
+-  refr += vec3f(0.04, 0.33, 0.30) * sss * 1.15 * R.sun.w;
+-
+-  var col = mix(refr, refl, fres);
+-
+-  // sun glints — tight + broad lobes on detail normal
+-  let H = normalize(V + R.sun.xyz);
+-  let nh = clamp(dot(N, H), 0.0, 1.0);
+-  let sunTrans = exp(-vec3f(0.62, 0.26, 0.08) * max(1.0 - R.sun.y, 0.0) * R.atmo.y);
+-  col += sunTrans * (pow(nh, 760.0) * 7.0 + pow(nh, 64.0) * 0.18)
+-         * R.sun.w * (0.25 + fres);
+-
+-  // foam: lit diffuse white with noisy breakup
+-  if (foam > 0.003) {
+-    let fn1 = fbm(v.wp.xz * 5.5 + vec2f(t * 0.22, -t * 0.17));
+-    let fm = clamp((foamBody * 1.20 + whitecap * 1.55) - fn1 * 0.62, 0.0, 1.0);
+-    let fdiff = clamp(dot(N, R.sun.xyz), 0.0, 1.0) * 0.85 + 0.35;
+-    col = mix(col, vec3f(0.93, 0.97, 1.0) * fdiff * (0.6 + 0.5 * R.sun.w), fm);
+-  }
+-
+-  // Thin shallow water must not repaint dry bright sand over the optical bed.
+-  // Keep a slight sandy lift only at the actual air/water glancing edge.
+-  let thin = smoothstep(0.18, 0.015, depth) * (1.0 - smoothstep(0.18, 0.65, foam));
+-  let submergedEdge = mix(sandColor(v.wp.xz) * vec3f(0.34, 0.46, 0.42), col, 0.72);
+-  col = mix(col, submergedEdge, thin * 0.35);
+-
+-  // debug lens: χ_break / foam heatmap inside cursor circle
++
++  var col = poolReferenceWaterAbove(v.wp, v.n, depth, foam);
++
+   if (R.misc.z > 0.5) {
+     let dl = length(v.wp.xz - R.mouse.xy);
+     if (dl < R.mouse.z) {
+@@ -1668,8 +1658,8 @@
+     }
+   }
+ 
+-  col = aces(col * R.misc.y);
+-  return vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0);
++  // Pool reference material is returned directly. No ACES/body fog pass here.
++  return vec4f(clamp(col * R.misc.y, vec3f(0.0), vec3f(8.0)), 1.0);
+ }
+ `;
+ 
+@@ -1682,6 +1672,7 @@
+ @group(0) @binding(3) var smp : sampler;
+ @group(0) @binding(4) var<storage, read> wetBuf : array<f32>;
+ @group(0) @binding(5) var causticTex : texture_2d<f32>;
++${POOL_REF_MATERIAL}
+ const NV : u32 = ${NVERT}u;
+ const WORLD : f32 = ${WORLD};
+ const HN2 : i32 = ${HN};
+@@ -1756,42 +1747,27 @@
+ @fragment
+ fn fs(v : VOut) -> @location(0) vec4f {
+   var col = sandColor(v.wp.xz);
+-  let nd = clamp(R.sun.y * 0.8 + 0.45, 0.0, 1.3);
+-  col *= nd * (0.55 + 0.55 * R.sun.w);
+-  let wet = clamp(v.wet, 0.0, 1.0);
+-  col *= mix(1.0, 0.34, wet * (0.66 + 0.34 * fbm(v.wp.xz * 7.0)));
+-  // Direct underwater camera path: terrain seen from below the surface should not
+-  // revert to bright dry sand just because the water mesh is no longer between the
+-  // camera ray and the bed.
+-  let submergedBed = smoothstep(0.004, 0.085, v.waterDepth);
+-  let cameraUnder = 1.0 - smoothstep(-0.035, 0.075, R.eye.y - v.waterSurface);
+-  let wetMaterialUnder = smoothstep(0.10, 0.58, wet);
+-  // Do not require the camera-underwater path for submerged bed darkening.
+-  // Any sand materially below the water surface must read dark/wet from side and under views too.
+-  let underAmt = max(submergedBed * 0.96, cameraUnder * max(submergedBed, wetMaterialUnder * 0.72));
+-  let waterFog = 1.0 - exp(-v.waterDepth * 0.95);
+-  let underTint = vec3f(0.14, 0.31, 0.30) * (0.58 + 0.42 * R.sun.w);
+-  col = mix(col, col * underTint, clamp(underAmt * (0.92 + 0.28 * waterFog), 0.0, 0.96));
+-  col = mix(col, vec3f(0.008, 0.050, 0.060) * (0.78 + 0.22 * R.sun.w), clamp(underAmt * (0.34 + waterFog * 0.54), 0.0, 0.82));
+-  // ProPool receiver caustics: the sand/bed material itself receives focused
+-  // refracted light when it is below the sampled water surface.
+   let terrainNraw = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
+   let terrainN = select(-terrainNraw, terrainNraw, terrainNraw.y >= 0.0);
+-  // Receiver lookup samples the same receiver-space map written by RS_CAUSTIC.
+-  // The projection already happened in the caustic pass; applying refracted-light
+-  // projection again here produced the backwards/seaward drift.
+-  let caDomain = vec2f(WORLD * max(R.atmo.z, 0.1), WORLD * max(R.atmo.w, 0.1));
+-  let caUv = clamp(vec2f(v.wp.x / max(caDomain.x, 0.001), -v.wp.z / max(caDomain.y, 0.001)) + vec2f(0.5), vec2f(0.001), vec2f(0.999));
+-  let caTex = textureSampleLevel(causticTex, smp, caUv, 0.0);
+-  let caDiffuse = max(0.0, dot(normalize(R.sun.xyz), terrainN)) * 0.55 + 0.18;
+-  let caSubmerged = smoothstep(0.008, 0.18, v.waterDepth);
+-  let caReceiver = caTex.r * caTex.g * caDiffuse * caSubmerged * R.mouse.w * 5.5 * exp(-v.waterDepth * 0.16);
+-  col += vec3f(1.0, 0.92, 0.72) * caReceiver;
++  let sunDiffuse = max(0.0, dot(normalize(R.sun.xyz), terrainN)) * 0.62 + 0.38;
++  col *= sunDiffuse * (0.55 + 0.55 * R.sun.w);
++
++  let submerged = smoothstep(0.004, 0.055, v.waterDepth);
++  let wet = clamp(v.wet, 0.0, 1.0) * (1.0 - submerged);
++  col *= mix(1.0, 0.58, wet * (0.66 + 0.34 * fbm(v.wp.xz * 7.0)));
++
++  if (submerged > 0.001) {
++    // Pool cubeFragmentShader behavior: receiver color from getWallColor(), then
++    // below-water multiplier underwaterColor * 1.2. The caustic energy is already
++    // part of poolReferenceReceiverColor(), so there is no second fake caustic path.
++    let receiver = poolReferenceReceiverColor(v.wp, max(v.waterDepth, 0.04), terrainN, submerged);
++    col = mix(col, receiver * underwaterColor * 1.2, submerged);
++  }
++
+   let foamResid = clamp(v.foamResid, 0.0, 1.0);
+   let foamPattern = smoothstep(0.42, 0.78, fbm(v.wp.xz * 8.8) + wet * 0.18) * foamResid;
+   col = mix(col, vec3f(0.96, 0.97, 0.94), foamPattern * 0.82);
+-  col = aces(col * R.misc.y);
+-  return vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0);
++  return vec4f(clamp(col * R.misc.y, vec3f(0.0), vec3f(8.0)), 1.0);
+ }
+ `;
+ 
+@@ -2050,6 +2026,7 @@
+ @group(0) @binding(4) var smp : sampler;
+ @group(0) @binding(5) var causticTex : texture_2d<f32>;
+ @group(0) @binding(6) var<storage, read> bathy : array<f32>;
++${POOL_REF_MATERIAL}
+ const HN2 : i32 = 256;
+ const WORLD : f32 = 42.0;
+ struct VOut { @builtin(position) cp : vec4f, @location(0) ndc : vec2f };
+@@ -2093,104 +2070,14 @@
+   return h.xyz / max(abs(h.w), 1e-6);
+ }
+ fn referenceSplashWaterMaterial(wp : vec3f, N0 : vec3f, foamIn : f32, thick : f32, motion : f32) -> vec3f {
+-  // Material lock: this is the RS_WATER fragment equation adapted to the
+-  // MLS-MPM metaball surface.  It deliberately does not use the older pool-cyan
+-  // tint shader, sceneTex tinting, or a separate overlay color.  Clear splash
+-  // water should grade like the heightfield water at the same world-space x/z.
+-  let t = R.misc.x;
+   let uv = worldUv(wp.xz);
+   let s = textureSampleLevel(surfTex, smp, uv, 0.0);
+   let bedDepth = sampleBathyUv(uv);
+   let depth = clamp(max(s.x + bedDepth, 0.045 + thick * 8.0), 0.004, 10.0);
+-
+-  let V = normalize(R.eye.xyz - wp);
+-  var N = normalize(N0);
+-  if (dot(N, V) < 0.0) { N = -N; }
+-
+-  // Same micro-detail normals as RS_WATER.
+-  let duv1 = wp.xz * 1.9 + vec2f(t * 0.55, t * 0.31);
+-  let duv2 = wp.xz * 5.3 - vec2f(t * 0.42, -t * 0.5);
+-  let e = 0.09;
+-  let h1 = fbm(duv1); let h1x = fbm(duv1 + vec2f(e, 0.0)); let h1z = fbm(duv1 + vec2f(0.0, e));
+-  let h2 = vnoise(duv2); let h2x = vnoise(duv2 + vec2f(e, 0.0)); let h2z = vnoise(duv2 + vec2f(0.0, e));
+-  let distF = clamp(1.0 - length(R.eye.xyz - wp) / 46.0, 0.15, 1.0);
+-  let windXZ = normalize(vec2f(0.23337295247532416, 0.9723873019805175));
+-  let slopeGuess = normalize(vec2f(s.y, s.z) + vec2f(1e-4, 0.0));
+-  let lee = clamp(0.5 + 0.5 * dot(slopeGuess, windXZ), 0.0, 1.0);
+-  let windMask = mix(1.0, smoothstep(0.24, 0.84, lee), clamp(R.fx.w, 0.0, 1.0));
+-  let dN = vec2f((h1x - h1) + (h2x - h2) * 0.45, (h1z - h1) + (h2z - h2) * 0.45)
+-           * (1.35 * distF) / e * 0.055 * mix(1.0, windMask, 0.65);
+-  N = normalize(N + vec3f(dN.x, 0.0, dN.y));
+-
+-  let foamBody = clamp(foamIn * max(R.fx.x, 0.0), 0.0, 1.2);
+-  let whitecap = 0.0;
+-  let foam = clamp(foamBody + whitecap, 0.0, 1.0) * R.misc.w;
+-  N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), foam * 0.45));
+-
+-  let F0 = 0.022;
+-  let cosT = clamp(dot(N, V), 0.0, 1.0);
+-  let fres = F0 + (1.0 - F0) * pow(1.0 - cosT, 5.0);
+-
+-  // RS_WATER reflection.
+-  var Rd = reflect(-V, N);
+-  Rd.y = abs(Rd.y) * 0.96 + 0.02;
+-  let refl = skyColor(Rd, R.sun.xyz, R.sun.w, R.atmo.x, R.atmo.y);
+-
+-  // RS_WATER refraction to the same procedural seabed and same caustic receiver.
+-  let rd = refract(-V, N, 0.7501);
+-  let floorY = -depth;
+-  let tr = (wp.y - floorY) / max(0.06, -rd.y);
+-  let hit = wp + rd * min(tr, 9.0);
+-  let wdist = min(tr, 9.0);
+-  var bed = sandColor(hit.xz);
+-  let bedWet = smoothstep(0.010, 0.24, depth) * smoothstep(1.45, 0.08, depth);
+-  bed *= mix(1.0, 0.44, bedWet * (0.78 + 0.22 * fbm(hit.xz * 5.2)));
+-  bed = mix(bed, vec3f(0.03, 0.09, 0.10), clamp(bedWet * 0.34, 0.0, 0.34));
+-
+-  let caDomain = vec2f(WORLD * max(R.atmo.z, 0.1), WORLD * max(R.atmo.w, 0.1));
+-  let caUv = clamp(vec2f(hit.x / max(caDomain.x, 0.001), -hit.z / max(caDomain.y, 0.001)) + vec2f(0.5), vec2f(0.001), vec2f(0.999));
+-  let caTex = textureSampleLevel(causticTex, smp, caUv, 0.0);
+-  let underwaterView = pow(clamp(1.0 - fres, 0.0, 1.0), 1.35)
+-                     * smoothstep(0.28, 0.88, cosT)
+-                     * (1.0 - smoothstep(0.35, 0.95, foam));
+-  let caBand = smoothstep(0.05, 0.20, depth) * smoothstep(4.8, 0.20, depth);
+-  let ca = caTex.r * caTex.g * underwaterView * caBand * 3.6;
+-  bed *= 0.48 + ca * 1.35;
+-  let absorb = exp(-wdist * vec3f(0.42, 0.16, 0.105));
+-  let bodyCol = vec3f(0.015, 0.11, 0.16) * (0.5 + 0.5 * R.sun.w);
+-  var refr = bed * absorb + bodyCol * (1.0 - absorb);
+-  refr += vec3f(1.0, 0.96, 0.82) * ca * (1.0 - absorb) * 0.12;
+-
+-  let Lh = normalize(vec3f(R.sun.x, 0.0, R.sun.z) + vec3f(1e-4));
+-  let sss = pow(clamp(dot(V, -Lh), 0.0, 1.0), 2.5)
+-            * clamp(s.x * 2.2 + 0.25, 0.0, 1.0)
+-            * smoothstep(0.35, 1.4, depth);
+-  refr += vec3f(0.04, 0.33, 0.30) * sss * 1.15 * R.sun.w;
+-
+-  var col = mix(refr, refl, fres);
+-
+-  // Same sun-glint model as RS_WATER.
+-  let H = normalize(V + R.sun.xyz);
+-  let nh = clamp(dot(N, H), 0.0, 1.0);
+-  let sunTrans = exp(-vec3f(0.62, 0.26, 0.08) * max(1.0 - R.sun.y, 0.0) * R.atmo.y);
+-  col += sunTrans * (pow(nh, 760.0) * 7.0 + pow(nh, 64.0) * 0.18)
+-         * R.sun.w * (0.25 + fres);
+-
+-  // Foam uses the same lit diffuse foam path, but only from MLS-MPM aeration.
+-  if (foam > 0.003) {
+-    let fn1 = fbm(wp.xz * 5.5 + vec2f(t * 0.22, -t * 0.17));
+-    let fm = clamp((foamBody * 1.20 + whitecap * 1.55) - fn1 * 0.62, 0.0, 1.0);
+-    let fdiff = clamp(dot(N, R.sun.xyz), 0.0, 1.0) * 0.85 + 0.35;
+-    col = mix(col, vec3f(0.93, 0.97, 1.0) * fdiff * (0.6 + 0.5 * R.sun.w), fm);
+-  }
+-
+-  let thin = smoothstep(0.18, 0.015, depth) * (1.0 - smoothstep(0.18, 0.65, foam));
+-  let submergedEdge = mix(sandColor(wp.xz) * vec3f(0.34, 0.46, 0.42), col, 0.72);
+-  col = mix(col, submergedEdge, thin * 0.35);
+-
+-  col = aces(col * R.misc.y);
+-  return pow(col, vec3f(1.0 / 2.2));
+-}
++  let foam = clamp(foamIn * max(R.fx.x, 0.0), 0.0, 1.0) * R.misc.w;
++  return poolReferenceWaterAbove(wp, N0, depth, foam);
++}
++
+ @fragment
+ fn fs(v : VOut) -> @location(0) vec4f {
+   let dim = vec2i(textureDimensions(fluidTex));
+@@ -2919,7 +2806,7 @@
+   const bgGrid   = bg(pGrid,   [cellsBuf, mpmU, surfV, bathyBuf]);
+   const bgG2p    = bg(pG2p,    [partsBuf, cellsBuf, mpmU, pauxBuf, surfV, bathyBuf]);
+   const bgImpact = bg(pImpact, [partsBuf, pauxBuf, surfV, breachBuf, foamIBuf, cntBuf, freeBuf, impactU, bathyBuf]);
+-  const bgCaustic = bg(rCaustic, [renderU, surfV, smp]);
++  const bgCaustic = bg(rCaustic, [renderU, surfV, smp, bathyBuf]);
+   const bgSky     = bg(rSky,     [renderU]);
+   const bgTerrain = bg(rTerrain, [renderU, bathyBuf, surfV, smp, wetBuf, causticV]);
+   const bgWater   = bg(rWater,   [renderU, surfV, auxV, smp, causticV]);
+@@ -3296,7 +3183,7 @@
+ 
+   const PRESETS = {
+     glass: { wind: 3.0, swell: 0.10, chop: 0.30, spawn: 0.4, splashEnergy: 0.75, foamTurb: 0.34, foamAmt: 0.45, foamStrength: 0.55, whitecaps: 0.10, leeBias: 0.15, windLee: 0.20, foamWind: 0.45, runup: 0.35, breaker: 0.92, caustics: 1.35, sunElev: 42, sunAz: 150, sunInt: 1.55, mie: 0.65, atmo: 0.85, oceanSpan: 1.05, oceanWidth: 1.2, oceanLength: 1.25, beachWidth: 0.85, landReach: 0.75, shoreOffset: 1.5, outerSmooth: 0.45, planetCurve: 0.0 },
+-    swell: { wind: 5.1, swell: 1.04, chop: 1.0, spawn: 1.10, bft: 1.0, splashOn: 0, foamOn: 1, splashEnergy: 1.25, dropletScale: 1.0, foamPersist: 0.32, foamTurb: 0.82, foamAdvect: 0.99, foamAmt: 0.87, foamStrength: 0.34, whitecaps: 0.94, leeBias: 0.72, windLee: 0.61, foamWind: 0.0, runup: 0.82, wetDry: 0.91, breaker: 0.82, caustics: 1.15, sunElev: 22, sunAz: 210, sunInt: 1.45, mie: 1.1, atmo: 1.25, oceanSpan: 1.15, oceanWidth: 1.25, oceanLength: 1.3, beachWidth: 1.0, landReach: 1.05, shoreOffset: 0, outerSmooth: 0.55, planetCurve: 0.0 },
++    swell: { wind: 5.1, swell: 1.04, chop: 1.0, spawn: 1.10, bft: 1.0, splashOn: 1, foamOn: 1, splashEnergy: 1.25, dropletScale: 1.0, foamPersist: 0.32, foamTurb: 0.82, foamAdvect: 0.99, foamAmt: 0.87, foamStrength: 0.34, whitecaps: 0.94, leeBias: 0.72, windLee: 0.61, foamWind: 0.0, runup: 0.82, wetDry: 0.91, breaker: 0.82, caustics: 1.15, sunElev: 22, sunAz: 210, sunInt: 1.45, mie: 1.1, atmo: 1.25, oceanSpan: 1.15, oceanWidth: 1.25, oceanLength: 1.3, beachWidth: 1.0, landReach: 1.05, shoreOffset: 0, outerSmooth: 0.55, planetCurve: 0.0 },
+     storm: { wind: 14.0, swell: 0.85, chop: 0.95, spawn: 1.6, splashEnergy: 1.75, foamTurb: 1.45, foamAmt: 1.35, foamStrength: 1.45, whitecaps: 1.65, leeBias: 0.55, windLee: 0.55, foamWind: 1.55, runup: 1.28, breaker: 0.64, caustics: 0.9, sunElev: 10, sunAz: 190, sunInt: 0.95, mie: 2.4, atmo: 1.9, oceanSpan: 1.35, oceanWidth: 1.45, oceanLength: 1.55, beachWidth: 1.25, landReach: 1.5, shoreOffset: -2.0, outerSmooth: 0.62, planetCurve: 0.15 },
+   };
+   $('presets').addEventListener('click', (e) => {

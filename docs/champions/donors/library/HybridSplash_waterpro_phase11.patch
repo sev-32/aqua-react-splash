@@ -1,0 +1,331 @@
+--- hybridsplashFable_waterpro_phase10.html
++++ hybridsplashFable_waterpro_phase11.html
+@@ -5045,6 +5045,15 @@
+ 
+     wpPhasePlan.push({ phase:'10', title:'Object interaction contracts', status:'active connected contract adapter in this build', deliverables:['bucket/container scoop contract','boat wake contract','rock/current obstruction contract','falling body impact contract','propeller churn contract','waterfall/plunge collider contract','object-to-volume/film/splash/bubble routes'], risk:'This phase is a contract/adapter layer. Full object geometry, rigid-body coupling, raycast placement and GPU object masks remain future runtime work.' });
+     wpClassification.push({ id:'object.interaction-contracts', bucket:'new-integration', name:'Object interaction contract manager', evidence:'Phase 10 adds connected object-water contracts for bucket/container scoop, boat wakes, rock/current breakup, body impact, propeller churn and waterfall collision zones routed through existing Fable heightfield, splash, film, bubble, volume and terrain systems.', protect:'Objects must declare semantic contracts and use cheap heightfield/film routes first; localized MPM/bubbles only spawn when energy/LOD/contact policy requires it.' });
++    wpLayerRegistry.push({ id:'composer.water-system-recipe', name:'Water System Composer', bucket:'new-integration', pass:'recipe graph + module packets + validation + scene handoff', outputs:['waterSystemRecipe','composerGraph','sceneHandoffPacket','recipeValidation'], controls:['composeScenario','saveRecipe','downloadLibrary','handoffTarget','validationPolicy'] });
++    wpChannelRegistry.push(['waterSystemRecipe','WaterPRO Composer recipe export','Complete saved water-system asset: graph, modules, controls, volumes, terrain intent, object contracts and validation receipts.']);
++    wpChannelRegistry.push(['composerGraph','WaterPRO Composer graph contract','Nodes and edges describing how semantic volumes, sources, Fable core, film, splash, bubbles, objects, render and diagnostics route together.']);
++    wpChannelRegistry.push(['sceneHandoffPacket','future final-scene loader / current connected recipe','Bundle used to load a saved water system back into Fable or a future game scene.']);
++    wpChannelRegistry.push(['recipeValidation','Composer validation receipt','Static validation of graph coverage, module packet presence and known runtime warnings.']);
++    wpPhasePlan.push({ phase:'11', title:'Composer / saved water systems', status:'active connected recipe graph in this build', deliverables:['composer page','water-system recipe schema','graph node/edge packet','recipe library','validation receipts','Fable scene handoff contract','scenario composers for shoreline/river/waterfall/bucket'], risk:'This is a connected graph/recipe layer. It is not yet the final draggable node editor, diff/merge system, GPU readback validation or production scene loader.' });
++    wpClassification.push({ id:'composer.water-system-recipe', bucket:'new-integration', name:'Water System Composer / saved recipes', evidence:'Phase 11 adds a connected composer page/API that packages live Fable runtime state, module packets, graph nodes/edges, semantic volumes, terrain intent, object contracts and validation into reusable WaterSystemRecipe exports.', protect:'Composer must package the existing Fable runtime; it must not become a detached preset manager disconnected from real water systems.' });
++    wpExperimentQueue.push({ id:'exp.composer-graph-v0', title:'Composer graph and recipe validation v0', input:'live runtime state + module packets + semantic volumes + terrain/object contracts', output:'WaterSystemRecipe, scene handoff packet, validation receipt', success:'a shoreline/river/waterfall/bucket system can be composed, saved, exported and later applied back to the connected Fable app.', target:'Phase 11 composer + future visual graph canvas/scene loader' });
++
+     wpExperimentQueue.push({ id:'exp.object-contracts-v0', title:'Object interaction contract adapter v0', input:'object type + motion + linked semantic volume + contact policy', output:'heightfield wake, foam/wetness, surface film deposit, splash event, bubble candidate, semantic volume ledger', success:'bucket/boat/rock/body/propeller/plunge interactions visibly route through existing Fable systems without turning whole water bodies into particles.', target:'Phase 10 object contract manager + future objectWaterContractRegistry/objectWakeBuf/containerVolumeLedger' });
+ 
+     function wpBaselineAudit() {
+@@ -5075,15 +5084,16 @@
+     }
+     function wpRecipe() {
+       const recipe = {
+-        schema:'waterpro.fable.connected_recipe.v1.1_phase10',
++        schema:'waterpro.fable.connected_recipe.v1.2_phase11',
+         generatedAt:new Date().toISOString(),
+-        source:'hybridsplashFable_waterpro_phase10.html',
+-        doctrine:'Generated from the existing Fable ocean runtime. Phase 10 keeps the Phase 0/1 baseline lock, WaveField ABI, protected Fable core, FFT source, surface film adapter, above-surface MPM conversion, underwater bubble proxy, semantic water volume manager, terrain/intent painting bridge, and adds object interaction contracts so buckets, boats, rocks, bodies, propellers and plunge colliders can route into the existing Fable systems.',
++        source:'hybridsplashFable_waterpro_phase11.html',
++        doctrine:'Generated from the existing Fable ocean runtime. Phase 10 keeps the Phase 0/1 baseline lock, WaveField ABI, protected Fable core, FFT source, surface film adapter, above-surface MPM conversion, underwater bubble proxy, semantic water volume manager, terrain/intent painting bridge, and adds object interaction contracts, and Phase 11 Water System Composer packaging so connected graph recipes can be saved, validated, exported and loaded by future final scenes.',
+         activeVolume: wpSemantic.activeVolume,
+         semanticVolumes: wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+         semanticVolumeManager: wpSemanticVolumePacket(),
+         terrainIntent: wpTerrainIntentPacket(),
+         objectInteraction: wpObjectInteractionPacket(),
++        composerSummary:{schema:'waterpro.composer.summary.v1.1_phase11', activeRecipeId:wpComposerState.activeRecipeId, librarySize:wpComposerState.library.length, graph:wpComposerGraph(wpComposerState.activeRecipeId)},
+         camera:{ yaw:cam.yaw, pitch:cam.pitch, dist:cam.dist, target:[...cam.tgt] },
+         world:{
+           type:state.world, waterLevel:state.waterLevel, mapMeters:state.mapMeters, sceneCx:state.sceneCx, sceneCy:state.sceneCy,
+@@ -5111,7 +5121,7 @@
+         splashConversion:wpSplashConversionPacket(),
+         bubbleProxy:wpBubbleProxyPacket(),
+         semanticVolumeManager:wpSemanticVolumePacket(),
+-        diagnostics: window.IONHybridSplashValidation ? window.IONHybridSplashValidation.exportRouteState({ waterpro:'connected-devhub-phase09' }) : null,
++        diagnostics: window.IONHybridSplashValidation ? window.IONHybridSplashValidation.exportRouteState({ waterpro:'connected-devhub-phase11' }) : null,
+       };
+       wpSemantic.lastRecipe = recipe;
+       return recipe;
+@@ -5337,7 +5347,169 @@
+       const packet = $('wpObjectInteractionPacket'); if (packet) packet.textContent = JSON.stringify(wpObjectInteractionPacket(), null, 2).slice(0, 12000);
+     }
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++    const wpComposerModule = {
++      id:'WATERPRO_WATER_SYSTEM_COMPOSER',
++      phase:'11',
++      bucket:'new-integration / recipe graph and scene handoff layer',
++      status:'connected composer over the existing Fable runtime and all Phase 0-10 module packets',
++      doctrine:'Composer packages live WaterPRO/Fable runtime state into reusable water-system recipes. It must preserve existing Fable behavior while recording source layers, interaction core, surface film, splash conversion, bubble proxy, semantic volumes, terrain intent, object contracts, diagnostics and validation receipts.',
++      recipeTypes:['shoreline-ocean','river-mouth','waterfall-plunge','bucket-scoop/container','lake-basin','storm-ocean','object-wake-test','future-custom-graph'],
++      graphNodeTypes:['semanticVolume','terrainIntent','sourceLayer','interactionCore','surfaceFilm','splashConversion','bubbleProxy','objectContract','materialRender','diagnostics','lodPolicy','handoffTarget'],
++      edgeTypes:['feeds','modifies','convertsTo','returnsTo','samples','emits','binds','validates','exports'],
++      currentAdapters:['wpRecipe live runtime export','module packet bundle','semantic volume manager','terrain intent compiler','object interaction contract packet','WaveField ABI / diagnostic focus','Fable final-scene handoff JSON'],
++      futureRuntime:['visual draggable graph canvas','recipe diff/merge','recipe versioning','scene loader','library browser','object/terrain/volume placement graph','GPU channel readback receipts','automated visual regression capture']
++    };
++    const wpComposerState = {
++      activeRecipeId:'live-fable-system',
++      library:[],
++      lastComposedAt:null,
++      lastValidation:null,
++      handoffTarget:'fable-connected-scene',
++      graphMode:'contract-graph-now; visual-drag-graph-later'
++    };
++    const wpComposerBlueprints = [
++      { id:'fable-shoreline-system', title:'Fable Shoreline System', scenario:'full connected Fable shoreline stack', applies:['wpApplyScenario(full)'], goal:'Package the current flagship Fable ocean/shallow-water scene as a reusable WaterPRO recipe.' },
++      { id:'river-mouth-system', title:'River Mouth System', scenario:'painted river path + semantic river volume + foam/film current routing', applies:['wpPaintTerrainIntent(river)'], goal:'Package a river mouth using terrain intent, semantic volume and existing Fable shore dynamics.' },
++      { id:'waterfall-plunge-system', title:'Waterfall / Plunge System', scenario:'waterfall intent + plunge collider + splash conversion + bubble proxy', applies:['wpPaintTerrainIntent(waterfall)','wpApplyObjectInteractionScenario(waterfall-collider)'], goal:'Package a waterfall/plunge basin adapter while marking full falling sheet/volume as future module.' },
++      { id:'bucket-scoop-system', title:'Bucket Scoop / Container System', scenario:'container volume + bucket object contract + local splash/drip/film deposit', applies:['wpApplyObjectInteractionScenario(bucket-scoop)'], goal:'Package a heightfield source volume plus local container-water proxy without global fluid simulation.' }
++    ];
++    function wpComposerGraph(kind='live-fable-system') {
++      const activeVol = wpSemantic.activeVolume || 'shoreline-ocean';
++      const hasObject = wpObjectInteractionState.boundObjects.length > 0;
++      const nodes = [
++        {id:'volume.'+activeVol, type:'semanticVolume', title:'Semantic volume: '+activeVol, packet:'wpSemanticVolumePacket', status:wpSemantic.volumes.length?'bound':'implicit-scene'},
++        {id:'terrain.intent', type:'terrainIntent', title:'Terrain / intent compiler', packet:'wpTerrainIntentPacket', status:wpTerrainIntentState.activeIntent || 'none'},
++        {id:'source.fft', type:'sourceLayer', title:'FFT / spectral source layer', packet:'wpFftSourcePacket', status:(state.fftGridBlend||0)>0.001?'active':'available'},
++        {id:'core.fable', type:'interactionCore', title:'FABLE_NEARSHORE_HEIGHTFIELD_CORE', packet:'wpFableCorePacket', status:'protected'},
++        {id:'film.surface', type:'surfaceFilm', title:'Surface film / 2D FLIP adapter', packet:'wpSurfaceFilmPacket', status:'adapter'},
++        {id:'conversion.splash', type:'splashConversion', title:'Above-surface MPM conversion policy', packet:'wpSplashConversionPacket', status:state.splashOn?'active':'available'},
++        {id:'proxy.bubbles', type:'bubbleProxy', title:'Underwater bubble / whitewater proxy', packet:'wpBubbleProxyPacket', status:'adapter'},
++        {id:'objects.contracts', type:'objectContract', title:'Object interaction contracts', packet:'wpObjectInteractionPacket', status:hasObject?'bound':'available'},
++        {id:'render.material', type:'materialRender', title:'Water material / render reference modes', packet:'currentControls.render', status:'active'},
++        {id:'diagnostics.abi', type:'diagnostics', title:'WaveField ABI + diagnostics', packet:'wpAbiPacket', status:'active'},
++        {id:'handoff.fable', type:'handoffTarget', title:'Fable connected scene handoff', packet:'wpRecipe', status:'exportable'}
++      ];
++      const edges = [
++        ['source.fft','core.fable','feeds eta_base / incoming ocean energy'],
++        ['terrain.intent','core.fable','binds bathymetry / shoreline / bar / river channel'],
++        ['volume.'+activeVol,'core.fable','defines semantic water body and runtime intent'],
++        ['core.fable','film.surface','emits foam/wetness/momentum material transport'],
++        ['core.fable','conversion.splash','emits breaker/impact/spray energy'],
++        ['film.surface','conversion.splash','routes landing deposits and film rupture'],
++        ['conversion.splash','proxy.bubbles','converts penetration/entrainment to underwater air/whitewater'],
++        ['proxy.bubbles','film.surface','returns resurfacing foam / residue'],
++        ['objects.contracts','core.fable','injects wakes/displacement/contact events'],
++        ['objects.contracts','conversion.splash','escalates local high-energy events to JIT MPM'],
++        ['objects.contracts','proxy.bubbles','marks entrained-air candidates'],
++        ['film.surface','render.material','drives foam streaks, roughness and material motion'],
++        ['proxy.bubbles','render.material','drives underwater whitewater/turbidity/clear-water bubbles'],
++        ['diagnostics.abi','handoff.fable','validates recipe channel coverage'],
++        ['render.material','handoff.fable','exports final visual/material state']
++      ].map(([from,to,meaning],i)=>({id:'edge-'+i, from, to, type:meaning.split(' ')[0], meaning}));
++      return {nodes, edges, kind};
++    }
++    function wpValidateComposerRecipe(recipe) {
++      const graph = recipe.graph || wpComposerGraph(recipe.id);
++      const nodeTypes = new Set((graph.nodes||[]).map(n=>n.type));
++      const required = ['semanticVolume','sourceLayer','interactionCore','surfaceFilm','splashConversion','bubbleProxy','diagnostics','handoffTarget'];
++      const missing = required.filter(x=>!nodeTypes.has(x));
++      const warnings = [];
++      if (!wpSemantic.volumes.length) warnings.push('No explicit semantic volume bound; recipe will use implicit Fable scene water.');
++      if (!state.foamOn) warnings.push('Foam is disabled in current runtime state; foam-related modules will export but not display until enabled.');
++      if (!state.splashOn) warnings.push('Splash is disabled in current runtime state; JIT MPM conversion remains available but inactive.');
++      if ((state.fftGridBlend||0) <= 0.001) warnings.push('FFT grid blend is currently zero; recipe still includes FFT source as available source layer.');
++      if (!wpObjectInteractionState.boundObjects.length && recipe.id && recipe.id.includes('bucket')) warnings.push('Bucket/container recipe requested without bound object; compose bucket scenario first.');
++      const passes = missing.length === 0;
++      return {
++        schema:'waterpro.composer.validation.v1.1_phase11',
++        generatedAt:new Date().toISOString(),
++        passes,
++        missingRequiredNodeTypes:missing,
++        warnings,
++        nodeCount:(graph.nodes||[]).length,
++        edgeCount:(graph.edges||[]).length,
++        channelCount:wpChannelRegistry.length,
++        modulePackets:['abi','fableCore','fftSource','surfaceFilm','splashConversion','bubbleProxy','semanticVolumeManager','terrainIntent','objectInteraction'],
++        receipt:'Composer validates graph coverage and export completeness. It does not yet validate visual GPU readback.'
++      };
++    }
++    function wpBuildComposerRecipe(id='live-fable-system', title='Live Fable Water System') {
++      const graph = wpComposerGraph(id);
++      const recipe = {
++        schema:'waterpro.water_system_recipe.v1.1_phase11',
++        id,
++        title,
++        generatedAt:new Date().toISOString(),
++        source:'hybridsplashFable_waterpro_phase11.html',
++        doctrine:'Reusable water-system recipe exported from the connected Fable runtime. This is the handoff unit for future final scenes and the larger no-code game-engine workflow.',
++        graph,
++        modules:{
++          abi:wpAbiPacket(),
++          fableCore:wpFableCorePacket(),
++          fftSource:wpFftSourcePacket(),
++          surfaceFilm:wpSurfaceFilmPacket(),
++          splashConversion:wpSplashConversionPacket(),
++          bubbleProxy:wpBubbleProxyPacket(),
++          semanticVolumeManager:wpSemanticVolumePacket(),
++          terrainIntent:wpTerrainIntentPacket(),
++          objectInteraction:wpObjectInteractionPacket()
++        },
++        currentRuntime:wpRecipe(),
++        handoff:{target:wpComposerState.handoffTarget, mode:'connected-fable-scene', requirements:['load recipe JSON','apply currentControls','restore semantic volumes','rebuild world/spectrum','reset water','run diagnostic proof scenario']}
++      };
++      recipe.validation = wpValidateComposerRecipe(recipe);
++      return recipe;
++    }
++    function wpSaveComposerRecipe(id='live-fable-system', title='Live Fable Water System') {
++      const recipe = wpBuildComposerRecipe(id, title);
++      const i = wpComposerState.library.findIndex(r=>r.id===recipe.id);
++      if (i >= 0) wpComposerState.library[i] = recipe; else wpComposerState.library.push(recipe);
++      wpComposerState.activeRecipeId = recipe.id;
++      wpComposerState.lastComposedAt = recipe.generatedAt;
++      wpComposerState.lastValidation = recipe.validation;
++      try { localStorage.setItem('waterpro.composer.library.v1', JSON.stringify(wpComposerState.library)); } catch(err) { console.warn('composer library persist failed', err); }
++      wpRenderAll();
++      return recipe;
++    }
++    function wpComposeWaterSystem(kind) {
++      if (kind === 'fable-shoreline-system') { wpApplyScenario('full'); return wpSaveComposerRecipe('fable-shoreline-system-v1','Fable Shoreline System v1'); }
++      if (kind === 'river-mouth-system') { wpPaintTerrainIntent('river'); return wpSaveComposerRecipe('river-mouth-system-v1','River Mouth System v1'); }
++      if (kind === 'waterfall-plunge-system') { wpPaintTerrainIntent('waterfall'); wpApplyObjectInteractionScenario('waterfall-collider'); return wpSaveComposerRecipe('waterfall-plunge-system-v1','Waterfall / Plunge System v1'); }
++      if (kind === 'bucket-scoop-system') { wpApplyObjectInteractionScenario('bucket-scoop'); return wpSaveComposerRecipe('bucket-scoop-container-system-v1','Bucket Scoop / Container System v1'); }
++      return wpSaveComposerRecipe('live-fable-system','Live Fable Water System');
++    }
++    function wpComposerPacket() {
++      const active = wpComposerState.library.find(r=>r.id===wpComposerState.activeRecipeId) || wpBuildComposerRecipe('live-fable-system','Live Fable Water System');
++      return {
++        schema:'waterpro.fable.composer_packet.v1.1_phase11',
++        generatedAt:new Date().toISOString(),
++        module:wpComposerModule,
++        state:{activeRecipeId:wpComposerState.activeRecipeId,lastComposedAt:wpComposerState.lastComposedAt,handoffTarget:wpComposerState.handoffTarget,graphMode:wpComposerState.graphMode},
++        activeRecipe:active,
++        library:wpComposerState.library,
++        blueprints:wpComposerBlueprints,
++        validation:active.validation || wpValidateComposerRecipe(active),
++        futureRuntime:wpComposerModule.futureRuntime
++      };
++    }
++    function wpRenderComposer() {
++      const packet = wpComposerPacket();
++      const status = $('wpComposerStatus');
++      if (status) status.innerHTML = '<strong>'+wpComposerModule.id+'</strong><br>status: '+wpComposerModule.status+'<br>active recipe: '+wpComposerState.activeRecipeId+' · library size: '+wpComposerState.library.length+' · graph mode: '+wpComposerState.graphMode;
++      const graph = packet.activeRecipe.graph || wpComposerGraph();
++      const nodes = $('wpComposerNodes');
++      if (nodes) nodes.innerHTML = graph.nodes.map(n => '<div class="wpNode"><small>'+n.type+' · '+n.status+'</small><h3>'+n.title+'</h3><p><b>ID:</b> '+n.id+'</p><p><b>Packet:</b> <code>'+n.packet+'</code></p></div>').join('');
++      const edges = $('wpComposerEdges');
++      if (edges) edges.innerHTML = '<div class="wpHubGrid">'+graph.edges.map(e => '<div class="wpNode"><small>'+e.type+'</small><h3>'+e.from+' → '+e.to+'</h3><p>'+e.meaning+'</p></div>').join('')+'</div>';
++      const lib = $('wpComposerLibrary');
++      if (lib) lib.innerHTML = (wpComposerState.library.length ? wpComposerState.library : [packet.activeRecipe]).map(r => '<div class="wpNode"><small>'+r.id+'</small><h3>'+r.title+'</h3><p>'+r.doctrine+'</p><p><b>Nodes:</b> '+(r.graph?.nodes?.length||0)+' · <b>Edges:</b> '+(r.graph?.edges?.length||0)+' · <b>Valid:</b> '+(r.validation?.passes?'yes':'no')+'</p><button data-wp-composer-load="'+r.id+'">Set active</button><button data-wp-composer-download="'+r.id+'">Download</button></div>').join('');
++      const val = $('wpComposerValidation');
++      if (val) { const v=packet.validation; val.innerHTML = '<div class="wpProof"><h3>Validation: '+(v.passes?'PASS':'ATTENTION')+'</h3><p><b>Missing:</b> '+(v.missingRequiredNodeTypes.join(', ') || 'none')+'</p><p><b>Warnings:</b> '+(v.warnings.join(' · ') || 'none')+'</p><p><b>Counts:</b> '+v.nodeCount+' nodes · '+v.edgeCount+' edges · '+v.channelCount+' channels</p></div>'; }
++      const pre = $('wpComposerPacket'); if (pre) pre.textContent = JSON.stringify(packet, null, 2).slice(0, 15000);
++    }
++
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -5346,6 +5518,9 @@
+       if (ds.wpSplashScenario) { wpApplySplashConversionScenario(ds.wpSplashScenario); return; }
+       if (ds.wpBubbleScenario) { wpApplyBubbleProxyScenario(ds.wpBubbleScenario); return; }
+       if (ds.wpObjectScenario) { wpApplyObjectInteractionScenario(ds.wpObjectScenario); return; }
++      if (ds.wpComposerScenario) { wpComposeWaterSystem(ds.wpComposerScenario); return; }
++      if (ds.wpComposerLoad) { wpComposerState.activeRecipeId = ds.wpComposerLoad; wpRenderAll(); return; }
++      if (ds.wpComposerDownload) { const r = wpComposerState.library.find(x=>x.id===ds.wpComposerDownload); if (r) wpDownload(ds.wpComposerDownload + '.json', r); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -5374,6 +5549,9 @@
+       if (action === 'downloadTerrainIntentTests') wpDownload('waterpro-fable-terrain-intent-tests-phase09.json', {schema:'waterpro.fable.terrain_intent_tests.v1.0_phase09', generatedAt:new Date().toISOString(), tests:wpTerrainIntentTests, module:wpTerrainIntentModule});
+       if (action === 'downloadObjectInteractionPacket') wpDownload('waterpro-fable-object-interaction-phase10.json', wpObjectInteractionPacket());
+       if (action === 'downloadObjectInteractionTests') wpDownload('waterpro-fable-object-interaction-tests-phase10.json', {schema:'waterpro.fable.object_interaction_tests.v1.0_phase10', generatedAt:new Date().toISOString(), tests:wpObjectInteractionTests, module:wpObjectInteractionModule});
++      if (action === 'saveComposerRecipe') wpSaveComposerRecipe('live-fable-system','Live Fable Water System');
++      if (action === 'downloadComposerPacket') wpDownload('waterpro-fable-composer-phase11.json', wpComposerPacket());
++      if (action === 'downloadRecipeLibrary') wpDownload('waterpro-fable-recipe-library-phase11.json', {schema:'waterpro.recipe_library.v1.1_phase11', generatedAt:new Date().toISOString(), library:wpComposerState.library, activeRecipeId:wpComposerState.activeRecipeId, composer:wpComposerModule});
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -5392,14 +5570,14 @@
+       if (action === 'downloadClassification') wpDownload('waterpro-fable-module-classification.json', {schema:'waterpro.fable.module_classification.v0.2', generatedAt:new Date().toISOString(), modules:wpClassification});
+       if (action === 'downloadExperiments') wpDownload('waterpro-fable-experiment-queue.json', {schema:'waterpro.fable.experiment_queue.v0.2', generatedAt:new Date().toISOString(), experiments:wpExperimentQueue});
+       if (action === 'downloadRoadmap') wpDownload('waterpro-fable-multiphase-roadmap.json', {schema:'waterpro.fable.phase_plan.v0.2', generatedAt:new Date().toISOString(), phases:wpPhasePlan});
+-      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase10-packet.json', {schema:'waterpro.fable.phase10_packet.v1.0', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
++      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase11-packet.json', {schema:'waterpro.fable.phase11_packet.v1.1', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
+       if (action === 'refreshRecipe') wpRefreshRecipeBox();
+       if (action === 'downloadRecipe') wpDownload('waterpro-fable-connected-recipe.json', wpRecipe());
+       if (action === 'copyRecipe') { try { await navigator.clipboard.writeText($('wpRecipeText')?.value || JSON.stringify(wpRecipe(), null, 2)); } catch(err) { console.warn('clipboard copy failed', err); } }
+       if (action === 'applyRecipeText') { try { const r = JSON.parse($('wpRecipeText')?.value || '{}'); if (r.currentControls) { for (const grp of Object.values(r.currentControls)) Object.assign(state, grp); syncInputs(state); uploadWorld(); uploadSpectrum(); rebuildWorld(); resetWater(); } if (Array.isArray(r.semanticVolumes)) wpSemantic.volumes = r.semanticVolumes; if (r.activeVolume) wpSemantic.activeVolume = r.activeVolume; wpRenderAll(); } catch(err) { alert('Recipe parse/apply failed: '+err.message); } }
+     });
+     window.WaterPROFableHub = {
+-      version:'1.0-phase10-object-interaction-contracts',
++      version:'1.1-phase11-water-system-composer',
+       recipe:wpRecipe,
+       volumes:() => wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+       semanticVolumeManager:wpSemanticVolumePacket,
+@@ -5408,6 +5586,10 @@
+       applyTerrainIntentScenario:wpPaintTerrainIntent,
+       objectInteraction:wpObjectInteractionPacket,
+       applyObjectInteractionScenario:wpApplyObjectInteractionScenario,
++      composer:wpComposerPacket,
++      composeWaterSystem:wpComposeWaterSystem,
++      saveComposerRecipe:wpSaveComposerRecipe,
++      recipeLibrary:() => wpComposerState.library,
+       layers:() => wpLayerRegistry.map(v => ({...v})),
+       channels:() => wpChannelRegistry.map(([id,source,meaning]) => ({id, source, meaning})),
+       waveFieldABI:() => wpWaveFieldABI.map(x => ({...x})),
+@@ -5429,6 +5611,10 @@
+       applyTerrainIntentScenario:wpPaintTerrainIntent,
+       objectInteraction:wpObjectInteractionPacket,
+       applyObjectInteractionScenario:wpApplyObjectInteractionScenario,
++      composer:wpComposerPacket,
++      composeWaterSystem:wpComposeWaterSystem,
++      saveComposerRecipe:wpSaveComposerRecipe,
++      recipeLibrary:() => wpComposerState.library,
+       setDiagnosticFocus:wpSetDiagFocus,
+       applyProofScenario:wpApplyProofScenario,
+       audit:wpBaselineAudit,
+@@ -5662,8 +5848,8 @@
+ 
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+-  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 10</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 10 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds object interaction contracts: bucket/container scoop, boat wake, rock/current breakup, body impact, propeller turbulence, and generic collider-water policies routed through the real Fable heightfield, splash, film, bubble, terrain and semantic-volume systems.</div>
++  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 11</b></span><span id="devClose">&#10005;</span></div>
++  <div class="mapHint">Phase 11 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds the first Water System Composer: saved water-system recipes, graph contracts, module packets, validation receipts, and scene handoff packaging routed through the real Fable heightfield, FFT, surface-film, splash, bubble, volume, terrain-intent, and object-interaction systems.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -5682,6 +5868,7 @@
+     <button data-page="splashconversion">Splash Convert</button>
+     <button data-page="bubbleproxy">Bubbles</button>
+     <button data-page="recipes">Recipes</button>
++    <button data-page="composer">Composer</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -5912,8 +6099,33 @@
+       <button data-wp-action="applyRecipeText">Apply Text Below</button>
+     </div>
+     <textarea class="wpRecipeBox" id="wpRecipeText" spellcheck="false"></textarea>
+-    <div class="devNote">This recipe is generated from the actual Fable runtime state: sea/wind controls, FFT backend state, shallow-water solver controls, breaker/foam/MLS-MPM toggles, terrain/world controls, camera, and semantic volume bindings. It is the bridge format for future Composer/Library pages. Phase 10 stores WaveField ABI, diagnostic focus state, the FABLE_NEARSHORE_HEIGHTFIELD_CORE module packet, FFT source-layer packet, surface-film adapter packet, splash-conversion policy packet, bubble proxy packet, semantic volume manager packet, terrain intent packet, and object interaction contract packet.</div>
++    <div class="devNote">This recipe is generated from the actual Fable runtime state: sea/wind controls, FFT backend state, shallow-water solver controls, breaker/foam/MLS-MPM toggles, terrain/world controls, camera, and semantic volume bindings. It is the bridge format for future Composer/Library pages. Phase 11 stores WaveField ABI, diagnostic focus state, FABLE_NEARSHORE_HEIGHTFIELD_CORE, FFT source-layer, surface-film, splash-conversion, bubble proxy, semantic volume manager, terrain intent, object interaction contract, and composer graph/validation packets.</div>
+   </section>
++
++  <section class="devPage" data-page="composer">
++    <div class="wlGrp">PHASE 11 — WATER SYSTEM COMPOSER / SAVED SYSTEMS</div>
++    <div id="wpComposerStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> Composer does not create a detached preset library. It packages the current live Fable runtime into WaterPRO recipes: graph nodes, edges, module packets, semantic volumes, terrain intent, object contracts, diagnostics, and validation receipts. Recipes remain connected to this app and are the future bridge into final Fable scenes and the larger no-code engine.</div>
++    <div class="wpActionRow">
++      <button data-wp-composer-scenario="fable-shoreline-system">Compose Fable Shoreline</button>
++      <button data-wp-composer-scenario="river-mouth-system">Compose River Mouth</button>
++      <button data-wp-composer-scenario="waterfall-plunge-system">Compose Waterfall / Plunge</button>
++      <button data-wp-composer-scenario="bucket-scoop-system">Compose Bucket Scoop</button>
++      <button data-wp-action="saveComposerRecipe">Save Current Recipe</button>
++      <button data-wp-action="downloadComposerPacket">Download Composer Packet</button>
++      <button data-wp-action="downloadRecipeLibrary">Download Recipe Library</button>
++    </div>
++    <div class="wlGrp">Composer graph nodes</div>
++    <div class="wpHubGrid" id="wpComposerNodes"></div>
++    <div class="wlGrp">Routing / edges</div>
++    <div id="wpComposerEdges"></div>
++    <div class="wlGrp">Saved water systems</div>
++    <div class="wpHubGrid" id="wpComposerLibrary"></div>
++    <div class="wlGrp">Validation receipt</div>
++    <div id="wpComposerValidation"></div>
++    <pre class="wpMono devNote" id="wpComposerPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>

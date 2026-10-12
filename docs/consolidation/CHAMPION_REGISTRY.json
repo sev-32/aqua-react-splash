@@ -1,0 +1,252 @@
+{
+  "schema": "thalassa-champion-registry-v1",
+  "status": "research-and-regression-controlled, NOT a validated master build",
+  "protected_legacy_files": [
+    {
+      "path": "docs/consolidation/REFERENCE_MAP.md",
+      "git_blob_sha1": "025fc01f15b87f35e7de0a92fc0b91b3c2c60f62"
+    },
+    {
+      "path": "src/components/SplashParticles.tsx",
+      "git_blob_sha1": "39ba354da0dc189849f9c82ed0d753a28b547562"
+    },
+    {
+      "path": "src/shaders/waterShaders.ts",
+      "git_blob_sha1": "5c8e68ed48fe3e41f0e371c8790a64b03e5682f3"
+    },
+    {
+      "path": "src/components/PoolEnvironment.tsx",
+      "git_blob_sha1": "985a521e42eda29de75326f65a43bcbdea64b9aa"
+    },
+    {
+      "path": "src/hooks/useMlsMpm.ts",
+      "git_blob_sha1": "cd4e2344ed23304077f6385ba6634f8a58acae48"
+    },
+    {
+      "path": "src/lib/mpmConnectivity.ts",
+      "git_blob_sha1": "eba77d01b00ad5d51a1de70a659d3528f4dc9791"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/splash-mls-mpm.html",
+      "git_blob_sha1": "7fc9911cd15565a1440625c409895621909bb57c"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/OpusMagnusWater.html",
+      "git_blob_sha1": "d4ddf80da2c36b7196645a7a1eaea079fc276efc"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "git_blob_sha1": "d8b2b8cdc725f616ad2a744223761f6788eb6cf4"
+    },
+    {
+      "path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
+      "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8"
+    },
+    {
+      "path": "public/mlsmpm-webgpu.html",
+      "git_blob_sha1": "50f6e10d817844d424c3a11a7715722dea32f7f7"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "git_blob_sha1": "4235f83096af0f951dfdd6e878500616b7264673"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "git_blob_sha1": "eed2c745057a23ded1385f1cec6fd1d660ee2b3a"
+    },
+    {
+      "path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb"
+    },
+    {
+      "path": "docs/champions/donors/library/heightfieldBEST.html",
+      "git_blob_sha1": "e8349854772f6d422f04e7e9412c434711bfeba8"
+    },
+    {
+      "path": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "git_blob_sha1": "0f126b6476238aaae4b680762f09478fe09701b5"
+    },
+    {
+      "path": "docs/champions/donors/library/aqua_pool_track_a_phase6_object_runup_film.patch",
+      "git_blob_sha1": "4c1864cf00ff792214deb88a4f28ac3e718b9365"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "heightfield_body_reaction",
+      "champion": "heightfieldBEST",
+      "donor": "docs/champions/donors/library/heightfieldBEST.html",
+      "status": "ORIGINAL HEIGHTFIELDBEST SOURCE RECOVERED and hash-verified from Library; real reference run pending; current ocean integration unranked",
+      "current": "src/ocean/sim/interactionShaders.ts",
+      "acceptance": "swept body occupancy, volume displacement, self-generated bow pile-up and void collapse, speed/rotation controlled"
+    },
+    {
+      "id": "wet_body_film",
+      "champion": "JIT Lab R21 metric body film and HeightfieldBEST updateObjectFilm",
+      "donor": "developer-lab/core/wetness-state.mjs",
+      "status": "historical donor cited; donor source not present in this checkout; current ocean shader uses a single centerline water height",
+      "current": "src/ocean/render/bodiesRender.ts",
+      "acceptance": "wave-local wetness, deposition/drainage/drips and zero disappearing film volume outside identified sinks"
+    },
+    {
+      "id": "jit_water_transfer",
+      "champion": "JIT M2/M3 finite events and return",
+      "donor": "developer-lab/core/coupling.mjs",
+      "status": "historical source cited; donor source not present in this checkout",
+      "current": "src/ocean/modules/splashModule.ts",
+      "acceptance": "volume and impulse budgets from source field through particles to receiver with no unaccounted return"
+    },
+    {
+      "id": "fluid_tendril_surface",
+      "champion": "Particles4All anisotropic SSFR plus fused original pool lineage",
+      "donor": "originals/Particles4All/src/ssfr*.js",
+      "status": "historical PBF donor cited but source not present in this checkout; original pool fused renderer preserved",
+      "current": "src/ocean/sim/SplashSystem.ts",
+      "acceptance": "actual connected sheets/tendrils; alpha/thickness/Fresnel; no giant spheres corresponding to subgrid fluid parcels"
+    },
+    {
+      "id": "caustics",
+      "champion": "POSEIDON/T4R receiver caustics",
+      "donor": "POSEIDON (external baseline)",
+      "status": "reference documented; exact champion source not present in current checkout",
+      "current": "src/hooks/useCaustics.ts",
+      "acceptance": "projected caustics derived from actual surface gradient/light direction/refraction/receiver depth; never replace with unrelated scrolling pattern"
+    },
+    {
+      "id": "fluid_body_contact",
+      "champion": "JIT Lab R21 shared surface contact",
+      "donor": "developer-lab/core/water-object-contact.mjs",
+      "status": "historical donor source not present in this checkout",
+      "current": "src/ocean/physics/bodies.ts",
+      "acceptance": "body contact, wetness, buoyancy and splash all sample consistent local waterline height, gradient, normal, velocity"
+    },
+    {
+      "id": "surface_optics",
+      "champion": "POSEIDON / original pool scene-aware rays",
+      "donor": "src/shaders/waterShaders.ts",
+      "status": "original pool shader preserved; ocean renderer optics independent",
+      "current": "src/ocean/render/oceanShaders.ts",
+      "acceptance": "water-splash reciprocal visibility, Fresnel, depth absorption, physically grounded reflection/refraction without alpha-only cheats"
+    },
+    {
+      "id": "recovered_gpu_mlsmpm_donor",
+      "champion": "unranked candidate; original water GPU compute and standalone Splash HTML",
+      "donor": "sev-32/wave-to-3d/src/reference/splash-mls-mpm.html + src/components/water/webgpu/*",
+      "status": "recovered byte-exact GitHub sources; runtime physics, scene and performance benchmarks NOT YET RUN",
+      "current": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "acceptance": "source extraction, independent WebGPU compile, stable particle coupling and particle budget measured against pool and ocean"
+    },
+    {
+      "id": "existing_standalone_gpu_mlsmpm",
+      "champion": "unranked on-repo standalone GPU MLS-MPM donor",
+      "donor": "public/mlsmpm-webgpu.html",
+      "status": "recoverable executable standalone source already in existing repository; visual/performance verification pending",
+      "current": "public/mlsmpm-webgpu.html",
+      "acceptance": "real browser WebGPU smoke, matching physical scene with fused pool/ocean, fluid stability and GPU budget"
+    },
+    {
+      "id": "historical_unified_pool_material",
+      "champion": "HybridSplash Fable POOL_REFERENCE_LOCK V5 — existing historical consolidated optical+fluid material",
+      "donor": "user Library: hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "status": "actual HTML+patch+prior audit recovered byte-identically; historical audit reports positive checks but independent runtime physics/render proof not yet complete",
+      "current": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "acceptance": "render actual V5 then compare source-driven heightfield/MPM wet material, refracted depth, terrain caustic receiver, and no false shared-state divergence; do not promote without real match"
+    },
+    {
+      "id": "pool_phase6_sphere_surface_film",
+      "champion": "AQUA Pool Track A Phase 6 object runup and attached wet film",
+      "donor": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "status": "RECOVERED raw HTML and patch; contains sphereFilm, deposition, directional drainage, drip spawn and JIT coupling; runtime rendering and volumetric audit pending",
+      "current": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "acceptance": "body contact conforming to actual waterline, persistent attached wet film following sphere orientation, drained/drop mass conservation; matched wave/sphere tests vs current ocean center scalar"
+    }
+  ],
+  "explicit_known_debts": [
+    "Ocean sphere body shader uses uWaterline sampled once per object rather than per-fragment local wave height.",
+    "Current checkout lacks historical JIT R21 wetness-state source; do not claim recovered.",
+    "Current checkout lacks referenced original BEST HTML and Particles4All vendor sources; filenames in reference map are not proof of mounted source.",
+    "Static file checks cannot prove numerical accuracy or visual quality; real renderer comparisons remain required."
+  ],
+  "donor_recovery": [
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/reference/splash-mls-mpm.html",
+      "archived_path": "docs/champions/donors/wave-to-3d/splash-mls-mpm.html",
+      "git_blob_sha1": "7fc9911cd15565a1440625c409895621909bb57c",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/reference/OpusMagnusWater.html",
+      "archived_path": "docs/champions/donors/wave-to-3d/OpusMagnusWater.html",
+      "git_blob_sha1": "d4ddf80da2c36b7196645a7a1eaea079fc276efc",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/components/water/webgpu/WaterGPU.ts",
+      "archived_path": "docs/champions/donors/wave-to-3d/WaterGPU.ts",
+      "git_blob_sha1": "d8b2b8cdc725f616ad2a744223761f6788eb6cf4",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin_repository": "sev-32/wave-to-3d",
+      "origin_ref": "main",
+      "origin_path": "src/components/water/webgpu/shaders.ts",
+      "archived_path": "docs/champions/donors/wave-to-3d/waterComputeShaders.ts",
+      "git_blob_sha1": "79cd54c6bd6313b0dc336bb3361381c968688ce8",
+      "status": "archived byte-identical source, NOT validated best/working champion in THALASSA"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.html",
+      "git_blob_sha1": "4235f83096af0f951dfdd6e878500616b7264673",
+      "sha256": "ac4a33012f5c5d209d896d6ac1546b778855b2e6e0dffc043a4a1986a69c581c",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5.patch",
+      "git_blob_sha1": "eed2c745057a23ded1385f1cec6fd1d660ee2b3a",
+      "sha256": "f0d27e2419802b49b8baa0d847206b33010fdc6efaf4aeca3f9de9fb10a466c0",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "archived_path": "docs/champions/donors/library/hybridsplashFable_POOL_REFERENCE_LOCK_V5_AUDIT.json",
+      "git_blob_sha1": "50b0031a150434f9595152fc977e2937cccdcabb",
+      "sha256": "not recorded by historical audit",
+      "status": "materialized raw library source; byte-exact Git blob verified; runtime benchmark pending"
+    },
+    {
+      "origin": "user Library",
+      "name": "heightfieldBEST.html",
+      "archived_path": "docs/champions/donors/library/heightfieldBEST.html",
+      "git_blob_sha1": "e8349854772f6d422f04e7e9412c434711bfeba8",
+      "sha256": "9f7cd487f07873d5314eb25b9b16f9fad8f854627d6c641a783d61d2a1be5180",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
+    },
+    {
+      "origin": "user Library",
+      "name": "pool_obstacle_phase6_runup_film.html",
+      "archived_path": "docs/champions/donors/library/pool_obstacle_phase6_runup_film.html",
+      "git_blob_sha1": "0f126b6476238aaae4b680762f09478fe09701b5",
+      "sha256": "1d52fc0cae47f9adfea19a64640ff529ea1f2d77aa9fe4c655e126f798f6047c",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
+    },
+    {
+      "origin": "user Library",
+      "name": "aqua_pool_track_a_phase6_object_runup_film.patch",
+      "archived_path": "docs/champions/donors/library/aqua_pool_track_a_phase6_object_runup_film.patch",
+      "git_blob_sha1": "4c1864cf00ff792214deb88a4f28ac3e718b9365",
+      "sha256": "a23268801e8681b3ed1993638dafd61d18313869eb3183e4f25dd629feb29e29",
+      "status": "byte-exact recovered source; original runner available for independent benchmark"
+    }
+  ]
+}

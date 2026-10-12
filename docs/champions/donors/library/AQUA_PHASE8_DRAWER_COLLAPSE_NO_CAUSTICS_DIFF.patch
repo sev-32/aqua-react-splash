@@ -1,0 +1,342 @@
+--- aqua_phase8_tile_grammar_v2_repair.html
++++ aqua_phase8_drawer_collapse_no_caustics.html
+@@ -3,7 +3,7 @@
+ <head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width,initial-scale=1" />
+-<title>Aqua Phase 8 — Right Drawer Telemetry Layout</title>
++<title>Aqua Phase 8 — Drawer Collapse / No Caustics</title>
+ <style>
+   :root{
+     --bg:#0d1117; --panel:#111820; --panel2:#0f151c; --line:#27313c; --line2:#1d2630;
+@@ -12,17 +12,15 @@
+   }
+   *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px}
+   canvas{display:block} button,input,select{font:inherit;color:inherit} select{background:#151b23;border:1px solid var(--line);height:24px;color:#c9d1d9;border-radius:0;text-transform:uppercase;font-size:10px;padding:0 6px} button{background:#151b23;border:1px solid var(--line);height:24px;padding:0 8px;cursor:pointer;color:#c9d1d9;border-radius:0;text-transform:uppercase;letter-spacing:.06em;font-size:10px} button:hover{border-color:#3d4652;background:#1b2430} button.on{border-color:var(--hot);color:#dff1ff;background:#102238} .danger{border-color:#633;color:#fca5a5}
+-  #app{position:fixed;inset:0;display:grid;grid-template-rows:31px 1fr 24px;grid-template-columns:39px 312px minmax(420px,1fr) 620px;background:#070b10}
+-  #top{grid-column:1/5;grid-row:1;border-bottom:1px solid var(--line);background:#0d1117;display:flex;align-items:center;gap:8px;padding:0 8px;white-space:nowrap}
++  #app{position:fixed;inset:0;display:grid;grid-template-rows:31px 1fr 24px;grid-template-columns:312px minmax(420px,1fr) 392px;background:#070b10}
++  #top{grid-column:1/4;grid-row:1;border-bottom:1px solid var(--line);background:#0d1117;display:flex;align-items:center;gap:8px;padding:0 8px;white-space:nowrap}
+   .brand{font-weight:700;letter-spacing:.12em;color:#e6edf3;margin-right:8px}.brand span{color:var(--cyan)}
+   .pill{height:18px;display:inline-flex;align-items:center;border:1px solid var(--line);padding:0 6px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.pill.ok{color:#8ff0a4;border-color:#285a34}.pill.warn{color:#ffd479;border-color:#6a5520}.pill.bad{color:#ff8b8b;border-color:#6d3030}
+-  #railL{grid-column:1;grid-row:2;border-right:1px solid var(--line);background:#0d1117;display:flex;flex-direction:column;align-items:center;padding-top:6px;gap:5px}
+-  .icon{width:27px;height:27px;border:1px solid var(--line);display:grid;place-items:center;color:#8b949e;background:#111820;cursor:pointer}.icon.on{border-color:var(--hot);color:#dff1ff;background:#11233a}.icon:hover{border-color:#3d4652;color:#e6edf3}
+-  #left{grid-column:2;grid-row:2;border-right:1px solid var(--line);background:#0f151c;overflow:auto}
+-  #view{grid-column:3;grid-row:2;position:relative;background:#02050a;overflow:hidden}
++  #left{grid-column:1;grid-row:2;border-right:1px solid var(--line);background:#0f151c;overflow:auto}
++  #view{grid-column:2;grid-row:2;position:relative;background:#02050a;overflow:hidden}
+   #gl{position:absolute;inset:0;width:100%;height:100%}
+-  #right{grid-column:4;grid-row:2;border-left:1px solid var(--line);background:#0f151c;overflow:auto}
+-  #bottom{grid-column:1/5;grid-row:3;border-top:1px solid var(--line);background:#0d1117;display:grid;grid-template-columns:repeat(12,1fr);font-size:10px;color:#8b949e}.metric{border-right:1px solid var(--line2);display:flex;align-items:center;padding:0 8px;gap:5px}.metric b{color:#c9d1d9;font-weight:500}.metric .v{color:#58a6ff;margin-left:auto}
++  #right{grid-column:3;grid-row:2;border-left:1px solid var(--line);background:#0f151c;overflow:auto}
++  #bottom{grid-column:1/4;grid-row:3;border-top:1px solid var(--line);background:#0d1117;display:grid;grid-template-columns:repeat(12,1fr);font-size:10px;color:#8b949e}.metric{border-right:1px solid var(--line2);display:flex;align-items:center;padding:0 8px;gap:5px}.metric b{color:#c9d1d9;font-weight:500}.metric .v{color:#58a6ff;margin-left:auto}
+   .dockHead{height:28px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 9px;color:#e6edf3;text-transform:uppercase;letter-spacing:.12em;font-size:10px;background:#111820}.section{border-bottom:1px solid var(--line2);padding:9px}.section h3{margin:0 0 8px;color:#8b949e;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}.row{display:grid;grid-template-columns:104px 1fr 44px;gap:8px;align-items:center;height:24px}.row label{color:#8b949e;font-size:10px}.row .val{color:#58a6ff;text-align:right}.row input[type=range]{width:100%;appearance:none;background:transparent}.row input[type=range]::-webkit-slider-runnable-track{height:2px;background:#30363d}.row input[type=range]::-webkit-slider-thumb{appearance:none;width:9px;height:9px;background:#58a6ff;border-radius:0;margin-top:-3px}
+   .gridBtns{display:grid;grid-template-columns:1fr 1fr;gap:6px}.fieldBtns{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:6px}.fieldBtns button{height:20px;padding:0 3px;font-size:8px}.readout{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:10px;line-height:1.6}.readout span:nth-child(odd){color:#8b949e}.readout span:nth-child(even){color:#c9d1d9;text-align:right}.code{background:#0b1016;border:1px solid var(--line);padding:7px;color:#7ee787;line-height:1.45;white-space:pre-wrap}
+   #fieldCanvas{width:100%;aspect-ratio:1/1;height:auto;min-height:0;max-height:none;border:1px solid var(--line);image-rendering:pixelated;background:#03070b;display:block}.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;color:#6e7681;font-size:9px;margin-top:6px}.legend b{color:#c9d1d9;font-weight:500}.note{color:#6e7681;font-size:10px;line-height:1.5}.crosshair{position:absolute;left:50%;top:50%;width:11px;height:11px;margin:-5px 0 0 -5px;border-left:1px solid rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.3);pointer-events:none;opacity:.3}
+@@ -30,6 +28,15 @@
+ 
+   /* tabbed drawer retrofit */
+   aside{display:flex;flex-direction:column;overflow:hidden}
++
++  #app.leftCollapsed{grid-template-columns:0 minmax(420px,1fr) 392px}
++  #app.rightCollapsed{grid-template-columns:312px minmax(420px,1fr) 0}
++  #app.leftCollapsed.rightCollapsed{grid-template-columns:0 minmax(420px,1fr) 0}
++  #app.leftCollapsed #left,#app.rightCollapsed #right{display:none}
++  .drawerToggle{height:22px;margin-left:6px;border-color:#33404c;background:#0d1117;color:#8b949e}
++  .drawerToggle.on{border-color:#58a6ff;color:#dff1ff;background:#102238}
++  .dockHead{justify-content:space-between;gap:8px}
++  .dockTitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   .drawerTabs{display:flex;gap:4px;padding:6px 6px 0;border-bottom:1px solid var(--line2);background:#0f141b;flex-wrap:wrap}
+   .drawerTab{border:1px solid var(--line2);background:#0d1117;color:#8b949e;padding:6px 8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;user-select:none}
+   .drawerTab.active{background:#111b2a;color:#e6edf3;border-color:#58a6ff66;box-shadow:inset 0 0 0 1px rgba(88,166,255,.15)}
+@@ -147,19 +154,16 @@
+ <body>
+ <div id="app">
+   <div id="top">
+-    <div class="brand">AQUA<span>3D</span> PHASE 8 AUDIT LAYOUT</div>
++    <div class="brand">AQUA<span>3D</span> PHASE 8 NO-CAUSTICS LAYOUT</div>
+     <span class="pill ok" id="kernelPill">OCCUPANCY SWE + FSS</span>
+     <span class="pill" id="modePill">TIME-SYNC BODY + REAL PROFILER COCKPIT</span>
+     <div style="flex:1"></div>
+-    <button id="btnPause">Pause</button>
++    <button id="btnLeftDrawer" class="on">Left Drawer</button><button id="btnRightDrawer" class="on">Right Drawer</button><button id="btnPause">Pause</button>
+     <button id="btnStep">Step</button>
+     <button id="btnReset" class="danger">Reset</button>
+   </div>
+-  <div id="railL">
+-    <div class="icon on" data-drawer="left" data-page="run" title="Run / Scenarios">▶</div><div class="icon" data-drawer="left" data-page="water" title="Water / Visuals">∿</div><div class="icon" data-drawer="left" data-page="sphere" title="Sphere / Body">●</div><div class="icon" data-drawer="left" data-page="sheet" title="Sheet / MPM">M</div><div class="icon" data-drawer="right" data-page="profile" title="Profiler">#</div>
+-  </div>
+   <aside id="left">
+-    <div class="dockHead">Scenario Runner</div>
++    <div class="dockHead"><span class="dockTitle">Scenario Runner</span><button class="drawerToggle on" data-collapse="left">collapse</button></div>
+     <div class="section"><h3>Canonical Tests</h3><div class="gridBtns">
+       <button id="testStill">Still</button><button id="testImpulse">Impulse</button>
+       <button id="testSideSlow">Side Slow</button><button id="testSideFast" class="on">Side Fast</button>
+@@ -208,24 +212,16 @@
+       <div class="row"><label>Fresnel Bias</label><input id="fresnelBias" type="range" min="0.005" max="0.18" step="0.001" value="0.045"><span class="val" id="fresnelBiasV"></span></div>
+       <div class="row"><label>Fresnel Pow</label><input id="fresnelPower" type="range" min="1.2" max="6" step="0.05" value="3.2"><span class="val" id="fresnelPowerV"></span></div>
+       <div class="row"><label>Specular</label><input id="specStrength" type="range" min="0" max="4" step="0.01" value="1.25"><span class="val" id="specStrengthV"></span></div>
+-      <div class="row"><label>Caustics</label><input id="causticGain" type="range" min="0" max="4" step="0.01" value="1.35"><span class="val" id="causticGainV"></span></div>
+-      <div class="row"><label>Caustic Scale</label><input id="causticScale" type="range" min="0.35" max="3" step="0.01" value="1.12"><span class="val" id="causticScaleV"></span></div>
+       <div class="row"><label>Absorption</label><input id="absorptionGain" type="range" min="0" max="3" step="0.01" value="1.0"><span class="val" id="absorptionGainV"></span></div>
+       <div class="row"><label>Aeration</label><input id="foamGain" type="range" min="0" max="2.5" step="0.01" value="0.62"><span class="val" id="foamGainV"></span></div>
+       <div class="row"><label>Foam Gate</label><input id="foamThreshold" type="range" min="0.02" max="0.95" step="0.01" value="0.38"><span class="val" id="foamThresholdV"></span></div>
+-      <div class="note">Render-only transplant controls. The solver still owns eta/vx/vz/sigma/FSS/JIT; these controls only interpret pressure, risk, particles, and height as optics/aeration.</div>
++      <div class="note">Render-only transplant controls. The solver still owns eta/vx/vz/sigma/FSS/JIT; these controls interpret pressure, risk, particles, and height as optics/aeration. Caustics are removed from this build: no UI controls, no shader function, no active uniforms.</div>
+     </div>
+-    <div class="section"><h3>Src Pool / Caustic Domain</h3>
++    <div class="section"><h3>Src Pool Domain</h3>
+       <div class="row"><label>Pool Size</label><input id="poolSize" type="range" min="6" max="96" step="0.5" value="12"><span class="val" id="poolSizeV"></span></div>
+       <div class="row"><label>Pool Depth</label><input id="poolDepth" type="range" min="0.45" max="3.0" step="0.05" value="1.0"><span class="val" id="poolDepthV"></span></div>
+       <div class="row"><label>Wall Height</label><input id="poolWallHeight" type="range" min="0.5" max="3.0" step="0.05" value="1.25"><span class="val" id="poolWallHeightV"></span></div>
+       <div class="row"><label>Tile Scale</label><input id="poolTileScale" type="range" min="0.2" max="2.5" step="0.01" value="0.82"><span class="val" id="poolTileScaleV"></span></div>
+-      <div class="row"><label>Caustic Mult</label><input id="poolCausticsMultiplier" type="range" min="0" max="6" step="0.01" value="1.0"><span class="val" id="poolCausticsMultiplierV"></span></div>
+-      <div class="row"><label>Caustic Alg</label><select id="causticAlgorithm"><option value="v2" selected>v2 focus</option><option value="legacy">legacy</option><option value="soft">soft sun</option></select><span class="val" id="causticAlgorithmV">v2</span></div>
+-      <div class="row"><label>Sharpness</label><input id="causticSharpness" type="range" min="2" max="18" step="0.1" value="8.0"><span class="val" id="causticSharpnessV"></span></div>
+-      <div class="row"><label>Softness</label><input id="causticSoftness" type="range" min="0" max="2" step="0.01" value="0.55"><span class="val" id="causticSoftnessV"></span></div>
+-      <div class="row"><label>Absorb Sigma</label><input id="causticAbsorption" type="range" min="0" max="1.5" step="0.01" value="0.15"><span class="val" id="causticAbsorptionV"></span></div>
+-      <div class="row"><label>Dispersion</label><input id="causticDispersion" type="range" min="0" max="0.45" step="0.005" value="0.08"><span class="val" id="causticDispersionV"></span></div>
+       <div class="row"><label>Under Tint</label><input id="underwaterTint" type="range" min="0" max="3" step="0.01" value="1.2"><span class="val" id="underwaterTintV"></span></div>
+       <div class="row"><label>AO Scale</label><input id="ambientOcclusion" type="range" min="0" max="2" step="0.01" value="0.5"><span class="val" id="ambientOcclusionV"></span></div>
+       <div class="row"><label>Solid Reflect</label><input id="solidFluxReflection" type="range" min="0" max="1.25" step="0.01" value="0.88"><span class="val" id="solidFluxReflectionV"></span></div>
+@@ -293,7 +289,7 @@
+   </aside>
+   <main id="view"><canvas id="gl"></canvas><div class="crosshair"></div></main>
+   <aside id="right">
+-    <div class="dockHead">Heightfield Inspector</div>
++    <div class="dockHead"><span class="dockTitle">Heightfield Inspector</span><button class="drawerToggle on" data-collapse="right">collapse</button></div>
+     <div class="section"><h3>2D Field Monitor</h3>
+       <canvas id="fieldCanvas" width="512" height="512"></canvas>
+       <div class="fieldBtns">
+@@ -373,7 +369,7 @@
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ const lerp=(a,b,t)=>a+(b-a)*t;
+ const smooth=(a,b,x)=>{x=clamp((x-a)/(b-a),0,1);return x*x*(3-2*x)};
+-let params={radius:.68,mass:1.15,y:.12,motionAuthority:'body',cursorStrength:2.35,airViscosity:.012,waterViscosity:.110,buoyancyStrength:0.86,fluidDensity:1.0,addedMassCoefficient:.34,sphereLinearDrag:.045,sphereQuadraticDrag:.72,slopeSlideStrength:.75,poolSize:12.0,poolDepth:1.0,poolWallHeight:1.25,poolTileScale:.82,tileGeoEnabled:true,tileWidth:.42,tileHeight:.42,groutWidth:.032,tileRise:.018,groutRecess:.014,tileMinCut:.34,tileVariance:.22,tileGeomCap:9000,tilePattern:'stack',poolCausticsMultiplier:1.0,underwaterTint:1.2,ambientOcclusion:.50,causticAlgorithm:'v2',causticSharpness:8.0,causticSoftness:.55,causticAbsorption:.15,causticDispersion:.08,waveSpeed:1,damping:.995,push:1.2,volumeGain:.85,wallLoss:.82,renderMode:'sdf',meshQuality:168,waterMaterial:'aqua',renderSmooth:1.15,solidGuard:1.05,antiGridEnabled:true,releaseGain:1.0,fresnelBias:.045,fresnelPower:3.2,specStrength:1.25,causticGain:1.35,causticScale:1.12,absorptionGain:1.0,foamGain:.62,foamThreshold:.38,elongationSource:'energy',elongationGain:1.10,elongationLimit:.85,elongationThreshold:.34,elongationDrag:.925,contactImprint:0.0,solidFluxReflection:.88,wallReflection:.82,sheetEnabled:true,sheetGain:1.0,sheetPressure:0.85,sheetLift:0.075,collapseGain:1.15,trapGain:1.0,detachGain:0.85,riskGain:1.05,convertThreshold:0.66,exportLeak:0.94,jitEnabled:true,jitSpawnGain:1.15,particleLife:1.35,particleGravity:8.0,particleFeedback:0.65,filmEnabled:true,filmVisual:'off',filmDeposit:2.20,filmDrain:1.45,filmEdgeLoss:.92,filmAdhesion:.62,filmDripGain:2.35};
++let params={radius:.68,mass:1.15,y:.12,motionAuthority:'body',cursorStrength:2.35,airViscosity:.012,waterViscosity:.110,buoyancyStrength:0.86,fluidDensity:1.0,addedMassCoefficient:.34,sphereLinearDrag:.045,sphereQuadraticDrag:.72,slopeSlideStrength:.75,poolSize:12.0,poolDepth:1.0,poolWallHeight:1.25,poolTileScale:.82,tileGeoEnabled:true,tileWidth:.42,tileHeight:.42,groutWidth:.032,tileRise:.018,groutRecess:.014,tileMinCut:.34,tileVariance:.22,tileGeomCap:9000,tilePattern:'stack',underwaterTint:1.2,ambientOcclusion:.50,waveSpeed:1,damping:.995,push:1.2,volumeGain:.85,wallLoss:.82,renderMode:'sdf',meshQuality:168,waterMaterial:'aqua',renderSmooth:1.15,solidGuard:1.05,antiGridEnabled:true,releaseGain:1.0,fresnelBias:.045,fresnelPower:3.2,specStrength:1.25,absorptionGain:1.0,foamGain:.62,foamThreshold:.38,elongationSource:'energy',elongationGain:1.10,elongationLimit:.85,elongationThreshold:.34,elongationDrag:.925,contactImprint:0.0,solidFluxReflection:.88,wallReflection:.82,sheetEnabled:true,sheetGain:1.0,sheetPressure:0.85,sheetLift:0.075,collapseGain:1.15,trapGain:1.0,detachGain:0.85,riskGain:1.05,convertThreshold:0.66,exportLeak:0.94,jitEnabled:true,jitSpawnGain:1.15,particleLife:1.35,particleGravity:8.0,particleFeedback:0.65,filmEnabled:true,filmVisual:'off',filmDeposit:2.20,filmDrain:1.45,filmEdgeLoss:.92,filmAdhesion:.62,filmDripGain:2.35};
+ let sphere={x:-2.7,z:0,px:-2.7,pz:0,y:.12,py:.12,vx:0,vz:0,vy:0,tx:-2.7,tz:0,ty:.12,auto:'sidefast',t:0,manualTarget:false,targetYActive:false,submerged:0,localSurface:0,entrySpeed:0,planingLift:0,slamForce:0,planingContactAge:0,matrix:{}};
+ let paused=false, fieldMode='height', cam={yaw:.72,pitch:.75,dist:14};
+ let metrics={fps:0,cfl:0,maxEta:0,maxV:0,massD:0,occVol:0,sigmaDot:0,penetration:0,stick:0,overtop:0,fold:0,pressure:0,risk:0,clearance:0,trap:0,release:0,collapse:0,failVol:0,jitVol:0,eject:0,candidateArea:0,particles:0,emitted:0,particleDensity:0,filmMax:0,filmMass:0,runup:0,drain:0,drip:0,contact:0,momentum:0,elongation:0,elongBudget:0,mpmExported:0,mpmReturned:0,mpmOutstanding:0,mpmLedgerError:0,bodyWaveRatio:0,bodyLag:0,frameMs:0,simMs:0,droppedFrames:0,fixedDt:FIXED_DT,fixedSteps:0,simAccumulator:0,simDropped:0};
+@@ -387,7 +383,7 @@
+ function profStart(){return performance.now();}
+ function profEnd(name,t0){const v=performance.now()-t0;perf.current[name]=(perf.current[name]||0)+v;perf.ema[name]=perf.ema[name]==null?v:perf.ema[name]*0.88+v*0.12;perf.max[name]=Math.max(perf.max[name]||0,v);return v;}
+ function profCall(name,fn){const t=profStart();const r=fn();profEnd(name,t);return r;}
+-function perfFrameState(wall,simDt){const sim=(perf.current.body||0)+(perf.current.step||0);const sphereSpeed=Math.hypot(sphere.vx,sphere.vy,sphere.vz);const stageTotal=STAGE_DEFS.reduce((a,[k])=>a+(perf.current[k]||0),0);return {t:performance.now(),dt:simDt,frame:wall,stageTotal,sim,body:perf.current.body||0,step:perf.current.step||0,ui:perf.current.ui||0,render:perf.current.render||0,field:perf.current.field||0,obstacle:perf.current.obstacle||0,sheet:perf.current.sheet||0,collapse:perf.current.collapse||0,elong:perf.current.elong||0,exporter:perf.current.exporter||0,film:perf.current.film||0,jitEmit:perf.current.jitEmit||0,sweImpulse:perf.current.sweImpulse||0,sweVelocity:perf.current.sweVelocity||0,sweFlux:perf.current.sweFlux||0,filters:perf.current.filters||0,energy:perf.current.energy||0,particlesStage:perf.current.particles||0,fps:metrics.fps,cfl:metrics.cfl,sphereSpeed,waterMaxV:metrics.maxV,speedRatio:sphereSpeed/Math.max(.001,metrics.maxV||0),bodyWaveRatio:metrics.bodyWaveRatio,particleCount:metrics.particles,meshQuality:params.meshQuality,fieldMode,renderMode:params.renderMode,waterMaterial:params.waterMaterial,jitEnabled:params.jitEnabled?1:0,filmEnabled:params.filmEnabled?1:0,sheetEnabled:params.sheetEnabled?1:0,causticGain:params.causticGain*params.poolCausticsMultiplier,poolSize:SZ};}
++function perfFrameState(wall,simDt){const sim=(perf.current.body||0)+(perf.current.step||0);const sphereSpeed=Math.hypot(sphere.vx,sphere.vy,sphere.vz);const stageTotal=STAGE_DEFS.reduce((a,[k])=>a+(perf.current[k]||0),0);return {t:performance.now(),dt:simDt,frame:wall,stageTotal,sim,body:perf.current.body||0,step:perf.current.step||0,ui:perf.current.ui||0,render:perf.current.render||0,field:perf.current.field||0,obstacle:perf.current.obstacle||0,sheet:perf.current.sheet||0,collapse:perf.current.collapse||0,elong:perf.current.elong||0,exporter:perf.current.exporter||0,film:perf.current.film||0,jitEmit:perf.current.jitEmit||0,sweImpulse:perf.current.sweImpulse||0,sweVelocity:perf.current.sweVelocity||0,sweFlux:perf.current.sweFlux||0,filters:perf.current.filters||0,energy:perf.current.energy||0,particlesStage:perf.current.particles||0,fps:metrics.fps,cfl:metrics.cfl,sphereSpeed,waterMaxV:metrics.maxV,speedRatio:sphereSpeed/Math.max(.001,metrics.maxV||0),bodyWaveRatio:metrics.bodyWaveRatio,particleCount:metrics.particles,meshQuality:params.meshQuality,fieldMode,renderMode:params.renderMode,waterMaterial:params.waterMaterial,jitEnabled:params.jitEnabled?1:0,filmEnabled:params.filmEnabled?1:0,sheetEnabled:params.sheetEnabled?1:0,poolSize:SZ};}
+ function addPerfEvent(kind,msg,level='ok'){const e={t:performance.now(),kind,msg,level,frame:perf.ema.frame||0,sim:(perf.ema.body||0)+(perf.ema.step||0),particles:metrics.particles,mesh:params.meshQuality};perf.events.push(e);if(perf.events.length>80)perf.events.shift();}
+ function profEndFrame(simDt){const wall=performance.now()-perf.frameStart;perf.current.frame=wall;perf.ema.frame=perf.ema.frame==null?wall:perf.ema.frame*0.88+wall*0.12;perf.max.frame=Math.max(perf.max.frame||0,wall);metrics.frameMs=wall;metrics.simMs=(perf.current.body||0)+(perf.current.step||0);perf.last={...perf.current};perf.lastFrameDt=simDt;if(wall>PERF_BUDGET_MS*1.12){perf.droppedFrames++;if(perf.droppedFrames%30===1)addPerfEvent('drop','Frame over budget: '+wall.toFixed(1)+'ms','bad');}metrics.droppedFrames=perf.droppedFrames;if(perf.enabled){perf.history.push(perfFrameState(wall,simDt));if(perf.history.length>perf.maxSamples)perf.history.shift();}}
+ function perfFmt(v){return Number.isFinite(v)?v.toFixed(v>=10?1:2):'--';}
+@@ -399,12 +395,11 @@
+   {label:'Film/wetness',ms:perf.ema.film||0,detail:params.filmEnabled?'enabled':'disabled'},
+   {label:'Field monitor',ms:perf.ema.field||0,detail:fieldMode},
+   {label:'Mesh/render',ms:perf.ema.render||0,detail:`mesh ${params.meshQuality}`},
+-  {label:'Caustics',ms:(perf.ema.render||0)*clamp((params.causticGain*params.poolCausticsMultiplier)/3,0,1),detail:`gain ${(params.causticGain*params.poolCausticsMultiplier).toFixed(2)}`},
+   {label:'SDF boundary',ms:perf.ema.obstacle||0,detail:`reflect ${params.solidFluxReflection.toFixed(2)}`},
+   {label:'Sheet/FSS',ms:(perf.ema.sheet||0)+(perf.ema.collapse||0)+(perf.ema.elong||0),detail:params.sheetEnabled?'enabled':'disabled'},
+   {label:'MPM ledger',ms:perf.ema.exporter||0,detail:`out ${metrics.mpmOutstanding.toFixed(3)}`}
+ ].sort((a,b)=>b.ms-a.ms);renderStageRows(effectRows,'profilerEffectBars');const log=document.getElementById('profilerLog');if(log){const recent=perf.events.slice(-8).reverse();log.innerHTML=recent.length?recent.map(e=>`<div><b>${((e.t/1000)%9999).toFixed(1)}s</b> <span class="${e.level}">${e.kind}</span> ${e.msg}</div>`).join(''):'<div><b>trace</b> no marked events yet</div>'; }drawPerfCanvas();}
+-function telemetryCSV(){const keys=['t','dt','frame','sim','stageTotal','ui','body','step','obstacle','sheet','collapse','elong','exporter','film','jitEmit','sweImpulse','sweVelocity','sweFlux','filters','energy','particlesStage','render','field','fps','cfl','sphereSpeed','waterMaxV','speedRatio','bodyWaveRatio','particleCount','meshQuality','fieldMode','renderMode','waterMaterial','jitEnabled','filmEnabled','sheetEnabled','causticGain','poolSize'];const lines=[keys.join(',')];for(const r of perf.history){lines.push(keys.map(k=>{const v=r[k];return Number.isFinite(v)?v:(v==null?'':String(v).replaceAll(',',';'));}).join(','));}return lines.join('\n');}
++function telemetryCSV(){const keys=['t','dt','frame','sim','stageTotal','ui','body','step','obstacle','sheet','collapse','elong','exporter','film','jitEmit','sweImpulse','sweVelocity','sweFlux','filters','energy','particlesStage','render','field','fps','cfl','sphereSpeed','waterMaxV','speedRatio','bodyWaveRatio','particleCount','meshQuality','fieldMode','renderMode','waterMaterial','jitEnabled','filmEnabled','sheetEnabled','poolSize'];const lines=[keys.join(',')];for(const r of perf.history){lines.push(keys.map(k=>{const v=r[k];return Number.isFinite(v)?v:(v==null?'':String(v).replaceAll(',',';'));}).join(','));}return lines.join('\n');}
+ function telemetryJSON(){return JSON.stringify({schema:'aqua.phase8.profiler_trace.v2',generatedAt:new Date().toISOString(),budgetMs:PERF_BUDGET_MS,params:{...params},metrics:{...metrics},events:perf.events,history:perf.history},null,2);}
+ function downloadBlob(name,content,type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ function downloadTelemetry(){downloadBlob('aqua_phase8_profiler_'+Date.now()+'.csv',telemetryCSV(),'text/csv');}
+@@ -1142,8 +1137,6 @@
+ uniform float uFresnelBias;
+ uniform float uFresnelPower;
+ uniform float uSpecStrength;
+-uniform float uCausticGain;
+-uniform float uCausticScale;
+ uniform float uAbsorptionGain;
+ uniform float uFoamGain;
+ uniform float uFoamThreshold;
+@@ -1155,13 +1148,8 @@
+ uniform float uTileH;
+ uniform float uGroutW;
+ uniform float uTileVariance;
+-uniform float uCausticSharpness;
+-uniform float uCausticSoftness;
+-uniform float uCausticAbsorption;
+-uniform float uCausticDispersion;
+ uniform float uUnderwaterTint;
+ uniform float uAmbientOcclusion;
+-uniform int uCausticAlgorithm;
+ out vec4 o;
+ const float IOR_AIR = 1.0;
+ const float IOR_WATER = 1.333;
+@@ -1192,20 +1180,6 @@
+   c=mix(c,vec3(0.21,0.32,0.34),grout*0.82);
+   return c;
+ }
+-float causticNet(vec2 p,float t){
+-  p*=uCausticScale;
+-  float a=sin(p.x*8.7+p.y*2.9+t*0.0017);
+-  float b=sin(p.x*-3.3+p.y*9.4+t*0.0013+1.7);
+-  float c=sin(p.x*6.2-p.y*7.6+t*0.0011+3.1);
+-  float q=abs(a+b+c)/3.0;
+-  float sharp=max(0.5,uCausticSharpness);
+-  q=pow(saturate(1.0-q),sharp);
+-  float q2=abs(sin(p.x*15.1+t*0.0021)*sin(p.y*13.7-t*0.0014));
+-  float legacy=pow(q2,max(2.0,sharp*1.75));
+-  float v2=saturate(q*1.55+legacy*uCausticSoftness);
+-  float soft=saturate(pow(q*.85+legacy*.35,0.72));
+-  return uCausticAlgorithm==0 ? saturate(q+legacy*0.55) : (uCausticAlgorithm==2 ? soft : v2);
+-}
+ float sphereHit(vec3 ro, vec3 rd, vec3 c, float r){
+   vec3 oc=ro-c;
+   float b=dot(oc,rd);
+@@ -1248,11 +1222,9 @@
+ vec3 poolShade(vec3 p, vec3 n, vec3 rd){
+   vec3 c=tileColor(p,n);
+   float waterDepth=max(0.0,vW.y-p.y);
+-  float ca=causticNet(p.xz + n.xz*0.35, uTime);
+   float lambert=0.40+0.70*saturate(dot(n,uLight));
+   float sphereShadow=smoothstep(uRadius*1.55,uRadius*0.55,length(p.xz-uSphere.xz));
+   c*=lambert;
+-  c+=ca*vec3(0.72,0.96,1.00)*(0.20+0.70*saturate(1.0-waterDepth*0.45))*sphereShadow*uCausticGain;
+   c=mix(c,vec3(0.02,0.17,0.22),saturate(waterDepth*0.08*uAbsorptionGain));
+   return c;
+ }
+@@ -1287,10 +1259,8 @@
+   vec3 H=normalize(uLight-V);
+   float spec=pow(saturate(dot(N,H)),180.0)*uSpecStrength*(1.0+fres*2.2);
+   float crest=saturate(vY*1.7+0.38);
+-  float ca=causticNet(vW.xz + vec2(uCausticDispersion*0.19,-uCausticDispersion*0.13),uTime)*0.055*uCausticGain;
+   col+=spec*vec3(1.0,0.96,0.86);
+-  col+=ca*vec3(0.45,0.94,1.0)*(0.3+0.7*nd);
+-  col=mix(col,vec3(0.012,0.030,0.040),saturate(smoothstep(0.12,0.88,vOcc)*uAbsorptionGain + max(0.0,-vY)*uCausticAbsorption*0.16));
++  col=mix(col,vec3(0.012,0.030,0.040),saturate(smoothstep(0.12,0.88,vOcc)*uAbsorptionGain));
+   col*=1.0-uAmbientOcclusion*saturate(vOcc*0.18);
+   col=mix(col,tint,0.10+crest*0.08);
+   float foamMask=smoothstep(uFoamThreshold,1.0,vFoam)*uFoamGain;
+@@ -1322,20 +1292,14 @@
+ uniform vec3 uLight;
+ uniform vec3 uSphere;
+ uniform float uRadius;
+-uniform float uCausticGain;
+-uniform float uCausticScale;
+ uniform float uAbsorptionGain;
+ uniform float uPoolTileScale;
+ uniform float uTileW;
+ uniform float uTileH;
+ uniform float uGroutW;
+ uniform float uTileVariance;
+-uniform float uCausticSharpness;
+-uniform float uCausticSoftness;
+-uniform float uCausticAbsorption;
+ uniform float uUnderwaterTint;
+ uniform float uAmbientOcclusion;
+-uniform int uCausticAlgorithm;
+ out vec4 o;
+ float saturate(float x){return clamp(x,0.0,1.0);} 
+ float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);} 
+@@ -1355,29 +1319,13 @@
+   c+=micro*0.025*uTileVariance;
+   return c;
+ }
+-float causticNet(vec2 p,float t){
+-  p*=uCausticScale;
+-  float a=sin(p.x*8.7+p.y*2.9+t*0.0017);
+-  float b=sin(p.x*-3.3+p.y*9.4+t*0.0013+1.7);
+-  float c=sin(p.x*6.2-p.y*7.6+t*0.0011+3.1);
+-  float q=abs(a+b+c)/3.0;
+-  float sharp=max(0.5,uCausticSharpness);
+-  q=pow(saturate(1.0-q),sharp);
+-  float q2=abs(sin(p.x*15.1+t*0.0021)*sin(p.y*13.7-t*0.0014));
+-  float legacy=pow(q2,max(2.0,sharp*1.75));
+-  float v2=saturate(q*1.50+legacy*uCausticSoftness);
+-  float soft=saturate(pow(q*.85+legacy*.35,0.72));
+-  return uCausticAlgorithm==0 ? saturate(q+legacy*0.55) : (uCausticAlgorithm==2 ? soft : v2);
+-}
+ void main(){
+   vec3 n=normalize(vN);
+   vec3 c=tileColor(vW,n,vMat);
+   float lam=0.32+0.72*saturate(dot(n,uLight));
+-  float ca=causticNet(vW.xz+n.xz*0.40,uTime);
+   float depth=max(0.0,-vW.y);
+   float shadow=smoothstep(uRadius*1.70,uRadius*0.55,length(vW.xz-uSphere.xz));
+   c*=lam;
+-  c+=ca*vec3(0.70,0.96,1.00)*(0.12+0.62*saturate(1.0-depth*(0.36+uCausticAbsorption*0.20)))*shadow*uCausticGain;
+   c=mix(c,vec3(0.015,0.15,0.20),saturate(depth*0.12*uAbsorptionGain*uUnderwaterTint));
+   c*=1.0-uAmbientOcclusion*saturate(depth*0.05);
+   o=vec4(c,1.0);
+@@ -1709,29 +1657,23 @@
+ function render(){rebuildPoolGeometryIfNeeded();let w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.clearColor(.018,.045,.070,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+   let asp=w/h,P=m4(),V=m4(),M=ident(m4()),PV=m4(),MVP=m4();persp(P,Math.PI/4,asp,.05,100);let eye=[Math.sin(cam.yaw)*cam.dist,Math.sin(cam.pitch)*cam.dist*.58,Math.cos(cam.yaw)*cam.dist];look(V,eye,[0,0,0],[0,1,0]);mul(PV,P,V);
+   const light=[0.42,0.82,0.28];
+-  // Reference-style pool receiver first: floor/walls with procedural tiles + caustics.
++  // Reference-style pool receiver first: floor/walls with procedural tiles; caustics removed.
+   gl.useProgram(poolP);mul(MVP,PV,M);
+   gl.uniformMatrix4fv(gl.getUniformLocation(poolP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(poolP,'uM'),false,M);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uTime'),performance.now());
+   gl.uniform3f(gl.getUniformLocation(poolP,'uLight'),light[0],light[1],light[2]);
+   gl.uniform3f(gl.getUniformLocation(poolP,'uSphere'),sphere.x,sphere.y,sphere.z);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uRadius'),params.radius);
+-  gl.uniform1f(gl.getUniformLocation(poolP,'uCausticGain'),params.causticGain*params.poolCausticsMultiplier);
+-  gl.uniform1f(gl.getUniformLocation(poolP,'uCausticScale'),params.causticScale);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uAbsorptionGain'),params.absorptionGain);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uPoolTileScale'),params.poolTileScale);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uTileW'),params.tileWidth);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uTileH'),params.tileHeight);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uGroutW'),params.groutWidth);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uTileVariance'),params.tileVariance);
+-  gl.uniform1f(gl.getUniformLocation(poolP,'uCausticSharpness'),params.causticSharpness);
+-  gl.uniform1f(gl.getUniformLocation(poolP,'uCausticSoftness'),params.causticSoftness);
+-  gl.uniform1f(gl.getUniformLocation(poolP,'uCausticAbsorption'),params.causticAbsorption);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uUnderwaterTint'),params.underwaterTint);
+   gl.uniform1f(gl.getUniformLocation(poolP,'uAmbientOcclusion'),params.ambientOcclusion);
+-  gl.uniform1i(gl.getUniformLocation(poolP,'uCausticAlgorithm'),params.causticAlgorithm==='legacy'?0:(params.causticAlgorithm==='soft'?2:1));
+   gl.bindVertexArray(vaoPool);gl.drawArrays(gl.TRIANGLES,0,poolVertexCount);
+-  // Phase 7 solver water mesh, shaded through the reference-style ray/caustic visual shell.
++  // Phase 7 solver water mesh, shaded through the reference-style ray/refraction visual shell without caustics.
+   updateMesh();gl.useProgram(waterP);mul(MVP,PV,M);
+   gl.uniformMatrix4fv(gl.getUniformLocation(waterP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(waterP,'uM'),false,M);
+   gl.uniform1i(gl.getUniformLocation(waterP,'uMaterial'),materialId(params.waterMaterial));
+@@ -1743,8 +1685,6 @@
+   gl.uniform1f(gl.getUniformLocation(waterP,'uFresnelBias'),params.fresnelBias);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uFresnelPower'),params.fresnelPower);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uSpecStrength'),params.specStrength);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticGain'),params.causticGain*params.poolCausticsMultiplier);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticScale'),params.causticScale);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uAbsorptionGain'),params.absorptionGain);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uFoamGain'),params.foamGain);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uFoamThreshold'),params.foamThreshold);
+@@ -1756,13 +1696,8 @@
+   gl.uniform1f(gl.getUniformLocation(waterP,'uTileH'),params.tileHeight);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uGroutW'),params.groutWidth);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uTileVariance'),params.tileVariance);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticSharpness'),params.causticSharpness);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticSoftness'),params.causticSoftness);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticAbsorption'),params.causticAbsorption);
+-  gl.uniform1f(gl.getUniformLocation(waterP,'uCausticDispersion'),params.causticDispersion);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uUnderwaterTint'),params.underwaterTint);
+   gl.uniform1f(gl.getUniformLocation(waterP,'uAmbientOcclusion'),params.ambientOcclusion);
+-  gl.uniform1i(gl.getUniformLocation(waterP,'uCausticAlgorithm'),params.causticAlgorithm==='legacy'?0:(params.causticAlgorithm==='soft'?2:1));
+   gl.bindVertexArray(vaoW);gl.drawElements(gl.TRIANGLES,waterIdx.length,gl.UNSIGNED_INT,0);
+   let MS=m4();transScale(MS,sphere.x,sphere.y,sphere.z,params.radius);mul(MVP,PV,MS);gl.useProgram(sphereP);
+   gl.uniformMatrix4fv(gl.getUniformLocation(sphereP,'uMVP'),false,MVP);gl.uniformMatrix4fv(gl.getUniformLocation(sphereP,'uM'),false,MS);
+@@ -1817,14 +1752,14 @@
+   push('Pool domain',SZ>24?'OK':'OK',`SZ=${SZ.toFixed(2)}, H=${H.toFixed(2)}, DX=${DX.toFixed(3)}; UI and solver clamp max=96`);
+   push('Fixed timestep','OK',`physics dt=${FIXED_DT.toFixed(4)}s, steps/frame=${metrics.fixedSteps}, accumulator=${metrics.simAccumulator.toFixed(4)}s, dropped=${metrics.simDropped.toFixed(4)}s`);
+   push('Flux reflection',params.solidFluxReflection>0.55?'OK':'CHECK',`solidFluxReflection=${params.solidFluxReflection.toFixed(2)}; neighbor flux mirrors blocked cells`);
+-  push('Caustic authority','OK',`${params.causticAlgorithm} / gain ${(params.causticGain*params.poolCausticsMultiplier).toFixed(2)} / sharp ${params.causticSharpness.toFixed(1)}`);
++  push('Caustics','REMOVED','UI controls, shader function, shader uniforms, profiler attribution, and active gain path removed');
+   push('CFL',metrics.cfl<0.45?'OK':'CAL',`CFL=${metrics.cfl.toFixed(3)} ${metrics.cfl>=0.45?'reduce wave speed or increase damping':''}`);
+   push('Render-vs-physics','CHECK',params.renderMode==='raw'?'raw mode proves real eta':'SDF/shell modes can still visually clip contact');
+   push('MPM ledger','OPEN','failed volume spawns particles, but strict mass/momentum debit is still next');
+   el.innerHTML=items.map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+ }
+ 
+-function updateUI(){for(const [id,key] of [['sphereR','radius'],['sphereMass','mass'],['sphereY','y'],['cursorStrength','cursorStrength'],['buoyancyStrength','buoyancyStrength'],['fluidDensity','fluidDensity'],['airViscosity','airViscosity'],['waterViscosity','waterViscosity'],['addedMassCoefficient','addedMassCoefficient'],['sphereLinearDrag','sphereLinearDrag'],['sphereQuadraticDrag','sphereQuadraticDrag'],['slopeSlideStrength','slopeSlideStrength'],['poolSize','poolSize'],['poolDepth','poolDepth'],['poolWallHeight','poolWallHeight'],['poolTileScale','poolTileScale'],['tileWidth','tileWidth'],['tileHeight','tileHeight'],['groutWidth','groutWidth'],['tileRise','tileRise'],['groutRecess','groutRecess'],['tileMinCut','tileMinCut'],['tileVariance','tileVariance'],['tileGeomCap','tileGeomCap'],['poolCausticsMultiplier','poolCausticsMultiplier'],['causticSharpness','causticSharpness'],['causticSoftness','causticSoftness'],['causticAbsorption','causticAbsorption'],['causticDispersion','causticDispersion'],['underwaterTint','underwaterTint'],['ambientOcclusion','ambientOcclusion'],['solidFluxReflection','solidFluxReflection'],['waveSpeed','waveSpeed'],['damping','damping'],['push','push'],['volumeGain','volumeGain'],['wallLoss','wallLoss'],['renderSmooth','renderSmooth'],['solidGuard','solidGuard'],['releaseGain','releaseGain'],['fresnelBias','fresnelBias'],['fresnelPower','fresnelPower'],['specStrength','specStrength'],['causticGain','causticGain'],['causticScale','causticScale'],['absorptionGain','absorptionGain'],['foamGain','foamGain'],['foamThreshold','foamThreshold'],['elongationGain','elongationGain'],['elongationLimit','elongationLimit'],['elongationThreshold','elongationThreshold'],['elongationDrag','elongationDrag'],['contactImprint','contactImprint'],['sheetGain','sheetGain'],['sheetPressure','sheetPressure'],['sheetLift','sheetLift'],['collapseGain','collapseGain'],['trapGain','trapGain'],['detachGain','detachGain'],['riskGain','riskGain'],['convertThreshold','convertThreshold'],['exportLeak','exportLeak'],['jitSpawnGain','jitSpawnGain'],['particleLife','particleLife'],['particleGravity','particleGravity'],['particleFeedback','particleFeedback'],['filmDeposit','filmDeposit'],['filmDrain','filmDrain'],['filmEdgeLoss','filmEdgeLoss'],['filmAdhesion','filmAdhesion'],['filmDripGain','filmDripGain']]){params[key]=parseFloat(document.getElementById(id).value);document.getElementById(id+'V').textContent=params[key].toFixed(key==='damping'?4:(key==='airViscosity'||key==='waterViscosity'?3:2));}const q=parseInt(document.getElementById('meshQuality').value,10);if(q!==params.meshQuality){params.meshQuality=q;buildWaterMesh(q);}document.getElementById('meshQualityV').textContent=String(params.meshQuality);params.waterMaterial=document.getElementById('waterMaterial').value;document.getElementById('waterMaterialV').textContent=params.waterMaterial;params.causticAlgorithm=document.getElementById('causticAlgorithm').value;document.getElementById('causticAlgorithmV').textContent=params.causticAlgorithm;params.tilePattern=document.getElementById('tilePattern').value;document.getElementById('tilePatternV').textContent=params.tilePattern;params.motionAuthority=document.getElementById('motionAuthority').value;document.getElementById('motionAuthorityV').textContent=params.motionAuthority;syncPoolDomain();params.filmVisual=document.getElementById('filmVisual').value;document.getElementById('filmVisualV').textContent=params.filmVisual;params.elongationSource=document.getElementById('elongationSource').value;document.getElementById('elongationSourceV').textContent=params.elongationSource;if(params.motionAuthority==='kinematic'&&(sphere.auto==='still'||sphere.auto==='sideslow'||sphere.auto==='sidefast'))sphere.y=params.y;document.getElementById('fps').textContent=metrics.fps.toFixed(0);document.getElementById('cfl').textContent=metrics.cfl.toFixed(3);document.getElementById('maxEta').textContent=metrics.maxEta.toFixed(3);document.getElementById('maxV').textContent=metrics.maxV.toFixed(3);document.getElementById('massD').textContent=metrics.massD.toFixed(4);document.getElementById('occVol').textContent=metrics.occVol.toFixed(2);let Fr=Math.hypot(sphere.vx,sphere.vz)/Math.sqrt(G*Math.max(.05,params.radius*2));let sub=clamp((0-(sphere.y-params.radius))/(2*params.radius),0,1);document.getElementById('particleCount').textContent=String(metrics.particles);const gm=document.getElementById('gridMetric');if(gm)gm.textContent=N+'² / '+SZ.toFixed(1)+'m';const bm=sphere.matrix||{};const bmEl=document.getElementById('bodyMatrixRead');if(bmEl){bmEl.innerHTML=[['Froude',fmt(bm.Fr,2)],['density ratio',fmt(bm.densityRatio,2)],['wetted frac',fmt(bm.wettedFrac,2)],['entry angle',fmt(bm.entryAngle,1)+'°'],['planing gate',fmt(bm.planingGate,2)],['slam gate',fmt(bm.slamGate,2)],['wave drag',fmt(bm.waveMakingDrag,2)],['added mass',fmt(bm.addedMass,2)],['eff mass',fmt(bm.effectiveMass,2)],['medium visc',fmt(bm.mediumViscosity,3)],['cursor force',fmt(bm.cursorForce,2)],['target active',sphere.manualTarget||sphere.targetYActive||sphere.auto!=='manual'?'yes':'no'],['flow speed',fmt(bm.flowSpeed,2)],['rel speed',fmt(bm.relativeSpeed,2)],['dissip rate',fmt(bm.dissipationRate,2)],['body/wave time',fmt(bm.bodyWaveRatio,2)],['fixed dt',FIXED_DT.toFixed(4)+'s'],['sim steps',String(metrics.fixedSteps)],['sim dropped',metrics.simDropped.toFixed(4)+'s'],['body Hz',fmt(bm.bodyNatural,2)],['water Hz',fmt(bm.waterNatural,2)],['contact age',fmt(bm.contact01,2)],['hydro samples',fmt(bm.sampleCount,0)]].map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');}document.getElementById('hydroRead').innerHTML=[['sphere xz',sphere.x.toFixed(2)+', '+sphere.z.toFixed(2)],['sphere y',sphere.y.toFixed(2)],['speed',Math.hypot(sphere.vx,sphere.vz).toFixed(2)],['submerged',sub.toFixed(2)],['body sub/entry',(sphere.submerged||0).toFixed(2)+' / '+(sphere.entrySpeed||0).toFixed(2)],['planing/slam',(sphere.planingLift||0).toFixed(2)+' / '+(sphere.slamForce||0).toFixed(2)],['motion auth',params.motionAuthority],['Froude',Fr.toFixed(2)],['occ volume',metrics.occVol.toFixed(2)],['sigmaDot max',metrics.sigmaDot.toFixed(2)],['penetration',metrics.penetration.toFixed(3)],['stick ratio',metrics.stick.toFixed(2)],['overtop fill',metrics.overtop.toFixed(2)],['m min/max',minMax(liquidM).join(' / ')],['sheet fold',metrics.fold.toFixed(2)],['sheet pressure',metrics.pressure.toFixed(2)],['MPM risk',metrics.risk.toFixed(2)],['contact event',metrics.contact.toFixed(2)],['momentum event',metrics.momentum.toFixed(2)],['elongation',metrics.elongation.toFixed(2)],['elong budget',metrics.elongBudget.toFixed(3)],['clearance',metrics.clearance.toFixed(3)],['trap',metrics.trap.toFixed(2)],['release',metrics.release.toFixed(2)],['collapse',metrics.collapse.toFixed(2)],['fail vol',metrics.failVol.toFixed(4)],['JIT volume',metrics.jitVol.toFixed(4)],['eject',metrics.eject.toFixed(2)],['candidate area',metrics.candidateArea.toFixed(2)],['MPM ledger',metrics.mpmExported.toFixed(4)+' / '+metrics.mpmReturned.toFixed(4)],['outstanding',metrics.mpmOutstanding.toFixed(4)],['particles',String(metrics.particles)],['emitted/frame',String(metrics.emitted)],['particle dens',metrics.particleDensity.toFixed(4)],['film max',metrics.filmMax.toFixed(4)],['film mass',metrics.filmMass.toFixed(4)],['runup',metrics.runup.toFixed(3)],['film drain',metrics.drain.toFixed(3)],['film drip',metrics.drip.toFixed(3)],['film',params.filmEnabled?'on':'off'],['film visual',params.filmVisual],['anti-grid',params.antiGridEnabled?'on':'off'],['water look',params.waterMaterial],['pool size/depth',SZ.toFixed(1)+' / '+H.toFixed(2)],['tile pieces',String(tileStats.tiles)],['tile patches',String(tileStats.patches)],['tile verts',String(tileStats.verts)],['tile capped',tileStats.capped?'yes':'no'],['corner caps',String(tileStats.cornerCaps||0)],['leader edges',String(tileStats.leaderEdges||0)],['followers',String(tileStats.followerEdges||0)],['cut rejects',String(tileStats.rejectedCuts||0)],['L-cut rejects',String(tileStats.rejectedLCuts||0)],['caustic alg',params.causticAlgorithm],['caustics', (params.causticGain*params.poolCausticsMultiplier).toFixed(2)],['fresnel',params.fresnelBias.toFixed(3)+' / '+params.fresnelPower.toFixed(1)],['aeration',params.foamGain.toFixed(2)],['elong source',params.elongationSource],['JIT spawn',params.jitEnabled?'on':'off'],['sheet',params.sheetEnabled?'on':'off'],['cursor hit',lastDragHit?(lastDragHit.x.toFixed(2)+', '+lastDragHit.z.toFixed(2)):'--'],['target xz',(sphere.tx||0).toFixed(2)+', '+(sphere.tz||0).toFixed(2)],['field',fieldMode],['render',params.renderMode],['mesh',String(params.meshQuality)]].map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');updateProfilerCockpit();updateCalibrationAudit();}
++function updateUI(){for(const [id,key] of [['sphereR','radius'],['sphereMass','mass'],['sphereY','y'],['cursorStrength','cursorStrength'],['buoyancyStrength','buoyancyStrength'],['fluidDensity','fluidDensity'],['airViscosity','airViscosity'],['waterViscosity','waterViscosity'],['addedMassCoefficient','addedMassCoefficient'],['sphereLinearDrag','sphereLinearDrag'],['sphereQuadraticDrag','sphereQuadraticDrag'],['slopeSlideStrength','slopeSlideStrength'],['poolSize','poolSize'],['poolDepth','poolDepth'],['poolWallHeight','poolWallHeight'],['poolTileScale','poolTileScale'],['tileWidth','tileWidth'],['tileHeight','tileHeight'],['groutWidth','groutWidth'],['tileRise','tileRise'],['groutRecess','groutRecess'],['tileMinCut','tileMinCut'],['tileVariance','tileVariance'],['tileGeomCap','tileGeomCap'],['underwaterTint','underwaterTint'],['ambientOcclusion','ambientOcclusion'],['solidFluxReflection','solidFluxReflection'],['waveSpeed','waveSpeed'],['damping','damping'],['push','push'],['volumeGain','volumeGain'],['wallLoss','wallLoss'],['renderSmooth','renderSmooth'],['solidGuard','solidGuard'],['releaseGain','releaseGain'],['fresnelBias','fresnelBias'],['fresnelPower','fresnelPower'],['specStrength','specStrength'],['absorptionGain','absorptionGain'],['foamGain','foamGain'],['foamThreshold','foamThreshold'],['elongationGain','elongationGain'],['elongationLimit','elongationLimit'],['elongationThreshold','elongationThreshold'],['elongationDrag','elongationDrag'],['contactImprint','contactImprint'],['sheetGain','sheetGain'],['sheetPressure','sheetPressure'],['sheetLift','sheetLift'],['collapseGain','collapseGain'],['trapGain','trapGain'],['detachGain','detachGain'],['riskGain','riskGain'],['convertThreshold','convertThreshold'],['exportLeak','exportLeak'],['jitSpawnGain','jitSpawnGain'],['particleLife','particleLife'],['particleGravity','particleGravity'],['particleFeedback','particleFeedback'],['filmDeposit','filmDeposit'],['filmDrain','filmDrain'],['filmEdgeLoss','filmEdgeLoss'],['filmAdhesion','filmAdhesion'],['filmDripGain','filmDripGain']]){params[key]=parseFloat(document.getElementById(id).value);document.getElementById(id+'V').textContent=params[key].toFixed(key==='damping'?4:(key==='airViscosity'||key==='waterViscosity'?3:2));}const q=parseInt(document.getElementById('meshQuality').value,10);if(q!==params.meshQuality){params.meshQuality=q;buildWaterMesh(q);}document.getElementById('meshQualityV').textContent=String(params.meshQuality);params.waterMaterial=document.getElementById('waterMaterial').value;document.getElementById('waterMaterialV').textContent=params.waterMaterial;params.tilePattern=document.getElementById('tilePattern').value;document.getElementById('tilePatternV').textContent=params.tilePattern;params.motionAuthority=document.getElementById('motionAuthority').value;document.getElementById('motionAuthorityV').textContent=params.motionAuthority;syncPoolDomain();params.filmVisual=document.getElementById('filmVisual').value;document.getElementById('filmVisualV').textContent=params.filmVisual;params.elongationSource=document.getElementById('elongationSource').value;document.getElementById('elongationSourceV').textContent=params.elongationSource;if(params.motionAuthority==='kinematic'&&(sphere.auto==='still'||sphere.auto==='sideslow'||sphere.auto==='sidefast'))sphere.y=params.y;document.getElementById('fps').textContent=metrics.fps.toFixed(0);document.getElementById('cfl').textContent=metrics.cfl.toFixed(3);document.getElementById('maxEta').textContent=metrics.maxEta.toFixed(3);document.getElementById('maxV').textContent=metrics.maxV.toFixed(3);document.getElementById('massD').textContent=metrics.massD.toFixed(4);document.getElementById('occVol').textContent=metrics.occVol.toFixed(2);let Fr=Math.hypot(sphere.vx,sphere.vz)/Math.sqrt(G*Math.max(.05,params.radius*2));let sub=clamp((0-(sphere.y-params.radius))/(2*params.radius),0,1);document.getElementById('particleCount').textContent=String(metrics.particles);const gm=document.getElementById('gridMetric');if(gm)gm.textContent=N+'² / '+SZ.toFixed(1)+'m';const bm=sphere.matrix||{};const bmEl=document.getElementById('bodyMatrixRead');if(bmEl){bmEl.innerHTML=[['Froude',fmt(bm.Fr,2)],['density ratio',fmt(bm.densityRatio,2)],['wetted frac',fmt(bm.wettedFrac,2)],['entry angle',fmt(bm.entryAngle,1)+'°'],['planing gate',fmt(bm.planingGate,2)],['slam gate',fmt(bm.slamGate,2)],['wave drag',fmt(bm.waveMakingDrag,2)],['added mass',fmt(bm.addedMass,2)],['eff mass',fmt(bm.effectiveMass,2)],['medium visc',fmt(bm.mediumViscosity,3)],['cursor force',fmt(bm.cursorForce,2)],['target active',sphere.manualTarget||sphere.targetYActive||sphere.auto!=='manual'?'yes':'no'],['flow speed',fmt(bm.flowSpeed,2)],['rel speed',fmt(bm.relativeSpeed,2)],['dissip rate',fmt(bm.dissipationRate,2)],['body/wave time',fmt(bm.bodyWaveRatio,2)],['fixed dt',FIXED_DT.toFixed(4)+'s'],['sim steps',String(metrics.fixedSteps)],['sim dropped',metrics.simDropped.toFixed(4)+'s'],['body Hz',fmt(bm.bodyNatural,2)],['water Hz',fmt(bm.waterNatural,2)],['contact age',fmt(bm.contact01,2)],['hydro samples',fmt(bm.sampleCount,0)]].map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');}document.getElementById('hydroRead').innerHTML=[['sphere xz',sphere.x.toFixed(2)+', '+sphere.z.toFixed(2)],['sphere y',sphere.y.toFixed(2)],['speed',Math.hypot(sphere.vx,sphere.vz).toFixed(2)],['submerged',sub.toFixed(2)],['body sub/entry',(sphere.submerged||0).toFixed(2)+' / '+(sphere.entrySpeed||0).toFixed(2)],['planing/slam',(sphere.planingLift||0).toFixed(2)+' / '+(sphere.slamForce||0).toFixed(2)],['motion auth',params.motionAuthority],['Froude',Fr.toFixed(2)],['occ volume',metrics.occVol.toFixed(2)],['sigmaDot max',metrics.sigmaDot.toFixed(2)],['penetration',metrics.penetration.toFixed(3)],['stick ratio',metrics.stick.toFixed(2)],['overtop fill',metrics.overtop.toFixed(2)],['m min/max',minMax(liquidM).join(' / ')],['sheet fold',metrics.fold.toFixed(2)],['sheet pressure',metrics.pressure.toFixed(2)],['MPM risk',metrics.risk.toFixed(2)],['contact event',metrics.contact.toFixed(2)],['momentum event',metrics.momentum.toFixed(2)],['elongation',metrics.elongation.toFixed(2)],['elong budget',metrics.elongBudget.toFixed(3)],['clearance',metrics.clearance.toFixed(3)],['trap',metrics.trap.toFixed(2)],['release',metrics.release.toFixed(2)],['collapse',metrics.collapse.toFixed(2)],['fail vol',metrics.failVol.toFixed(4)],['JIT volume',metrics.jitVol.toFixed(4)],['eject',metrics.eject.toFixed(2)],['candidate area',metrics.candidateArea.toFixed(2)],['MPM ledger',metrics.mpmExported.toFixed(4)+' / '+metrics.mpmReturned.toFixed(4)],['outstanding',metrics.mpmOutstanding.toFixed(4)],['particles',String(metrics.particles)],['emitted/frame',String(metrics.emitted)],['particle dens',metrics.particleDensity.toFixed(4)],['film max',metrics.filmMax.toFixed(4)],['film mass',metrics.filmMass.toFixed(4)],['runup',metrics.runup.toFixed(3)],['film drain',metrics.drain.toFixed(3)],['film drip',metrics.drip.toFixed(3)],['film',params.filmEnabled?'on':'off'],['film visual',params.filmVisual],['anti-grid',params.antiGridEnabled?'on':'off'],['water look',params.waterMaterial],['pool size/depth',SZ.toFixed(1)+' / '+H.toFixed(2)],['tile pieces',String(tileStats.tiles)],['tile patches',String(tileStats.patches)],['tile verts',String(tileStats.verts)],['tile capped',tileStats.capped?'yes':'no'],['corner caps',String(tileStats.cornerCaps||0)],['leader edges',String(tileStats.leaderEdges||0)],['followers',String(tileStats.followerEdges||0)],['cut rejects',String(tileStats.rejectedCuts||0)],['L-cut rejects',String(tileStats.rejectedLCuts||0)],['fresnel',params.fresnelBias.toFixed(3)+' / '+params.fresnelPower.toFixed(1)],['aeration',params.foamGain.toFixed(2)],['elong source',params.elongationSource],['JIT spawn',params.jitEnabled?'on':'off'],['sheet',params.sheetEnabled?'on':'off'],['cursor hit',lastDragHit?(lastDragHit.x.toFixed(2)+', '+lastDragHit.z.toFixed(2)):'--'],['target xz',(sphere.tx||0).toFixed(2)+', '+(sphere.tz||0).toFixed(2)],['field',fieldMode],['render',params.renderMode],['mesh',String(params.meshQuality)]].map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');updateProfilerCockpit();updateCalibrationAudit();}
+ let last=performance.now(),frames=0,ft=0,uiAccum=0,fieldAccum=0,simAccum=0;
+ function activeDrawerPage(asideId){const aside=document.getElementById(asideId);const p=aside&&aside.querySelector('.drawerPage.active');return p?p.dataset.page:'';}
+ function loop(now){
+@@ -1982,7 +1917,7 @@
+   buildDrawerPages('left',[
+     {key:'run',label:'Run',headings:['Canonical Tests']},
+     {key:'sphere',label:'Sphere',headings:['Sphere Authority','Src Sphere Body Coupling']},
+-    {key:'water',label:'Water',headings:['Solver Constants','Surface Render','Pass18 Visual Authority','Src Pool / Caustic Domain','Parametric Pool Tile Construction','Projected Material Boundary — Real HF Collision']},
++    {key:'water',label:'Water',headings:['Solver Constants','Surface Render','Pass18 Visual Authority','Src Pool Domain','Parametric Pool Tile Construction','Projected Material Boundary — Real HF Collision']},
+     {key:'sheet',label:'Sheet / MPM',headings:['Folded Surface Sheet — Phase 2','Release Collapse — Phase 3','Sheet Failure Export — Phase 4','JIT Sheet-MPM Spawn — Phase 5','HF Energy Elongation — Bubble/Ribbon Gate','Object Runup Film — Phase 6']}
+   ], 'sphere');
+   buildDrawerPages('right',[

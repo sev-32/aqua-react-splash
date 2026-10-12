@@ -18,6 +18,8 @@
  *     spectrum + T3 tiles + T2 shore), sampled once per volume per frame.
  */
 
+import { MaterialCrownHistory } from './materialCrown';
+
 export const FLAG_ALIVE = 1 << 0;
 export const FLAG_AIRBORNE = 1 << 1;
 export const FLAG_FOAM = 1 << 2;
@@ -61,6 +63,7 @@ export interface WaterSampler {
 export interface SettleEvent {
   x: number; z: number;
   vy: number;
+  vx: number; vz: number; // full velocity at return, required for transfer impulse/energy
   volume: number;  // m³ returned to the heightfield
 }
 
@@ -158,8 +161,12 @@ const weights = (d: number): [number, number, number] => [0.5 * (0.5 - d) * (0.5
 
 export class OceanMpm {
   readonly particles: MpmParticles;
+  /** Historical crown material coordinates; does not affect MPM forces. */
+  readonly materialCrown = new MaterialCrownHistory();
   readonly volumes: SplashVolume[] = [];
   settleEvents: SettleEvent[] = [];
+  /** Returns caused by capacity overwrites during emission, BEFORE step(). */
+  private pendingSettleEvents: SettleEvent[] = [];
   /** Wind at spray height (m/s, x/z): atomization and spray drag act on the velocity relative to the air. */
   wind: [number, number] = [0, 0];
   /** Ledger (m³). */
@@ -212,7 +219,7 @@ export class OceanMpm {
       i = P.next;
       P.next = (P.next + 1) % P.capacity;
       // Overwriting a live particle: its water must still go home.
-      if (P.flags[i] & FLAG_ALIVE) this.settle(i, P.px[i], P.pz[i], P.vy[i]);
+      if (P.flags[i] & FLAG_ALIVE) this.settle(i, P.px[i], P.pz[i], P.vy[i], true);
     }
     P.px[i] = x; P.py[i] = y; P.pz[i] = z;
     P.vx[i] = vx; P.vy[i] = vy; P.vz[i] = vz;
@@ -229,10 +236,11 @@ export class OceanMpm {
   }
 
   /** Hand a particle's water back to the heightfield and retire it (exactly once). */
-  private settle(p: number, x: number, z: number, vy: number) {
+  private settle(p: number, x: number, z: number, vy: number, beforeStep = false) {
     const P = this.particles;
     if (!(P.flags[p] & FLAG_ALIVE)) return;
-    this.settleEvents.push({ x, z, vy, volume: P.vol[p] });
+    const event = { x, z, vy, vx: P.vx[p], vz: P.vz[p], volume: P.vol[p] };
+    (beforeStep ? this.pendingSettleEvents : this.settleEvents).push(event);
     this.stats.settled += P.vol[p];
     P.flags[p] = 0;
     P.vol[p] = 0;
@@ -248,7 +256,7 @@ export class OceanMpm {
    */
   emitRelease(r: { x: number; z: number; y: number; volume: number; vx: number; vy: number; vz: number; vr?: number; aerated?: boolean;
     /** Sub-frame emission: launch (vr0, vy0) at the start of the last `span` s, (vr, vy) at its end. */
-    vr0?: number; vy0?: number; span?: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
+    vr0?: number; vy0?: number; span?: number; materialSource?: number }, kind: 'impact' | 'crown' | 'sheet', spread: number, now: number, maxCount = 400) {
     const V = r.volume;
     if (!(V > 0)) return;
     this.stats.emitted += V;
@@ -258,6 +266,8 @@ export class OceanMpm {
     // continuous sheet — too few samples and it breaks into lobes), capped by budget.
     const n = Math.max(8, Math.min(maxCount, Math.round(V / (dx * dx * dx / 27))));
     const vp = V / n;
+    if (kind === 'crown' && r.materialSource !== undefined)
+      this.materialCrown.start(r.materialSource, now);
     const y0 = Math.max(r.y * 0.35, 0) + 0.02;
     // Jet speed: impact limiter releases over-state the surface rise (the capacity source
     // injects a body's displacement within a frame), so the sheet leaves at a fraction of it.
@@ -283,8 +293,10 @@ export class OceanMpm {
         const vrr = (r.vr0 !== undefined ? r.vr0 + (r.vr - r.vr0) * u : r.vr) * j;
         const vyy = (r.vy0 !== undefined ? r.vy0 + (r.vy - r.vy0) * u : r.vy) * j;
         const rad = ring + vrr * age, hx0 = r.vx * 0.3, hz0 = r.vz * 0.3;
-        this.spawn(r.x + nx * rad + hx0 * age, r.y + 0.02 + this.rand() * 0.04 + vyy * age - 4.905 * age * age, r.z + nz * rad + hz0 * age,
+        const pi = this.spawn(r.x + nx * rad + hx0 * age, r.y + 0.02 + this.rand() * 0.04 + vyy * age - 4.905 * age * age, r.z + nz * rad + hz0 * age,
           nx * vrr + hx0, vyy - 9.81 * age, nz * vrr + hz0, vp, !!r.aerated);
+        if (r.materialSource !== undefined)
+          this.materialCrown.record(pi, this.particles.seed[pi], a, vp);
       } else if (kind === 'impact' || crownOnly) {
         if (!crownOnly && i % 4 === 0) {
           // Central Worthington jet (pool spawnImpact): narrow, fast, near-vertical.
@@ -309,6 +321,8 @@ export class OceanMpm {
           r.vz * (0.7 + 0.4 * this.rand()) + nz * 0.8 * side, vp, foam);
       }
     }
+    if (kind === 'crown' && r.materialSource !== undefined)
+      this.materialCrown.end();
   }
 
   // ─────────────────────────────── the solver ───────────────────────────────
@@ -316,7 +330,10 @@ export class OceanMpm {
   /** One frame: substeps of P2G → stress → grid → G2P per volume, ballistic elsewhere. */
   step(dt: number, water: WaterSampler, colliders: SphereCollider[], now: number) {
     const safeDt = Math.min(Math.max(dt, 0), 1 / 20);
-    this.settleEvents = [];
+    // Keep pre-step returns caused by ring-buffer capacity recycling.
+    // Previously these were silently erased although stats.settled increased.
+    this.settleEvents = this.pendingSettleEvents;
+    this.pendingSettleEvents = [];
     if (safeDt <= 0) return;
     for (const v of this.volumes) v.sampleSurface(water);
     // Assign particles to volumes (first containing volume wins).
@@ -592,6 +609,11 @@ export class OceanMpm {
     for (let i = 0; i < P.capacity; i++) if (P.flags[i]) { this.stats.lost += P.vol[i]; P.flags[i] = 0; P.vol[i] = 0; }
     P.count = 0;
     P.next = 0;
+    this.materialCrown.clear();
+    this.settleEvents = [];
+    this.pendingSettleEvents = [];
+    this.stats.alive = 0;
+    this.stats.airborne = 0;
     this.volumes.length = 0;
   }
 

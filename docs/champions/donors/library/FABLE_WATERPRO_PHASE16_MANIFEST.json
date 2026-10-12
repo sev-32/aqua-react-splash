@@ -1,0 +1,9 @@
+{
+  "schema": "waterpro.fable.phase_manifest.v1.6",
+  "phase": "16",
+  "artifact": "hybridsplashFable_waterpro_phase16.html",
+  "module": "FABLE_WATERPRO_COASTAL_FOAM_PROCESS_MODULE_v1_6.json",
+  "notes": "FABLE_WATERPRO_PHASE16_BUILD_NOTES.md",
+  "source": "hybridsplashFable_waterpro_phase15.html",
+  "noPreviewPolicy": true
+}

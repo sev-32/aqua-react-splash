@@ -1,0 +1,42 @@
+name: THALASSA entry packet threshold intervention
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths: ['.github/workflows/entry-packet-intervention.yml']
+  workflow_dispatch:
+jobs:
+  threshold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/thalassa-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ocean >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/thalassa-preview.log
+          exit 1
+      - name: Measure 1/4 entry threshold at 30/60/120 Hz
+        run: node scripts/causal-ledger-capture.mjs captures/entry-packet-025/ledger.json
+        env:
+          THALASSA_URL: http://127.0.0.1:4173/ocean?capture=1&quality=capture&seed=20260925
+          ENTRY_PACKET_SCALE: '0.25'
+          CAUSAL_SECONDS: '1.2'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thalassa-entry-packet-quarter-threshold
+          path: captures/entry-packet-025/
+          retention-days: 7
+          if-no-files-found: warn

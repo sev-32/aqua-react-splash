@@ -1,0 +1,47 @@
+name: THALASSA splash morphology A-B proof
+on:
+  push:
+    branches: [feature/causal-water-ledger-r1]
+    paths:
+      - '.github/workflows/splash-morphology-ab.yml'
+      - 'scripts/ci-splash-morphology-ab.mjs'
+      - 'src/ocean/sim/SplashSystem.ts'
+      - 'src/ocean/sim/splashShaders.ts'
+  workflow_dispatch:
+jobs:
+  render-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify source
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Install Chromium with ANGLE/SwiftShader
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/ocean-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ocean >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/ocean-preview.log
+          exit 1
+      - name: Render matched R1 versus V2 physical states
+        run: node scripts/ci-splash-morphology-ab.mjs
+      - name: Preserve original frames and physical receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-splash-morphology-R1-vs-V2
+          path: captures/splash-morphology-ab/
+          if-no-files-found: warn
+          retention-days: 7
