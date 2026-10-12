@@ -33,15 +33,15 @@ for(let i=0;i<names.length;i++){
   /^(PoolSimulation|POOL_EXACT)/.test(name)?'Standalone pool/optics':
   'Other original water donor';
  entry.source={
-  gitBlobSha1:createHash('sha1').update('blob '+raw.length+'\\0').update(raw).digest('hex'),
+  gitBlobSha1:createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex'),
   sha256:createHash('sha256').update(raw).digest('hex'),
   bytes:raw.length,family,
   features:{
-   webgpu:flag(/navigator\\.gpu|requestAdapter\\s*\\(/),
+   webgpu:flag(/navigator\.gpu|requestAdapter\s*\(/),
    webgl2:flag(/webgl2|WebGL2RenderingContext/i),
-   mpm:flag(/MLS.MPM|WG_P2G|p2gKernel|\\bMPM\\b/i),
-   jit:flag(/\\bJIT\\b|jitEmit/i),
-   heightfield:flag(/heightfield|\\bSWE\\b|shallow.water/i),
+   mpm:flag(/MLS.MPM|WG_P2G|p2gKernel|\bMPM\b/i),
+   jit:flag(/\bJIT\b|jitEmit/i),
+   heightfield:flag(/heightfield|\bSWE\b|shallow.water/i),
    fresnel:flag(/fresnel/i),caustics:flag(/caustic/i),
    connectedFluid:flag(/marching.cubes|metaball|tendril|neck|filament/i),
    foam:flag(/foam/i),
