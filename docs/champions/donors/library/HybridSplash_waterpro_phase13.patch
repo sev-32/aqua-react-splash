@@ -1,0 +1,271 @@
+--- hybridsplashFable_waterpro_phase12.html
++++ hybridsplashFable_waterpro_phase13.html
+@@ -5661,7 +5661,172 @@
+       const pre = $('wpValidationPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase12Packet(), null, 2).slice(0, 16000);
+     }
+ 
+-    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
++
++
++    // ---------- PHASE 13: instrumentation / visual proof / performance budgets ----------
++    const wpInstrumentationModule = {
++      id:'WATERPRO_INSTRUMENTATION_PROOF_BUDGETS',
++      phase:'13',
++      status:'connected instrumentation layer over existing runtime probes and visual readback path',
++      bucket:'new-integration',
++      doctrine:'A WaterPRO build needs receipts that connect the authored modules to runtime proof targets. This phase does not claim accepted visual truth automatically; it exposes capture requests, readback stats, performance budgets, and scenario proof packets so local browser runs can produce evidence without turning every assistant reply into a heavy preview.',
++      inputs:['runtimeProbe','bootDiag','visualReadback','wpValidationReceipt','wpComposerPacket','wpRecipe','module packets'],
++      outputs:['instrumentationPacket','visualProofReceipt','performanceBudgetReceipt','scenarioCapturePlan','phase13Packet'],
++      futureRuntime:['diagnostic channel thumbnail atlas','GPU timestamp queries when supported','per-pass readback histograms','visual diff baseline store','local screenshot bundles','automated replay runner','recipe-to-proof CI harness']
++    };
++    const wpPerfBudgets = [
++      {id:'fps.interactive', title:'Interactive FPS', target:'>= 45 FPS local on target browser/GPU', read:'runtimeProbe.fps', severity:'warn'},
++      {id:'frame.submit', title:'Frame submissions', target:'frameSubmits > 0 and increasing after start', read:'bootDiag.frameSubmits', severity:'fail'},
++      {id:'visual.nonblack', title:'Visual readback non-black', target:'visualReadback.nonBlack === true after probe completes', read:'runtimeProbe.visualReadback.nonBlack', severity:'fail'},
++      {id:'shader.errors', title:'Shader/device errors', target:'no uncaptured GPU validation/device-loss errors', read:'bootDiag.errors/scopedErrors/shaderMessages', severity:'fail'},
++      {id:'recipe.export', title:'Recipe export completeness', target:'recipe contains current controls, modules, volumes, diagnostics and composer packet', read:'wpRecipe + wpComposerPacket', severity:'fail'},
++      {id:'protected.core', title:'Protected Fable core present', target:'FABLE_NEARSHORE_HEIGHTFIELD_CORE packet exists', read:'wpFableCorePacket', severity:'fail'},
++      {id:'no.preview.default', title:'No heavy preview default', target:'proof artifacts are downloadable; assistant replies should not include open-preview links unless requested', read:'workflow policy', severity:'info'}
++    ];
++    const wpInstrumentationState = {
++      activeScenario:'connected-baseline-proof',
++      lastRequestedAt:null,
++      lastReceipt:null,
++      history:[],
++      localProofRequired:true,
++      screenshotPreviewInReply:false,
++      readbackSize:'64x64 offscreen WebGPU render path',
++      captureMode:'request next-frame visualReadback + static runtime packet'
++    };
++    const wpInstrumentationScenarios = [
++      {id:'connected-baseline-proof', title:'Connected baseline proof', applies:['full'], goal:'Capture the current connected Fable/WaterPRO runtime without changing scenario state.'},
++      {id:'curved-shore-proof', title:'Curved shore proof', applies:['curved-shore'], goal:'Verify protected curved shoreline wave response remains present.'},
++      {id:'breaker-bar-proof', title:'Breaker-bar proof', applies:['breaker-bar'], goal:'Verify terrain/bathymetry feature can still break incoming waves into higher-frequency response.'},
++      {id:'fft-to-core-proof', title:'FFT source into Fable core proof', applies:['shore-fft'], goal:'Verify FFT source changes incoming energy while Fable nearshore core remains downstream.'},
++      {id:'film-splash-bubble-proof', title:'Film/splash/bubble loop proof', applies:['foam-streaks','breaker-sheets','plunge-bubbles'], goal:'Verify connected return-loop modules are present and scenario-routable.'},
++      {id:'volume-intent-object-proof', title:'Volume/intent/object proof', applies:['river','bucket-scoop'], goal:'Verify semantic volume, terrain intent and object contract paths are packaged together.'},
++      {id:'composer-recipe-proof', title:'Composer recipe proof', applies:['fable-shoreline-system'], goal:'Verify a saved water system can include graph, modules, validation, and instrumentation targets.'}
++    ];
++    wpLayerRegistry.push({ id:'instrumentation.proof-budgets', name:'Instrumentation / Proof / Performance Budgets', bucket:'new-integration', pass:'runtime probes + visual readback receipts + proof packets', outputs:['visualProofReceipt','performanceBudgetReceipt','scenarioCapturePlan'], controls:['requestVisualReadback','runProofScenario','downloadInstrumentationPacket','downloadBudgetReceipt'] });
++    wpChannelRegistry.push(['visualProofReceipt','WaterPRO instrumentation module','Local browser proof target using existing offscreen WebGPU visual readback stats and scenario metadata.']);
++    wpChannelRegistry.push(['performanceBudgetReceipt','WaterPRO instrumentation module','Budget/check packet for FPS, frame submissions, visual non-black readback and GPU errors.']);
++    wpChannelRegistry.push(['scenarioCapturePlan','WaterPRO instrumentation module','Named proof scenario plan for future automated replay/screenshot/diff.']);
++    wpPhasePlan.push({ phase:'13', title:'Instrumentation / visual proof / performance budgets', status:'active connected instrumentation layer in this build', deliverables:['Proof page','visual readback trigger','performance budget packet','scenario capture plan','phase 13 packet','browser API exports'], risk:'The app can request and report visual readback locally, but this container cannot produce accepted WebGPU proof. Future work should add diagnostic thumbnail atlas and deterministic visual diff baselines.' });
++    wpClassification.push({ id:'instrumentation.proof-budgets', bucket:'new-integration', name:'Instrumentation / Visual Proof / Performance Budgets', evidence:'Phase 13 connects to the existing runtimeProbe, boot diagnostics and offscreen visualReadback path, then packages proof receipts and budget checks for local Chrome/Edge runs.', protect:'Do not mark visual truth accepted from static JS syntax checks alone. Visual proof must be generated by local browser/WebGPU execution.' });
++    wpExperimentQueue.push({ id:'exp.diagnostic-thumbnail-atlas', title:'Diagnostic channel thumbnail atlas', input:'WaveField ABI channels + GPU readback/canvas captures', output:'small downloadable atlas proving height/depth/foam/wetness/compression/spray states per scenario', success:'each regression suite emits a compact proof bundle without requiring manual screenshots.', target:'Phase 14+' });
++
++    function wpResetVisualReadback(reason='manual') {
++      if (typeof visualReadback === 'undefined' || !visualReadback) return {ok:false, reason:'visualReadback object unavailable'};
++      visualReadback.requested = true;
++      visualReadback.pending = false;
++      visualReadback.complete = false;
++      visualReadback.failed = false;
++      visualReadback.encodedAtFrame = null;
++      visualReadback.completedAtFrame = null;
++      visualReadback.completedAt = null;
++      visualReadback.meanRgb = null;
++      visualReadback.maxRgb = null;
++      visualReadback.nonZeroRgb = null;
++      visualReadback.nonBlack = false;
++      visualReadback.error = null;
++      visualReadback.reason = reason;
++      wpInstrumentationState.lastRequestedAt = new Date().toISOString();
++      return {ok:true, reason, requestedAt:wpInstrumentationState.lastRequestedAt};
++    }
++    function wpApplyProofScenario(id) {
++      const s = wpInstrumentationScenarios.find(x => x.id === id) || wpInstrumentationScenarios[0];
++      wpInstrumentationState.activeScenario = s.id;
++      for (const step of s.applies || []) {
++        if (step === 'full') wpApplyScenario('full');
++        else if (['curved-shore','breaker-bar','runup-wetness','impact-feedback','river-mouth'].includes(step)) wpApplyFableCoreScenario(step);
++        else if (['deep-fft','shore-fft','breaker-bar-fft','storm-fft'].includes(step)) wpApplyFftSourceScenario(step);
++        else if (['foam-streaks','landing-deposits','vorticity-swirls','thin-sheet'].includes(step)) wpApplySurfaceFilmScenario(step);
++        else if (['breaker-sheets','impact-crown','spout-plunge','film-return'].includes(step)) wpApplySplashConversionScenario(step);
++        else if (['plunge-bubbles','breaker-entrainment','impact-underwater','clear-water-bubbles'].includes(step)) wpApplyBubbleProxyScenario(step);
++        else if (['river','lake','waterfall','flood','bar','cove'].includes(step)) wpPaintTerrainIntent(step);
++        else if (['bucket-scoop','boat-wake','rock-current','body-impact','propeller-churn','waterfall-collider'].includes(step)) wpApplyObjectInteractionScenario(step);
++        else if (['fable-shoreline-system','river-mouth-system','waterfall-plunge-system','bucket-scoop-system'].includes(step)) wpComposeWaterSystem(step);
++      }
++      wpResetVisualReadback('proof-scenario:'+s.id);
++      wpRenderAll();
++      return wpInstrumentationReceipt(s.id, false);
++    }
++    function wpBudgetStatus() {
++      const vr = runtimeProbe.visualReadback || visualReadback || {};
++      const errors = (bootDiag.errors||[]).length + (bootDiag.scopedErrors||[]).length + (bootDiag.shaderMessages||[]).length;
++      const recipe = wpRecipe();
++      const statuses = wpPerfBudgets.map(b => {
++        let status = 'unknown', value = null;
++        if (b.id === 'fps.interactive') { value = runtimeProbe.fps; status = value == null ? 'pending' : value >= 45 ? 'pass' : 'warn'; }
++        if (b.id === 'frame.submit') { value = bootDiag.frameSubmits; status = value > 0 ? 'pass' : 'fail'; }
++        if (b.id === 'visual.nonblack') { value = {complete:!!vr.complete, pending:!!vr.pending, failed:!!vr.failed, nonBlack:!!vr.nonBlack, meanRgb:vr.meanRgb, maxRgb:vr.maxRgb}; status = vr.failed ? 'fail' : vr.complete ? (vr.nonBlack ? 'pass' : 'fail') : 'pending'; }
++        if (b.id === 'shader.errors') { value = errors; status = errors === 0 ? 'pass' : 'fail'; }
++        if (b.id === 'recipe.export') { value = {hasControls:!!recipe.currentControls, hasComposer:!!recipe.composer, volumes:(recipe.semanticVolumes||[]).length}; status = recipe.currentControls && recipe.composer ? 'pass' : 'fail'; }
++        if (b.id === 'protected.core') { value = wpFableCorePacket()?.module?.id; status = value === 'FABLE_NEARSHORE_HEIGHTFIELD_CORE' ? 'pass' : 'fail'; }
++        if (b.id === 'no.preview.default') { value = !wpInstrumentationState.screenshotPreviewInReply; status = value ? 'pass' : 'warn'; }
++        return {...b, value, status};
++      });
++      const failCount = statuses.filter(x => x.status === 'fail').length;
++      const warnCount = statuses.filter(x => x.status === 'warn').length;
++      const pendingCount = statuses.filter(x => x.status === 'pending' || x.status === 'unknown').length;
++      const gate = failCount ? 'FAIL' : warnCount || pendingCount ? 'WARN' : 'PASS';
++      return {schema:'waterpro.performance_budget_receipt.v1.3', generatedAt:new Date().toISOString(), gate, failCount, warnCount, pendingCount, statuses};
++    }
++    function wpInstrumentationReceipt(scenarioId=wpInstrumentationState.activeScenario, update=true) {
++      const scenario = wpInstrumentationScenarios.find(x => x.id === scenarioId) || wpInstrumentationScenarios[0];
++      const budget = wpBudgetStatus();
++      const vr = runtimeProbe.visualReadback || visualReadback || null;
++      const receipt = {
++        schema:'waterpro.fable.visual_proof_receipt.v1.3',
++        generatedAt:new Date().toISOString(),
++        scenario,
++        gate: budget.gate,
++        localProofRequired:true,
++        acceptedVisualProof:false,
++        reason:'This receipt describes local browser/WebGPU proof targets. Accepted visual proof requires running the HTML locally and collecting completed readback/screenshot evidence.',
++        runtime:{ frame:runtimeProbe.frame, simTime:runtimeProbe.simTime, fps:runtimeProbe.fps, paused:runtimeProbe.paused, canvas:runtimeProbe.canvas, frameSubmits:bootDiag.frameSubmits, firstFrameAt:bootDiag.firstFrameAt },
++        visualReadback: vr ? {...vr} : null,
++        performanceBudget: budget,
++        moduleCoverage:{ validation:wpPhase12Packet(), composer:wpComposerPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumes:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket() }
++      };
++      if (update) {
++        wpInstrumentationState.lastReceipt = receipt;
++        wpInstrumentationState.history.unshift({scenarioId:scenario.id, gate:receipt.gate, generatedAt:receipt.generatedAt, fps:runtimeProbe.fps, visual:receipt.visualReadback ? {complete:receipt.visualReadback.complete, nonBlack:receipt.visualReadback.nonBlack, meanRgb:receipt.visualReadback.meanRgb, maxRgb:receipt.visualReadback.maxRgb} : null});
++        wpInstrumentationState.history = wpInstrumentationState.history.slice(0, 16);
++      }
++      return receipt;
++    }
++    function wpPhase13Packet() {
++      return {
++        schema:'waterpro.fable.phase13_packet.v1.3',
++        generatedAt:new Date().toISOString(),
++        module:wpInstrumentationModule,
++        instrumentationState:{...wpInstrumentationState, lastReceipt:undefined},
++        proofScenarios:wpInstrumentationScenarios,
++        performanceBudgets:wpPerfBudgets,
++        performanceBudgetReceipt:wpBudgetStatus(),
++        visualProofReceipt:wpInstrumentationState.lastReceipt || wpInstrumentationReceipt(wpInstrumentationState.activeScenario, false),
++        validation:wpPhase12Packet(),
++        recipe:wpRecipe(),
++        riskRegister:[
++          'Container syntax validation is not accepted visual proof.',
++          'Offscreen visual readback is 64x64 and proves non-black rendering only; it is not a semantic visual diff.',
++          'Future diagnostic channel readbacks are required for height/depth/foam/wetness correctness.',
++          'GPU timestamp queries and pass-level budgets require feature detection and browser support.',
++          'Heavy preview links should stay out of assistant replies unless explicitly requested.'
++        ]
++      };
++    }
++    function wpRenderInstrumentation() {
++      const status = $('wpInstrumentationStatus');
++      const budget = wpBudgetStatus();
++      const vr = runtimeProbe.visualReadback || visualReadback || {};
++      if (status) status.innerHTML = '<strong>'+wpInstrumentationModule.id+'</strong><br>gate: '+budget.gate+' · fps: '+(runtimeProbe.fps ?? 'pending')+' · frames: '+bootDiag.frameSubmits+' · readback: '+(vr.failed?'failed':vr.complete?'complete':vr.pending?'pending':'not complete')+' · nonBlack: '+(vr.nonBlack?'yes':'no')+'<br>preview links: disabled by workflow unless requested';
++      const scenarios = $('wpInstrumentationScenarios');
++      if (scenarios) scenarios.innerHTML = wpInstrumentationScenarios.map(s => '<div class="wpNode"><small>'+s.id+'</small><h3>'+s.title+'</h3><p>'+s.goal+'</p><p><b>Applies:</b> '+(s.applies||[]).join(', ')+'</p><button data-wp-proof-scenario="'+s.id+'">Apply + Request Readback</button></div>').join('');
++      const budgets = $('wpBudgetNodes');
++      if (budgets) budgets.innerHTML = budget.statuses.map(b => '<div class="wpNode '+(b.status==='fail'?'bad':b.status==='warn'?'warn':'')+'"><small>'+b.id+'</small><h3>'+b.status.toUpperCase()+' · '+b.title+'</h3><p><b>Target:</b> '+b.target+'</p><p><b>Value:</b> '+String(typeof b.value === 'object' ? JSON.stringify(b.value) : b.value)+'</p></div>').join('');
++      const hist = $('wpInstrumentationHistory');
++      if (hist) hist.innerHTML = (wpInstrumentationState.history.length ? wpInstrumentationState.history : [{scenarioId:wpInstrumentationState.activeScenario, gate:budget.gate, generatedAt:new Date().toISOString(), fps:runtimeProbe.fps, visual:vr ? {complete:vr.complete, nonBlack:vr.nonBlack, meanRgb:vr.meanRgb, maxRgb:vr.maxRgb} : null}]).map(h => '<div class="wpNode"><small>'+h.generatedAt+'</small><h3>'+h.gate+' · '+h.scenarioId+'</h3><p>fps '+(h.fps ?? 'pending')+' · visual '+(h.visual ? JSON.stringify(h.visual) : 'pending')+'</p></div>').join('');
++      const pre = $('wpInstrumentationPacket'); if (pre) pre.textContent = JSON.stringify(wpPhase13Packet(), null, 2).slice(0, 18000);
++    }
++
++    function wpRenderAll() { wpRenderStatus(); wpRenderWorkbench(); wpRenderVolumes(); wpRenderSemanticVolumeManager(); wpRenderTerrainIntent(); wpRenderObjectInteraction(); wpRenderComposer(); wpRenderValidation(); wpRenderInstrumentation(); wpRenderChannels(); wpRenderABI(); wpRenderDiagnostics(); wpRenderCoreProof(); wpRenderFableCore(); wpRenderFftSource(); wpRenderSurfaceFilm(); wpRenderSplashConversion(); wpRenderBubbleProxy(); wpRenderAudit(); wpRenderClassification(); wpRenderExperiments(); wpRenderRoadmap(); wpRefreshRecipeBox(); }
+     root.addEventListener('click', async (e) => {
+       const ds = e.target.dataset || {};
+       if (ds.wpCoreScenario) { wpApplyFableCoreScenario(ds.wpCoreScenario); return; }
+@@ -5675,6 +5840,7 @@
+       if (ds.wpComposerDownload) { const r = wpComposerState.library.find(x=>x.id===ds.wpComposerDownload); if (r) wpDownload(ds.wpComposerDownload + '.json', r); return; }
+       if (ds.wpValidationRun) { wpValidationReceipt(ds.wpValidationRun, false); wpRenderAll(); return; }
+       if (ds.wpValidationRunapply) { wpValidationReceipt(ds.wpValidationRunapply, true); wpRenderAll(); return; }
++      if (ds.wpProofScenario) { wpApplyProofScenario(ds.wpProofScenario); wpRenderAll(); return; }
+       if (ds.wpTerrainIntent) { const map={ 'river-path':'river','lake-basin':'lake','waterfall-lip-plunge':'waterfall','mountain-flood':'flood','breaker-shelf':'bar','curved-cove':'cove' }; wpPaintTerrainIntent(map[ds.wpTerrainIntent] || ds.wpTerrainIntent); return; }
+       if (ds.wpFocusChannel) { wpSetDiagFocus(ds.wpFocusChannel, null); return; }
+       if (ds.wpFocusLayer) { wpSetDiagFocus(null, ds.wpFocusLayer); return; }
+@@ -5710,6 +5876,11 @@
+       if (action === 'downloadValidationReceipt') wpDownload('waterpro-fable-validation-receipt-phase12.json', wpValidationState.lastReceipt || wpValidationReceipt(wpValidationState.activeSuite || 'full-connected-stack', false));
+       if (action === 'downloadRegressionMatrix') wpDownload('waterpro-fable-regression-matrix-phase12.json', {schema:'waterpro.regression_matrix.v1.2_phase12', generatedAt:new Date().toISOString(), module:wpValidationModule, suites:wpValidationSuites});
+       if (action === 'downloadPhase12Packet') wpDownload('waterpro-fable-phase12-packet.json', wpPhase12Packet());
++      if (action === 'requestVisualReadback') { wpResetVisualReadback('manual-proof-page'); wpRenderAll(); }
++      if (action === 'downloadInstrumentationPacket') wpDownload('waterpro-fable-instrumentation-packet-phase13.json', wpPhase13Packet());
++      if (action === 'downloadVisualProofReceipt') wpDownload('waterpro-fable-visual-proof-receipt-phase13.json', wpInstrumentationReceipt(wpInstrumentationState.activeScenario, true));
++      if (action === 'downloadPerformanceBudgets') wpDownload('waterpro-fable-performance-budgets-phase13.json', wpBudgetStatus());
++      if (action === 'downloadPhase13Packet') wpDownload('waterpro-fable-phase13-packet.json', wpPhase13Packet());
+       if (action === 'refreshAudit') wpRenderAudit();
+       if (action === 'downloadAudit') wpDownload('waterpro-fable-phase01-baseline-audit.json', wpBaselineAudit());
+       if (action === 'downloadChannelMap') wpDownload('waterpro-fable-runtime-channel-map.json', {schema:'waterpro.fable.channel_map.v0.2', generatedAt:new Date().toISOString(), channels:wpChannelRegistry.map(([id,source,meaning])=>({id,source,meaning})), layers:wpLayerRegistry.map(x=>({...x}))});
+@@ -5728,14 +5899,14 @@
+       if (action === 'downloadClassification') wpDownload('waterpro-fable-module-classification.json', {schema:'waterpro.fable.module_classification.v0.2', generatedAt:new Date().toISOString(), modules:wpClassification});
+       if (action === 'downloadExperiments') wpDownload('waterpro-fable-experiment-queue.json', {schema:'waterpro.fable.experiment_queue.v0.2', generatedAt:new Date().toISOString(), experiments:wpExperimentQueue});
+       if (action === 'downloadRoadmap') wpDownload('waterpro-fable-multiphase-roadmap.json', {schema:'waterpro.fable.phase_plan.v0.2', generatedAt:new Date().toISOString(), phases:wpPhasePlan});
+-      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase12-packet.json', {schema:'waterpro.fable.phase12_packet.v1.2', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
++      if (action === 'downloadPhasePacket') wpDownload('waterpro-fable-phase13-packet.json', {schema:'waterpro.fable.phase13_packet.v1.3', generatedAt:new Date().toISOString(), audit:wpBaselineAudit(), recipe:wpRecipe(), classification:wpClassification, experiments:wpExperimentQueue, roadmap:wpPhasePlan, abi:wpAbiPacket(), fableCore:wpFableCorePacket(), fftSource:wpFftSourcePacket(), surfaceFilm:wpSurfaceFilmPacket(), splashConversion:wpSplashConversionPacket(), bubbleProxy:wpBubbleProxyPacket(), semanticVolumeManager:wpSemanticVolumePacket(), terrainIntent:wpTerrainIntentPacket(), objectInteraction:wpObjectInteractionPacket(), composer:wpComposerPacket(), validation:wpPhase12Packet(), instrumentation:wpPhase13Packet(), diagnosticState:{...wpDiagnosticState, mutedLayers:[...wpDiagnosticState.mutedLayers]}});
+       if (action === 'refreshRecipe') wpRefreshRecipeBox();
+       if (action === 'downloadRecipe') wpDownload('waterpro-fable-connected-recipe.json', wpRecipe());
+       if (action === 'copyRecipe') { try { await navigator.clipboard.writeText($('wpRecipeText')?.value || JSON.stringify(wpRecipe(), null, 2)); } catch(err) { console.warn('clipboard copy failed', err); } }
+       if (action === 'applyRecipeText') { try { const r = JSON.parse($('wpRecipeText')?.value || '{}'); if (r.currentControls) { for (const grp of Object.values(r.currentControls)) Object.assign(state, grp); syncInputs(state); uploadWorld(); uploadSpectrum(); rebuildWorld(); resetWater(); } if (Array.isArray(r.semanticVolumes)) wpSemantic.volumes = r.semanticVolumes; if (r.activeVolume) wpSemantic.activeVolume = r.activeVolume; wpRenderAll(); } catch(err) { alert('Recipe parse/apply failed: '+err.message); } }
+     });
+     window.WaterPROFableHub = {
+-      version:'1.1-phase11-water-system-composer',
++      version:'1.3-phase13-instrumentation-proof-budgets',
+       recipe:wpRecipe,
+       volumes:() => wpSemantic.volumes.map(v => ({...v, ...wpHydrateVolume(v)})),
+       semanticVolumeManager:wpSemanticVolumePacket,
+@@ -5749,6 +5920,11 @@
+       saveComposerRecipe:wpSaveComposerRecipe,
+       recipeLibrary:() => wpComposerState.library,
+       validation:wpPhase12Packet,
++      instrumentation:wpPhase13Packet,
++      visualProofReceipt:wpInstrumentationReceipt,
++      performanceBudgets:wpBudgetStatus,
++      requestVisualReadback:wpResetVisualReadback,
++      proofScenarios:() => wpInstrumentationScenarios.map(s => ({...s, applies:[...s.applies]})),
+       validationReceipt:wpValidationReceipt,
+       regressionSuites:() => wpValidationSuites.map(s => ({...s, scenarios:[...s.scenarios]})),
+       layers:() => wpLayerRegistry.map(v => ({...v})),
+@@ -6009,8 +6185,8 @@
+ 
+ <button id="devToggle">&#9881; DEV PAGES</button>
+ <div id="devPages">
+-  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 11</b></span><span id="devClose">&#10005;</span></div>
+-  <div class="mapHint">Phase 12 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds validation/regression/receipt infrastructure over the protected Fable core, FFT source, surface-film, splash conversion, bubble proxy, semantic volumes, terrain intent, object interaction, and Composer recipe systems.</div>
++  <div class="devHd"><span>FABLE OCEAN <b style="color:#5fd">&middot; WATERPRO DEV HUB PHASE 13</b></span><span id="devClose">&#10005;</span></div>
++  <div class="mapHint">Phase 13 connected WaterPRO DevHub inside the existing Fable ocean/shallow-water app. This build adds instrumentation/proof infrastructure: visual readback receipts, runtime probes, performance budget targets, scenario capture intents, and proof packets over the protected Fable core and all WaterPRO connected modules.</div>
+   <div class="devNav" id="devNav">
+     <button data-page="effects" class="on">Effects</button>
+     <button data-page="workbench">Workbench</button>
+@@ -6031,6 +6207,7 @@
+     <button data-page="recipes">Recipes</button>
+     <button data-page="composer">Composer</button>
+     <button data-page="validation">Validation</button>
++    <button data-page="instrumentation">Proof</button>
+     <button data-page="experiments">Experiments</button>
+     <button data-page="roadmap">Roadmap</button>
+     <button data-page="solver">Solver</button>
+@@ -6307,6 +6484,26 @@
+     <pre class="wpMono devNote" id="wpValidationPacket"></pre>
+   </section>
+ 
++  <section class="devPage" data-page="instrumentation">
++    <div class="wlGrp">PHASE 13 — INSTRUMENTATION / VISUAL PROOF / PERFORMANCE BUDGETS</div>
++    <div id="wpInstrumentationStatus" class="devNote"></div>
++    <div class="devNote"><b>Connected rule:</b> this page does not send heavy previews. It packages local proof targets from the existing Fable runtime: boot diagnostics, runtime FPS, frame submissions, offscreen WebGPU visual readback, validation packets, Composer recipes, and module coverage. Accepted visual proof still requires running the HTML locally in Chrome/Edge.</div>
++    <div class="wpActionRow">
++      <button data-wp-action="requestVisualReadback">Request Visual Readback</button>
++      <button data-wp-action="downloadVisualProofReceipt">Download Visual Proof Receipt</button>
++      <button data-wp-action="downloadPerformanceBudgets">Download Performance Budgets</button>
++      <button data-wp-action="downloadInstrumentationPacket">Download Instrumentation Packet</button>
++      <button data-wp-action="downloadPhase13Packet">Download Phase 13 Packet</button>
++    </div>
++    <div class="wlGrp">Proof scenarios</div>
++    <div class="wpHubGrid" id="wpInstrumentationScenarios"></div>
++    <div class="wlGrp">Performance / proof budgets</div>
++    <div class="wpHubGrid" id="wpBudgetNodes"></div>
++    <div class="wlGrp">Instrumentation history</div>
++    <div class="wpHubGrid" id="wpInstrumentationHistory"></div>
++    <pre class="wpMono devNote" id="wpInstrumentationPacket"></pre>
++  </section>
++
+   <section class="devPage" data-page="solver">
+     <div class="wlGrp">Solver pages</div>
+     <div class="devGrid one" id="devSolver"></div>
