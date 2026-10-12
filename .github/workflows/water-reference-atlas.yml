@@ -1,0 +1,64 @@
+name: THALASSA water reference atlas real renders
+on:
+  push:
+    branches: [research/water-reference-atlas]
+    paths:
+      - '.github/workflows/water-reference-atlas.yml'
+  workflow_dispatch:
+jobs:
+  original-reference-renders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Build current engine without altering donors
+        run: |
+          npm ci
+          node scripts/champion-audit.mjs
+          npm run typecheck
+          npm run build
+      - name: Copy exact original standalone references
+        run: |
+          mkdir -p dist/atlas
+          cp docs/champions/donors/library/*.html dist/atlas/
+          cp docs/champions/donors/wave-to-3d/*.html dist/atlas/
+          echo "Copied $(find dist/atlas -name '*.html' | wc -l) independent original HTML donors"
+      - name: Install Chromium with software GPU
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve local reference gallery
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/atlas-preview.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:4173/atlas/heightfieldBEST.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/atlas-preview.log
+          exit 1
+      - name: Render each original reference and record exact failures
+        run: node scripts/ci-water-reference-atlas.mjs
+      - name: Preserve actual original browser frames and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-original-water-reference-atlas-real-webgl
+          path: captures/water-reference-atlas/
+          retention-days: 21
+          if-no-files-found: warn
+      - name: Package byte-preserved original donor sources separately from images
+        if: always()
+        run: |
+          zip -q -r THALASSA_ORIGINAL_WATER_REFERENCE_SOURCES.zip docs/champions/donors/library docs/champions/donors/wave-to-3d scripts/ci-water-reference-atlas.mjs docs/consolidation/CHAMPION_REGISTRY.json
+      - name: Upload source-only recovery checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thalassa-original-water-reference-sources-code-only
+          path: THALASSA_ORIGINAL_WATER_REFERENCE_SOURCES.zip
+          retention-days: 30
+          if-no-files-found: warn
