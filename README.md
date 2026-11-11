@@ -1,73 +1,63 @@
-# Welcome to your Lovable project
+# AQUA · REACTIVE WATER LAB
 
-## Project info
+### Water should react to an event, not just play an animation.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Interactive surface waves · caustic illumination · splash particles · two-way object interaction**
 
-## How can I edit this code?
+An object disturbing a pool should not trigger an unrelated decorative particle effect. The surface should displace, waves should propagate, the moving object should respond to the scene, and splashes should remain visually related to the impact.
 
-There are several ways of editing your application.
+**Aqua** is a browser water-research application built with React, TypeScript, Three.js and React Three Fiber. Its actual source includes a GPU height-field ripple simulation, water and pool shaders, procedural environment assets, caustic rendering, draggable-object interaction, and a CPU-side MLS-MPM-inspired splash layer.
 
-**Use Lovable**
+> **Research status:** source implementation is present. This README is grounded in inspected components, **not** a new executable WebGL2 qualification or a claim that the implementation solves full Navier–Stokes free-surface hydrodynamics. Conservation, coupling accuracy, GPU cost and visual fidelity still require independent tests.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+**[Scene orchestration](src/components/WaterScene.tsx)** · **[Surface shaders and geometry](src/components/WaterSurface.tsx)** · **[Pool/environment](src/components/PoolEnvironment.tsx)** · **[Water reference documents](docs/reference/)**
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## One disturbance, multiple observable consequences
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```mermaid
+flowchart TD
+  OBJECT["Object motion or pointer impact"] --> WATER["GPU surface height-field"]
+  OBJECT --> PARTICLES["CPU splash/particle simulation"]
+  PARTICLES --> WATER
+  WATER --> CAUSTICS["Caustics and underwater illumination"]
+  WATER --> OPTICS["Reflection · refraction · normals"]
+  CAUSTICS --> SCENE["React Three Fiber scene"]
+  OPTICS --> SCENE
+  PARTICLES --> SCENE
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+The hybrid architecture uses different representations for different phenomena. A regular height field is suitable for economical surface ripples; active particles give local splashes additional freedom; the shaders then render the disturbed water and its optical interactions.
 
-Follow these steps:
+### What's actually in source
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+| Layer | Source role |
+|---|---|
+| **Surface dynamics** | `useWaterSimulation` maintains the ripple field used by the water surface |
+| **Particle response** | `useMlsMpm` manages transient impact and splash particles |
+| **Interaction** | Draggable sphere displacement, crossing events and user-triggered drops |
+| **Rendering** | Water-surface shader from above and below, surface normals and refraction |
+| **Lighting** | Caustic field and procedural sky/pool environment |
+| **UI** | Controls, event commands and source-state inspection |
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+This is a hybrid experimental renderer. The existence of a solver labeled MLS-MPM does not independently establish numerically accurate continuum mechanics, mass closure, or published physical calibration.
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Run locally
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Open the local URL printed by Vite. `npm run build` produces the browser build; a successful build alone is not a browser rendering or physics test.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## What would make it a qualified water engine?
 
-**Use GitHub Codespaces**
+A meaningful acceptance program would include source-unmodified Chromium/WebGL2 captures, frame/error telemetry, fixed impact scenarios, wave-speed and damping comparisons, material/energy accounting at the surface-particle boundary, caustic behavior under varying light, and measured GPU frame times on target hardware.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Aqua's most interesting direction is not adding more splash particles. It is making **the same physical disturbance remain coherent across surface geometry, particles and light**.
 
-## What technologies are used for this project?
+---
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+*The earlier autogenerated Lovable README has been replaced with source-specific project documentation; application source is unchanged.*
